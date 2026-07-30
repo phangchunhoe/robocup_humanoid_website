@@ -1,0 +1,310 @@
+.anatomy-page {
+  --paper: #eef1f4;
+  --panel: #ffffff;
+  --grid-line: rgba(23, 34, 43, 0.06);
+  --ink: #17222b;
+  --ink-soft: #4b5b63;
+  --rule: #ccd6da;
+  --curve: #1f5f82;
+  --curve-soft: rgba(31, 95, 130, 0.14);
+  --kick: #b34c1c;
+  --kick-soft: rgba(179, 76, 28, 0.14);
+  --mute: #8a97a0;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  .anatomy-page {
+    --paper: #10161c;
+    --panel: #161e26;
+    --grid-line: rgba(255, 255, 255, 0.045);
+    --ink: #e7edf1;
+    --ink-soft: #93a3ac;
+    --rule: #2a3740;
+    --curve: #6fb8de;
+    --curve-soft: rgba(111, 184, 222, 0.14);
+    --kick: #e8935a;
+    --kick-soft: rgba(232, 147, 90, 0.14);
+    --mute: #5c6b73;
+    color-scheme: dark;
+  }
+}
+.anatomy-page[data-theme="dark"] {
+  --paper: #10161c;
+  --panel: #161e26;
+  --grid-line: rgba(255, 255, 255, 0.045);
+  --ink: #e7edf1;
+  --ink-soft: #93a3ac;
+  --rule: #2a3740;
+  --curve: #6fb8de;
+  --curve-soft: rgba(111, 184, 222, 0.14);
+  --kick: #e8935a;
+  --kick-soft: rgba(232, 147, 90, 0.14);
+  --mute: #5c6b73;
+  color-scheme: dark;
+}
+.anatomy-page[data-theme="light"] {
+  --paper: #eef1f4;
+  --panel: #ffffff;
+  --grid-line: rgba(23, 34, 43, 0.06);
+  --ink: #17222b;
+  --ink-soft: #4b5b63;
+  --rule: #ccd6da;
+  --curve: #1f5f82;
+  --curve-soft: rgba(31, 95, 130, 0.14);
+  --kick: #b34c1c;
+  --kick-soft: rgba(179, 76, 28, 0.14);
+  --mute: #8a97a0;
+  color-scheme: light;
+}
+
+.anatomy-page * {
+  box-sizing: border-box;
+}
+
+.anatomy-page {
+  margin: 0;
+  background: linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 100% 28px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 28px 100%,
+    var(--paper);
+  color: var(--ink);
+  font-family: Georgia, "Iowan Old Style", "Source Serif 4", "Noto Serif", serif;
+  font-size: 16px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.anatomy-page .mono {
+  font-family: "JetBrains Mono", "Berkeley Mono", ui-monospace, "SF Mono", "Cascadia Code",
+    "Roboto Mono", Menlo, Consolas, monospace;
+}
+
+.anatomy-page .sheet {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 56px 24px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+}
+
+.anatomy-page header.titleblock {
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.anatomy-page header.titleblock h1 {
+  font-family: Georgia, "Iowan Old Style", "Source Serif 4", serif;
+  font-size: clamp(26px, 4vw, 34px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0;
+  text-wrap: balance;
+}
+
+.anatomy-page header.titleblock .dek {
+  margin: 0;
+  max-width: 62ch;
+  color: var(--ink-soft);
+  font-size: 17px;
+}
+
+.anatomy-page header.titleblock .dek code {
+  font-family: inherit;
+  font-style: italic;
+}
+
+.anatomy-page dl.tb-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+  margin: 0;
+}
+
+.anatomy-page dl.tb-meta > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.anatomy-page dl.tb-meta dt {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+
+.anatomy-page dl.tb-meta dd {
+  margin: 0;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.anatomy-page section.intro p {
+  margin: 0;
+  max-width: 66ch;
+  font-size: 17px;
+}
+
+.anatomy-page section.intro p + p {
+  margin-top: 14px;
+}
+
+.anatomy-page figure.panel {
+  margin: 0;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 22px 24px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.anatomy-page .panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.anatomy-page .fig-no {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  color: var(--curve);
+  background: var(--curve-soft);
+  padding: 2px 7px;
+  border-radius: 2px;
+  white-space: nowrap;
+}
+
+.anatomy-page .panel-head h2 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 700;
+  text-wrap: balance;
+}
+
+.anatomy-page .svg-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--grid-line);
+  border-radius: 2px;
+  background: linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 100% 24px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 24px 100%;
+}
+
+.anatomy-page .svg-wrap svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-width: 420px;
+}
+
+.anatomy-page figcaption {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-soft);
+  max-width: 68ch;
+}
+
+.anatomy-page figcaption .cond {
+  display: inline-block;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12.5px;
+  color: var(--curve);
+  background: var(--curve-soft);
+  padding: 1px 6px;
+  border-radius: 2px;
+  margin: 0 1px;
+}
+
+.anatomy-page ul.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 10px 16px;
+}
+
+.anatomy-page ul.legend li {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+  font-size: 14.5px;
+}
+
+.anatomy-page ul.legend .dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-top: 5px;
+  border: 2px solid currentColor;
+  background: var(--panel);
+}
+
+.anatomy-page ul.legend .label {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-weight: 700;
+  font-size: 13px;
+  margin-right: 4px;
+}
+
+.anatomy-page ul.legend .desc {
+  color: var(--ink-soft);
+}
+
+.anatomy-page .p0 {
+  color: var(--ink);
+}
+.anatomy-page .p1,
+.anatomy-page .p2 {
+  color: var(--curve);
+}
+.anatomy-page .p3 {
+  color: var(--kick);
+}
+
+.anatomy-page .spec-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.anatomy-page .spec-strip span {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  padding: 4px 8px;
+  border-radius: 2px;
+}
+
+.anatomy-page .spec-strip b {
+  color: var(--kick);
+  font-weight: 700;
+}
+
+.anatomy-page footer.tb-footer {
+  border-top: 1px solid var(--rule);
+  padding-top: 18px;
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--mute);
+  letter-spacing: 0.02em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .anatomy-page * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

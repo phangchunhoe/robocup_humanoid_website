@@ -1,0 +1,82 @@
+.improve-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 12, 10, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+}
+
+.improve-modal {
+  background: #161e26;
+  color: #e7edf1;
+  border: 1px solid #2a3740;
+  border-radius: 12px;
+  max-width: 640px;
+  width: 100%;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.improve-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid #2a3740;
+  flex: none;
+}
+
+.improve-modal-head h2 {
+  margin: 0;
+  font-size: 17px;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
+}
+
+.improve-modal-close {
+  background: transparent;
+  border: none;
+  color: #93a3ac;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.improve-modal-close:hover {
+  color: #e7edf1;
+  background: #202a33;
+}
+
+.improve-modal-body {
+  padding: 16px 20px 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.improve-group h3 {
+  margin: 0 0 8px;
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #93a3ac;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
+}
+
+.improve-group ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
