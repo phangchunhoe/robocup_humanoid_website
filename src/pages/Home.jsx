@@ -20,9 +20,9 @@ const sections = [
     desc: "Set-piece routines for direct and indirect free kicks.",
   },
   {
-    to: "/communication-nodes",
-    title: "Communication Nodes",
-    desc: "Inter-robot messaging and role coordination.",
+    to: "/team-comm-byte-format",
+    title: "Team Communication",
+    desc: "The fixed 16-byte UDP packet robots broadcast to coordinate roles, ball belief, and the goalkeeper handoff.",
   },
 ];
 

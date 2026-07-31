@@ -23,7 +23,7 @@ const areasForImprovement = [
     ],
   },
   {
-    section: "Communication Nodes",
+    section: "Team Communication",
     items: ["NIL"],
   },
 ];

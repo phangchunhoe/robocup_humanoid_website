@@ -4,6 +4,7 @@ import CategoryPage from "./pages/CategoryPage.jsx";
 import BezierAnatomy from "./pages/BezierAnatomy.jsx";
 import LongRangePreview from "./pages/LongRangePreview.jsx";
 import FreekickExplorer from "./pages/FreekickExplorer.jsx";
+import TeamCommByteFormat from "./pages/TeamCommByteFormat.jsx";
 import strikerStrategyItems from "./content/strikerStrategyItems.js";
 import freekickStrategyItems from "./content/freekickStrategyItems.js";
 
@@ -41,18 +42,10 @@ export default function App() {
             />
           }
         />
-        <Route
-          path="/communication-nodes"
-          element={
-            <CategoryPage
-              title="Communication Nodes"
-              description="Inter-robot messaging and role coordination."
-            />
-          }
-        />
         <Route path="/anatomy" element={<BezierAnatomy />} />
         <Route path="/long-range-preview" element={<LongRangePreview />} />
         <Route path="/freekick-explorer" element={<FreekickExplorer />} />
+        <Route path="/team-comm-byte-format" element={<TeamCommByteFormat />} />
       </Routes>
     </HashRouter>
   );
