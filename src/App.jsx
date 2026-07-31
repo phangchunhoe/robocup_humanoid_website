@@ -3,7 +3,9 @@ import Home from "./pages/Home.jsx";
 import CategoryPage from "./pages/CategoryPage.jsx";
 import BezierAnatomy from "./pages/BezierAnatomy.jsx";
 import LongRangePreview from "./pages/LongRangePreview.jsx";
+import FreekickExplorer from "./pages/FreekickExplorer.jsx";
 import strikerStrategyItems from "./content/strikerStrategyItems.js";
+import freekickStrategyItems from "./content/freekickStrategyItems.js";
 
 export default function App() {
   return (
@@ -34,7 +36,8 @@ export default function App() {
           element={
             <CategoryPage
               title="All of the Freekicks Strategy"
-              description="Set-piece routines for direct and indirect free kicks."
+              description="Set-piece routines for direct/indirect free kicks, throw-ins, goal kicks, and corner kicks."
+              items={freekickStrategyItems}
             />
           }
         />
@@ -49,6 +52,7 @@ export default function App() {
         />
         <Route path="/anatomy" element={<BezierAnatomy />} />
         <Route path="/long-range-preview" element={<LongRangePreview />} />
+        <Route path="/freekick-explorer" element={<FreekickExplorer />} />
       </Routes>
     </HashRouter>
   );
