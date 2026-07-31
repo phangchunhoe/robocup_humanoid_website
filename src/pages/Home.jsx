@@ -10,7 +10,7 @@ const sections = [
     desc: "How the striker chases the ball, curves in behind it, and decides when to kick.",
   },
   {
-    to: "/goalie-strategy",
+    to: "/goalie-explorer",
     title: "Goalie Strategy",
     desc: "Positioning, diving, and shot-stopping logic for the goalkeeper node.",
   },

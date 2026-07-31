@@ -5,8 +5,10 @@ import BezierAnatomy from "./pages/BezierAnatomy.jsx";
 import LongRangePreview from "./pages/LongRangePreview.jsx";
 import FreekickExplorer from "./pages/FreekickExplorer.jsx";
 import TeamCommByteFormat from "./pages/TeamCommByteFormat.jsx";
+import GoalieExplorer from "./pages/GoalieExplorer.jsx";
 import strikerStrategyItems from "./content/strikerStrategyItems.js";
 import freekickStrategyItems from "./content/freekickStrategyItems.js";
+import goalieStrategyItems from "./content/goalieStrategyItems.js";
 
 export default function App() {
   return (
@@ -29,6 +31,7 @@ export default function App() {
             <CategoryPage
               title="Goalie Strategy"
               description="Positioning, diving, and shot-stopping logic for the goalkeeper node."
+              items={goalieStrategyItems}
             />
           }
         />
@@ -45,6 +48,7 @@ export default function App() {
         <Route path="/anatomy" element={<BezierAnatomy />} />
         <Route path="/long-range-preview" element={<LongRangePreview />} />
         <Route path="/freekick-explorer" element={<FreekickExplorer />} />
+        <Route path="/goalie-explorer" element={<GoalieExplorer />} />
         <Route path="/team-comm-byte-format" element={<TeamCommByteFormat />} />
       </Routes>
     </HashRouter>
