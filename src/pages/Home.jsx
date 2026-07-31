@@ -15,7 +15,7 @@ const sections = [
     desc: "Positioning, diving, and shot-stopping logic for the goalkeeper node.",
   },
   {
-    to: "/freekick-strategy",
+    to: "/freekick-explorer",
     title: "All of the Freekicks Strategy",
     desc: "Set-piece routines for direct and indirect free kicks.",
   },
