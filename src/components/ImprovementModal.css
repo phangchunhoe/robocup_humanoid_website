@@ -34,7 +34,7 @@
 
 .improve-modal-head h2 {
   margin: 0;
-  font-size: 17px;
+  font-size: 21px;
   font-family: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
 }
 
@@ -63,8 +63,8 @@
 }
 
 .improve-group h3 {
-  margin: 0 0 8px;
-  font-size: 12.5px;
+  margin: 0 0 10px;
+  font-size: 15px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: #93a3ac;
@@ -73,10 +73,10 @@
 
 .improve-group ul {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 20px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  font-size: 13.5px;
-  line-height: 1.55;
+  gap: 8px;
+  font-size: 16.5px;
+  line-height: 1.6;
 }
