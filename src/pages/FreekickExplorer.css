@@ -340,15 +340,6 @@
   margin-top: 2px;
 }
 
-.freekick-explorer-page h3.group-title {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.09em;
-  color: var(--muted);
-  margin: 0 0 8px 0;
-  font-weight: 700;
-}
 .freekick-explorer-page .role-card {
   border: 1px solid var(--panel-border);
   border-radius: 8px;
