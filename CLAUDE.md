@@ -172,7 +172,21 @@ Components built for it and available for reuse (`src/components/`):
   on the dark canvas. Nothing on the landing route depends on that block.
 - The shared **site header** (`src/components/Header.css`) and
   **improvement modal**.
+- The two **field explorers** (`FreekickExplorer`, `GoalieExplorer`). They are
+  visually the same page apart from the roles and overlays they draw, so their
+  common layout, palette, and console chrome lives in one place —
+  `src/pages/explorer-shared.css`, on a shared `.explorer-page` class. Each
+  page keeps only its own rules and imports the shared sheet *first*, so
+  page-specific rules win on equal specificity. Both classes stay on the root
+  element: `className="explorer-page freekick-explorer-page"`. When these get
+  their token pass, migrate the shared sheet once rather than twice.
 - All other pages (`Home`, `CategoryPage`, `BezierAnatomy`, …).
 
 Don't treat those as precedent — migrate toward the tokens above, don't copy
 what's there.
+
+A note on what "legacy" means here: it marks styling that is *off-system*, not
+dead. It is all live and rendering. Dead code — rules whose selector can never
+match, custom properties nothing reads — should just be deleted; the
+`[data-theme]` blocks that once shadowed every page palette were exactly that,
+since nothing ever set the attribute.

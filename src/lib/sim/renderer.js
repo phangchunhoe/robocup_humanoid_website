@@ -9,7 +9,7 @@ import { BALL_RADIUS, ROBOT_RADIUS } from "./physics.js";
 
 const DECISION_COLOR = {
   chase: "var(--lead)",
-  adjust: "var(--accent)",
+  adjust: "var(--accent-legacy)",
   kick: "var(--pass)",
   cross: "var(--pass)",
   find: "var(--assist)",
@@ -37,7 +37,7 @@ export function createRenderer(svg) {
 
   const plannedPath = svgEl("path", {
     fill: "none",
-    stroke: "var(--accent)",
+    stroke: "var(--accent-legacy)",
     "stroke-width": 2.5,
     "stroke-dasharray": "7 5",
     "stroke-opacity": 0.9,
@@ -54,10 +54,10 @@ export function createRenderer(svg) {
 
   const targetMark = svgEl("g", {});
   targetMark.appendChild(
-    svgEl("circle", { r: 7, fill: "none", stroke: "var(--accent)", "stroke-width": 2 })
+    svgEl("circle", { r: 7, fill: "none", stroke: "var(--accent-legacy)", "stroke-width": 2 })
   );
   targetMark.appendChild(
-    svgEl("circle", { r: 2.5, fill: "var(--accent)" })
+    svgEl("circle", { r: 2.5, fill: "var(--accent-legacy)" })
   );
   svg.appendChild(targetMark);
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import Header from "../components/Header.jsx";
+import "./explorer-shared.css";
 import "./GoalieExplorer.css";
 
 const CONTENT_HTML = `
@@ -496,7 +497,7 @@ export default function GoalieExplorer() {
     <>
       <Header />
       <div
-        className="goalie-explorer-page"
+        className="explorer-page goalie-explorer-page"
         ref={rootRef}
         dangerouslySetInnerHTML={{ __html: CONTENT_HTML }}
       />

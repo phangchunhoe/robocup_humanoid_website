@@ -8,7 +8,6 @@
   --curve: #1f5f82;
   --curve-soft: rgba(31, 95, 130, 0.14);
   --kick: #b34c1c;
-  --kick-soft: rgba(179, 76, 28, 0.14);
   --mute: #8a97a0;
   color-scheme: light;
 }
@@ -23,38 +22,9 @@
     --curve: #6fb8de;
     --curve-soft: rgba(111, 184, 222, 0.14);
     --kick: #e8935a;
-    --kick-soft: rgba(232, 147, 90, 0.14);
     --mute: #5c6b73;
     color-scheme: dark;
   }
-}
-.anatomy-page[data-theme="dark"] {
-  --paper: #10161c;
-  --panel: #161e26;
-  --grid-line: rgba(255, 255, 255, 0.045);
-  --ink: #e7edf1;
-  --ink-soft: #93a3ac;
-  --rule: #2a3740;
-  --curve: #6fb8de;
-  --curve-soft: rgba(111, 184, 222, 0.14);
-  --kick: #e8935a;
-  --kick-soft: rgba(232, 147, 90, 0.14);
-  --mute: #5c6b73;
-  color-scheme: dark;
-}
-.anatomy-page[data-theme="light"] {
-  --paper: #eef1f4;
-  --panel: #ffffff;
-  --grid-line: rgba(23, 34, 43, 0.06);
-  --ink: #17222b;
-  --ink-soft: #4b5b63;
-  --rule: #ccd6da;
-  --curve: #1f5f82;
-  --curve-soft: rgba(31, 95, 130, 0.14);
-  --kick: #b34c1c;
-  --kick-soft: rgba(179, 76, 28, 0.14);
-  --mute: #8a97a0;
-  color-scheme: light;
 }
 
 .anatomy-page * {

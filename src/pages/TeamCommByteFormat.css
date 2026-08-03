@@ -66,38 +66,6 @@
     color-scheme: dark;
   }
 }
-.tcbf-page[data-theme="dark"] {
-  --paper: #10161c;
-  --panel: #161e26;
-  --grid-line: rgba(255, 255, 255, 0.045);
-  --ink: #e7edf1;
-  --ink-soft: #93a3ac;
-  --rule: #2a3740;
-  --accent: #6fb8de;
-  --accent-soft: rgba(111, 184, 222, 0.14);
-  --warn: #e8935a;
-  --warn-soft: rgba(232, 147, 90, 0.14);
-  --mute: #5c6b73;
-  --good: #6fcf97;
-  --good-soft: rgba(111, 207, 151, 0.14);
-  color-scheme: dark;
-}
-.tcbf-page[data-theme="light"] {
-  --paper: #eef1f4;
-  --panel: #ffffff;
-  --grid-line: rgba(23, 34, 43, 0.06);
-  --ink: #17222b;
-  --ink-soft: #4b5b63;
-  --rule: #ccd6da;
-  --accent: #1f5f82;
-  --accent-soft: rgba(31, 95, 130, 0.14);
-  --warn: #b34c1c;
-  --warn-soft: rgba(179, 76, 28, 0.14);
-  --mute: #8a97a0;
-  --good: #2c7a4b;
-  --good-soft: rgba(44, 122, 75, 0.14);
-  color-scheme: light;
-}
 
 .tcbf-page * {
   box-sizing: border-box;

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import Header from "../components/Header.jsx";
+import "./explorer-shared.css";
 import "./FreekickExplorer.css";
 
 const CONTENT_HTML = `
@@ -744,7 +745,7 @@ export default function FreekickExplorer() {
     <>
       <Header />
       <div
-        className="freekick-explorer-page"
+        className="explorer-page freekick-explorer-page"
         ref={rootRef}
         dangerouslySetInnerHTML={{ __html: CONTENT_HTML }}
       />

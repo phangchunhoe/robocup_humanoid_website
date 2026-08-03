@@ -439,8 +439,11 @@
   --accent-ink: #ffd9a0;
   --lead: #e2766a;
   --assist: #8fc4ff;
+  --goalie: #c6a6ff;
   --pass: #63c894;
   --fail: #e2766a;
+  --ball-fill: #f5f1e6;
+  --ball-stroke: #171712;
   --code-bg: #0b100d;
   --font-mono-legacy: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
   --lead-rgb: 226, 118, 106;
