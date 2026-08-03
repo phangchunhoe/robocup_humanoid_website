@@ -14,9 +14,10 @@ export const TABS = [
       "// Paste the full contents of Robocup-Humanoid-/src/brain/src/brain_tree.cpp here.\n" +
       "//\n" +
       "// These functions will be extracted and executed:\n" +
-      "//   TickChaseNode        StrikerChase::tick     GoalieChase::tick\n" +
-      "//   Adjust::tick         StrikerDecide::tick    GoalieDecide::tick\n" +
-      "//   Kick::onStart        Kick::onRunning        CalcKickDir::tick\n" +
+      "//   TickChaseNode              StrikerChase::tick     GoalieChase::tick\n" +
+      "//   Adjust::tick               StrikerDecide::tick    GoalieDecide::tick\n" +
+      "//   Kick::onStart              Kick::onRunning        CalcKickDir::tick\n" +
+      "//   GoToGoalBlockingPosition::tick  (goalkeeper 'retreat')\n" +
       "//\n" +
       "// Everything else in the file is skipped.",
   },

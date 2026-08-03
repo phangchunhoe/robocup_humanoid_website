@@ -65,7 +65,6 @@ export default function RobotSimulator() {
   const [placement, setPlacement] = useState(INITIAL_PLACEMENT.striker);
   const [overrun, setOverrun] = useState(false);
   const [runtimeError, setRuntimeError] = useState(null);
-  const [stallInfo, setStallInfo] = useState(null); // { decision } while stalled, else null
 
   const svgRef = useRef(null);
   const rendererRef = useRef(null);
@@ -84,8 +83,6 @@ export default function RobotSimulator() {
   // is only written when a value actually changes.
   const errorRef = useRef(null);
   const overrunRef = useRef(false);
-  const stalledRef = useRef(false);
-  const stallSecondsRef = useRef(null);
 
   useEffect(() => {
     document.title = "Robot Simulator — Chase / Adjust / Kick";
@@ -156,10 +153,8 @@ export default function RobotSimulator() {
     if (logRef.current) logRef.current.textContent = "";
     errorRef.current = null;
     overrunRef.current = false;
-    stalledRef.current = false;
     setRuntimeError(null);
     setOverrun(false);
-    setStallInfo(null);
     if (engineRef.current) engineRef.current.resetStats();
   }, [role]);
 
@@ -189,23 +184,6 @@ export default function RobotSimulator() {
       setRuntimeError(runtime.error);
       if (engineRef.current) engineRef.current.stop();
       setRunning(false);
-    }
-
-    // Stall banner: mount/unmount only on the boolean transition (a React state change),
-    // but keep the live seconds counter inside it updated imperatively every frame so a
-    // growing number does not force a re-render 100 times a second. This does not pause
-    // the sim -- some real control paths in the pasted code genuinely never recover on
-    // their own (see the note in the banner), and the run should keep reflecting that.
-    const t = runtime.telemetry;
-    if (t.stalled && !stalledRef.current) {
-      stalledRef.current = true;
-      setStallInfo({ decision: t.decision });
-    } else if (!t.stalled && stalledRef.current) {
-      stalledRef.current = false;
-      setStallInfo(null);
-    }
-    if (t.stalled && stallSecondsRef.current) {
-      stallSecondsRef.current.textContent = t.stalledSeconds.toFixed(1) + "s";
     }
   }, []);
 
@@ -452,8 +430,6 @@ export default function RobotSimulator() {
               setPhysics={setPhysics}
               overrun={overrun}
               runtimeError={runtimeError}
-              stallInfo={stallInfo}
-              stallSecondsRef={stallSecondsRef}
               roleMeta={roleMeta}
               onBack={() => {
                 if (engineRef.current) engineRef.current.stop();
@@ -756,7 +732,7 @@ function Diagnostics({ report, required }) {
 function SimStep(props) {
   const {
     svgRef, readoutRef, notesRef, logRef, running, onTogglePlay, onStepOnce, onReset, onSpeed,
-    physics, setPhysics, overrun, runtimeError, stallInfo, stallSecondsRef, roleMeta, onBack,
+    physics, setPhysics, overrun, runtimeError, roleMeta, onBack,
   } = props;
 
   return (
@@ -792,26 +768,6 @@ function SimStep(props) {
           <strong>Execution stopped:</strong> {runtimeError.message}
           <span className="banner-note">
             The robot is halted. Fix the pasted code or the missing symbol, then Run again.
-          </span>
-        </div>
-      ) : null}
-      {stallInfo ? (
-        <div className="banner stall">
-          <strong>
-            Robot stalled — <code>{stallInfo.decision}</code> has commanded zero velocity for{" "}
-            <span ref={stallSecondsRef}>0.0s</span>
-          </strong>
-          <span className="banner-note">
-            This is not a simulator bug. When decision is <code>kick</code> or{" "}
-            <code>cross</code>, <code>Kick::onStart</code> can fail its straight-kick
-            alignment gate and respond with <code>setVelocity(0,0,0); return SUCCESS</code>{" "}
-            — for the striker role that path has no recovery (only the goalkeeper branch
-            falls through to a crabWalk fallback; see the comment in your paste near{" "}
-            <em>&ldquo;Silently exiting caused &apos;kick&apos; decisions with no
-            motion.&rdquo;</em>). With zero velocity the robot&rsquo;s pose does not change,
-            so the same gate keeps failing — on real hardware, sensor and footstep noise
-            would eventually nudge it past the threshold; this simulator&rsquo;s perfect
-            perception cannot. Drag the ball or robot slightly, or Reset, to break out.
           </span>
         </div>
       ) : null}
@@ -909,12 +865,13 @@ function SimStep(props) {
               <strong>Perception is perfect.</strong> <code>ball_location_known</code> is
               always true and the ball position carries no noise, so the <code>find</code>
               branch, the close-ball guard and the anti-phantom latch never fire. One
-              consequence: if <code>Kick::onStart</code>&rsquo;s straight-kick gate fails at
-              a standstill, the commanded velocity is exactly zero and the robot&rsquo;s
-              pose is bit-for-bit unchanged next tick, so the same gate fails forever. On
-              hardware, sensor and footstep noise would nudge this one way or the other
-              within a second or two; here it can persist, and is flagged as a
-              <em>stall</em>, not hidden or auto-resolved.
+              consequence: a borderline gate (e.g. <code>Kick::onStart</code>&rsquo;s
+              straight-kick alignment check, or a decision that flip-flops between two
+              states whose commands cancel out) can leave the robot motionless
+              indefinitely, since its pose is bit-for-bit unchanged tick to tick with no
+              noise to nudge it past the threshold. On hardware this resolves within a
+              second or two on its own; here it can persist. If the robot looks frozen,
+              check the log panel and readout for the decision it is stuck on.
             </li>
             <li>
               <strong>One robot, empty pitch.</strong> <code>distToObstacle()</code> always

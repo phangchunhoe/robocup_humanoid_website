@@ -204,6 +204,19 @@ const CASES = [
       "double dx = 3, dy = 4; double n = norm(dx, dy); double c = cap(n, 4.0, 0.0); return c;",
     expect: 4,
   },
+  {
+    // Regression: `brain->data->goalBlockingTarget = {setX, setY, 0.0};` is a brace-init
+    // REASSIGNMENT (not a fresh declaration), so buildStruct()'s declaration-time typing
+    // never runs. Without evalInitListLike inferring the shape from the field's existing
+    // value, this silently produced the array [x,y,0] instead of {x,y,z:0} -- and since
+    // an array has no .x/.y, GoToGoalBlockingPosition::tick's `targetPose.x =
+    // goalBlockingTarget.x` read undefined, leaving the goalkeeper's retreat walk frozen.
+    name: "brace-init reassignment maps onto the existing struct's fields",
+    code:
+      "Point p = {1, 2, 3}; double setX = 9, setY = 8; p = {setX, setY, 0.0};" +
+      "return p.x == 9 && p.y == 8 && p.z == 0;",
+    expect: true,
+  },
 ];
 
 function approxEqual(a, b) {

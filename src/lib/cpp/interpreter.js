@@ -635,7 +635,29 @@ export class Interpreter {
 
   evalAssign(node, scope, fnKey) {
     const ref = this.reference(node.target, scope, fnKey);
-    let value = this.eval(node.value, scope, fnKey);
+    let value;
+    if (node.op === "=" && node.value.kind === "InitList") {
+      // `someStructField = {a, b, c};` -- a brace-init used as a plain REASSIGNMENT,
+      // not a fresh declaration. buildStruct() (used by VarDecl) knows the target type
+      // from the declaration's type name, but a bare assignment has no such annotation
+      // here -- the interpreter is dynamically typed and Member/Identifier targets carry
+      // no static type. The only type information available is the CURRENT value already
+      // sitting there: if it looks like a struct (a plain object with known field names --
+      // e.g. a Point/Pose2D the host or an earlier declaration populated), map the
+      // brace-init positionally onto those same field names, exactly like a struct
+      // constructor call. Otherwise fall back to a plain array, which is what an
+      // uninterpreted `{...}` naturally is.
+      //
+      // Concretely: `brain->data->goalBlockingTarget = {setX, setY, 0.0};` where
+      // goalBlockingTarget already holds {x,y,z} (from host.js) must produce
+      // {x:setX, y:setY, z:0.0}, not the array [setX, setY, 0.0] -- an array has no
+      // `.x`/`.y`, so every subsequent `goalBlockingTarget.x` read downstream silently
+      // becomes undefined.
+      const current = ref.get();
+      value = this.evalInitListLike(node.value, current, scope, fnKey);
+    } else {
+      value = this.eval(node.value, scope, fnKey);
+    }
     if (node.op !== "=") {
       const old = ref.get();
       switch (node.op) {
@@ -671,6 +693,29 @@ export class Interpreter {
       }
     }
     return value;
+  }
+
+  /**
+   * Evaluate a brace-init list for a plain assignment target, inferring the struct shape
+   * from whatever value is already there. See the comment in evalAssign for why this
+   * exists. Falls back to a plain array when the current value gives no shape to map onto.
+   */
+  evalInitListLike(initListNode, currentValue, scope, fnKey) {
+    const evalElement = (e) =>
+      e.kind === "InitList" ? this.evalInitListLike(e, undefined, scope, fnKey) : this.eval(e, scope, fnKey);
+    const values = initListNode.elements.map(evalElement);
+
+    if (isPlainData(currentValue)) {
+      const keys = Object.keys(currentValue);
+      if (keys.length > 0) {
+        const obj = {};
+        keys.forEach((k, i) => {
+          obj[k] = i < values.length ? values[i] : currentValue[k];
+        });
+        return obj;
+      }
+    }
+    return values;
   }
 
   evalMember(node, scope, fnKey) {

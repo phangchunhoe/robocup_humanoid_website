@@ -66,6 +66,16 @@ export const CONFIG_DEFAULTS = {
   auto_visual_kick_enable_angle: 0.8,
   goalkeeper_straight_yaw_tolerance: 0.35,
   goalkeeper_straight_y_tolerance: 0.12,
+
+  // obstacle_avoidance.* -- used by moveToPoseOnField2's avoidObstacle branch, which
+  // GoToGoalBlockingPosition never enables (it always passes avoidObstacle=false), but
+  // the values are transcribed for completeness and for any other paste that reads them.
+  safe_distance: 2.0,
+  avoid_secs: 3.0,
+
+  // strategy.goalkeeper.fallback_block_dist -- no config.yaml entry exists, so the
+  // ROS declared default from BrainConfig::get_goalkeeper_fallback_block_dist() applies.
+  goalkeeper_fallback_block_dist: 0.6,
 };
 
 const NO_OBSTACLE_DIST = 99.0;
@@ -237,6 +247,9 @@ export class SimHost {
     this.command = { vx: 0, vy: 0, vtheta: 0 };
     this.lastCommand = { vx: 0, vy: 0, vtheta: 0 };
     this.telemetry = {};
+    // RobotClient::moveToPoseOnField2's function-local statics -- shared across every
+    // caller, not per node, matching the real C++ scoping. See buildClient() below.
+    this._moveToPoseState = { mode: "longRange", isBacking: false, timeEndAvoid: 0, avoidDir: 1.0 };
 
     this.blackboard = {
       ball_location_known: true,
@@ -258,6 +271,10 @@ export class SimHost {
       known_ball_zone_far: false,
       force_panorama_sweep: false,
       ball_detected: true,
+      // Read by GoToGoalBlockingPosition::tick's penalty-defence branch; always false
+      // here since GameController state is fixed to normal PLAY.
+      local_freekick_is_penalty: false,
+      local_freekick_phase: "NONE",
     };
 
     this.data = this.buildData();
@@ -280,6 +297,7 @@ export class SimHost {
     this.missingPorts.clear();
     this.missingConfig.clear();
     this.missingBrainMethods.clear();
+    this._moveToPoseState = { mode: "longRange", isBacking: false, timeEndAvoid: 0, avoidDir: 1.0 };
     this.blackboard.decision = "";
     this.data.lastKickExitTime = makeTime(-3600);
     this.data.lastSuccessfulLocalizeTime = makeTime(0);
@@ -324,6 +342,11 @@ export class SimHost {
       goalBlockingTarget: { x: 0, y: 0, z: 0 },
       goalBlockingYaw: 0,
       useCustomBlockingTarget: false,
+      // BrainData::oppoLiveCount (brain_data.h:56) defaults to 0 -- opponents not
+      // tracked, GameController state fixed to PLAY -- which is also the struct's own
+      // default before any GameController packet updates it.
+      oppoLiveCount: 0,
+      localFreekickTargetUpdateTime: makeTime(0),
 
       // ChaseScoreBreakdown (brain_data.h:186). Only used for logging in the nodes the
       // simulator runs; the defaults are the struct's own, so the log lines read sanely.
@@ -438,7 +461,103 @@ export class SimHost {
       isStandingStill: () => false,
       msecsToCollide: () => 1e6,
       moveToPoseOnField: () => 0,
-      moveToPoseOnField2: () => 0,
+      // RobotClient::moveToPoseOnField2 (robot_client.cpp:255). This is a robot_client.cpp
+      // primitive, not part of brain_tree.cpp, so -- like crabWalk and setVelocity -- it is
+      // implemented natively here rather than expected in the paste. GoToGoalBlockingPosition
+      // (goalkeeper 'retreat') delegates its entire walk-to-pose behaviour to this function;
+      // without a faithful implementation the goalkeeper would compute a correct target pose
+      // and then never move toward it.
+      //
+      // The mode/isBacking/timeEndAvoid/avoidDir statics are function-local statics in the
+      // C++, meaning ONE instance shared by every caller in the whole process, not per node
+      // -- self._moveToPoseState below replicates that scoping exactly.
+      moveToPoseOnField2(tx, ty, ttheta, longRangeThreshold, turnThreshold, vxLimit, vyLimit, vthetaLimit, xTolerance, yTolerance, thetaTolerance, avoidObstacle) {
+        const st = self._moveToPoseState;
+        const SAFE_DIST = CONFIG_DEFAULTS.safe_distance;
+        const AVOID_SECS = CONFIG_DEFAULTS.avoid_secs;
+
+        const robotPose = self.data.robotPoseToField;
+        const range = norm(tx - robotPose.x, ty - robotPose.y);
+        st.mode = range > longRangeThreshold * (st.mode === "longRange" ? 0.9 : 1.0) ? "longRange" : "shortRange";
+
+        const tarDir = Math.atan2(ty - robotPose.y, tx - robotPose.x);
+        const faceDir = robotPose.theta;
+        const tarDirR = toPInPI(tarDir - faceDir);
+        const now = self.simTime;
+
+        let vx = 0;
+        let vy = 0;
+        let vtheta = 0;
+        let effVxLimit = vxLimit;
+
+        if (st.mode === "longRange") {
+          if (Math.abs(tarDirR) > turnThreshold) {
+            vtheta = tarDirR;
+          } else {
+            vx = cap(range, vxLimit, -vxLimit);
+            vtheta = tarDirR;
+          }
+
+          if (avoidObstacle) {
+            if (now < st.timeEndAvoid) {
+              const distFwd = self.brain.distToObstacle(0);
+              if (distFwd < SAFE_DIST / 2) {
+                st.isBacking = true;
+                st.timeEndAvoid = now + AVOID_SECS;
+                st.avoidDir = self.brain.calcAvoidDir(tarDirR, SAFE_DIST) > 0 ? 1 : -1;
+                vx = -0.2;
+                vy = st.avoidDir * 0.2;
+                vtheta = 0;
+              } else if (self.brain.distToObstacle(0) < SAFE_DIST + (st.isBacking ? 0.5 : 0)) {
+                st.isBacking = false;
+                st.timeEndAvoid = now + AVOID_SECS;
+                st.avoidDir = self.brain.calcAvoidDir(tarDirR, SAFE_DIST) > 0 ? 1 : -1;
+                vx = 0;
+                vy = 0;
+                vtheta = st.avoidDir * CONFIG_DEFAULTS.vtheta_limit;
+              } else {
+                vx = vxLimit;
+                if (self.brain.distToObstacle(tarDirR) < SAFE_DIST * 2) effVxLimit *= 0.5;
+                vy = 0;
+                vtheta = 0;
+              }
+            } else {
+              const distFwd = self.brain.distToObstacle(tarDirR);
+              if (distFwd < SAFE_DIST * 2) effVxLimit = 0.5;
+              if (distFwd < SAFE_DIST) {
+                st.timeEndAvoid = now + AVOID_SECS;
+                st.avoidDir = self.brain.calcAvoidDir(tarDirR, SAFE_DIST) > 0 ? 1 : -1;
+                vx = 0;
+                vy = 0;
+                vtheta = 0;
+              }
+            }
+          }
+        } else {
+          // shortRange: direct holonomic approach.
+          vx = range * Math.cos(tarDirR);
+          vy = range * Math.sin(tarDirR);
+          vtheta = toPInPI(ttheta - faceDir);
+          if (Math.abs(vx) < xTolerance && Math.abs(vy) < yTolerance && Math.abs(vtheta) < thetaTolerance) {
+            vx = 0;
+            vy = 0;
+            vtheta = 0;
+          }
+          if (avoidObstacle) {
+            const distToObstacle = self.brain.distToObstacle(tarDirR);
+            if (distToObstacle < SAFE_DIST) {
+              vx = 0;
+              vy = 0;
+              vtheta = tarDirR;
+            }
+          }
+        }
+
+        vx = cap(vx, effVxLimit, -effVxLimit);
+        vy = cap(vy, vyLimit, -vyLimit);
+        vtheta = cap(vtheta, vthetaLimit, -vthetaLimit);
+        return self.client.setVelocity(vx, vy, vtheta);
+      },
       moveToPoseOnField3: () => 0,
     };
   }

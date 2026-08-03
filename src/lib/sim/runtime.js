@@ -66,6 +66,7 @@ const NODE_KEY = {
   "Kick::onRunning": "Kick",
   "Kick::onHalted": "Kick",
   "CalcKickDir::tick": "CalcKickDir",
+  "GoToGoalBlockingPosition::tick": "GoToGoalBlockingPosition",
   TickChaseNode: "Chase",
 };
 
@@ -84,6 +85,8 @@ const WATCH = new Set([
   "st", "sr", "arc_len", "effectiveDirSign", "turn_first",
   // Kick
   "phase", "speed", "msecs",
+  // GoToGoalBlockingPosition
+  "targetPose", "dist", "deltaTheta",
 ]);
 
 /**
@@ -256,8 +259,7 @@ export class SimRuntime {
 
     this.kickPhase = "idle"; // idle | running
     this.lastDecision = "";
-    this.telemetry = { decision: "", targetType: null, target: null, curve: null, kickDir: 0, stalled: false, stalledSeconds: 0 };
-    this.posHistory = []; // trailing (t, robot, ball) samples for stall detection
+    this.telemetry = { decision: "", targetType: null, target: null, curve: null, kickDir: 0 };
   }
 
   seedMembers() {
@@ -297,8 +299,7 @@ export class SimRuntime {
     this.kickPhase = "idle";
     this.lastDecision = "";
     this.error = null;
-    this.telemetry = { decision: "", targetType: null, target: null, curve: null, kickDir: 0, stalled: false, stalledSeconds: 0 };
-    this.posHistory.length = 0;
+    this.telemetry = { decision: "", targetType: null, target: null, curve: null, kickDir: 0 };
   }
 
   call(name, nodeName, args = [], decision = null) {
@@ -373,9 +374,13 @@ export class SimRuntime {
           t.kickWatched = out ? out.watched : {};
           if (out && out.status !== "RUNNING") this.kickPhase = "idle";
         }
+      } else if (decision === "retreat" && this.parsed.has("GoToGoalBlockingPosition::tick")) {
+        const out = this.call("GoToGoalBlockingPosition::tick", "GoToGoalBlockingPosition", [], decision);
+        t.simulatedNode = "GoToGoalBlockingPosition";
+        t.retreatWatched = out ? out.watched : {};
       } else {
-        // find / assist / retreat / zone_find / auto_visual_kick: those subtrees are not
-        // part of what this page tests, so the robot holds position and says so.
+        // find / assist / zone_find / auto_visual_kick: those subtrees are not part of
+        // what this page tests, so the robot holds position and says so.
         host.client.setVelocity(0, 0, 0);
         t.simulatedNode = null;
       }
@@ -392,64 +397,6 @@ export class SimRuntime {
         }
       }
       this.lastDecision = decision;
-
-      // ── STALL DETECTION ─────────────────────────────────────────────────────
-      // Not an error: some real control paths in brain_tree.cpp genuinely have no
-      // recovery from a borderline gate failure, or oscillate between two decisions
-      // whose commands cancel out. Two concrete cases found by scenario sweeps:
-      //
-      //  1. Kick::onStart's straight-kick gate fails at a standstill. The
-      //     striker/defender branch does `setVelocity(0,0,0); return SUCCESS` with no
-      //     fallback (only goal_keeper has one -- the code's own comment at that site
-      //     reads "Silently exiting caused 'kick' decisions with no motion."). Zero
-      //     commanded velocity leaves the robot's pose bit-for-bit identical next tick,
-      //     so the gate fails forever.
-      //  2. chase/adjust flapping: the coarse decision alternates every tick (e.g. an
-      //     Adjust escape burst at -0.15 m/s vs. GoalieChase's direct approach at
-      //     +vxLimit), and this simulator's own accel-rate-limited physics cannot ramp
-      //     up before the command reverses again, so net displacement stays ~0 even
-      //     though neither individual command was zero.
-      //
-      // Both are real limitations of the pasted code, reproduced faithfully, not bugs in
-      // this simulator: on hardware, sensor noise and footstep sway nudge the geometry
-      // tick to tick and this resolves one way or the other within a second or two; this
-      // simulator's perfect, noiseless perception cannot, so a deadlock that would be
-      // fleeting on the robot is visible and durable here.
-      //
-      // Detection is therefore position-based, not command-based: track robot and ball
-      // displacement over a trailing window. "retreat", "find", "assist" and similar are
-      // excluded because standing still there is the CORRECT converged state (a
-      // goalkeeper holding its blocking pose with the ball far away, for instance) --
-      // only the small set of decisions actively trying to close on the ball count.
-      const STALL_SECONDS = 1.5;
-      const STALL_POS_EPS = 0.03; // metres
-      const STUCK_DECISIONS = new Set(["chase", "adjust", "kick", "cross"]);
-
-      if (!this.posHistory) this.posHistory = [];
-      if (STUCK_DECISIONS.has(decision) && world.lastContactT < world.t - 0.05) {
-        this.posHistory.push({ t: world.t, rx: world.robot.x, ry: world.robot.y, bx: world.ball.x, by: world.ball.y });
-        while (this.posHistory.length > 1 && world.t - this.posHistory[0].t > STALL_SECONDS + 0.1) {
-          this.posHistory.shift();
-        }
-      } else {
-        this.posHistory.length = 0;
-      }
-
-      let stalled = false;
-      let stalledSeconds = 0;
-      if (this.posHistory.length > 1) {
-        const span = world.t - this.posHistory[0].t;
-        if (span >= STALL_SECONDS) {
-          const oldest = this.posHistory[0];
-          const robotDisp = Math.hypot(world.robot.x - oldest.rx, world.robot.y - oldest.ry);
-          const ballDisp = Math.hypot(world.ball.x - oldest.bx, world.ball.y - oldest.by);
-          stalled = robotDisp < STALL_POS_EPS && ballDisp < STALL_POS_EPS;
-          stalledSeconds = span;
-        }
-      }
-      t.stalled = stalled;
-      t.stalledSeconds = stalledSeconds;
-      // ── END STALL DETECTION ─────────────────────────────────────────────────
 
       this.telemetry = t;
       return t;

@@ -21,12 +21,24 @@ export const WHITELIST = [
   "Kick::onStart",
   "Kick::onRunning",
   "CalcKickDir::tick",
+  // decision=='retreat' (goalkeeper only). Delegates the actual walk to
+  // brain->client->moveToPoseOnField2(), a robot_client.cpp primitive implemented
+  // natively in host.js -- see the note there for why that one is not extracted.
+  "GoToGoalBlockingPosition::tick",
 ];
 
 /** Which of the above must be present for a role before Run is allowed. */
 export const REQUIRED_BY_ROLE = {
   striker: ["TickChaseNode", "StrikerChase::tick", "Adjust::tick", "StrikerDecide::tick", "Kick::onRunning", "CalcKickDir::tick"],
-  goal_keeper: ["TickChaseNode", "GoalieChase::tick", "Adjust::tick", "GoalieDecide::tick", "Kick::onRunning", "CalcKickDir::tick"],
+  goal_keeper: [
+    "TickChaseNode",
+    "GoalieChase::tick",
+    "Adjust::tick",
+    "GoalieDecide::tick",
+    "Kick::onRunning",
+    "CalcKickDir::tick",
+    "GoToGoalBlockingPosition::tick",
+  ],
 };
 
 const CPP_KEYWORDS = new Set([
