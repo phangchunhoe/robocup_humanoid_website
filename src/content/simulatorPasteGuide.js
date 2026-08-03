@@ -51,6 +51,17 @@ export const CONFIG_NOTE =
   "“Constants this run assumed” on the simulation view.";
 
 export const INTRO =
-  "Paste the real brain source below, choose a role, then press Run. The pasted C++ is " +
-  "parsed into an AST and executed at 100 Hz against a mocked brain object — the robot you " +
-  "see is driven by setVelocity() calls made by your code, not by a reimplementation of it.";
+  "Open your Robocup-Humanoid- checkout (or its src/brain folder) below and the three files " +
+  "are found and loaded automatically, choose a role, then press Run. The source is parsed " +
+  "into an AST and executed at 100 Hz against a mocked brain object — the robot you see is " +
+  "driven by setVelocity() calls made by your code, not by a reimplementation of it. Manual " +
+  "paste still works per-tab if a file cannot be located or you want to try an edited version.";
+
+// Path of each required file relative to the brain package root (…/src/brain), used to
+// locate it inside whatever folder the user opens. The xml file name is role-dependent —
+// its role id doubles as the file's name segment (subtree_<role>_play.xml).
+export function expectedRelPath(tabId, roleId) {
+  if (tabId === "xml") return `behavior_trees/subtrees/subtree_${roleId}_play.xml`;
+  const tab = TABS.find((t) => t.id === tabId);
+  return tab ? tab.file : null;
+}

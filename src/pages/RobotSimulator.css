@@ -215,6 +215,54 @@
   font-weight: 700;
 }
 
+.robot-simulator-page .folder-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.robot-simulator-page .folder-hint {
+  margin: 0;
+  max-width: 60ch;
+}
+.robot-simulator-page .folder-status {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+.robot-simulator-page .folder-status li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.robot-simulator-page .folder-status-state {
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 6.5em;
+}
+.robot-simulator-page .folder-status li.found .folder-status-state {
+  color: var(--pass);
+}
+.robot-simulator-page .folder-status li.missing .folder-status-state {
+  color: var(--lead);
+}
+.robot-simulator-page .folder-status-label {
+  color: var(--muted);
+  min-width: 8em;
+}
+.robot-simulator-page .folder-status-note {
+  color: var(--muted-2);
+  font-family: var(--font-body);
+}
+
 .robot-simulator-page .tab-row {
   display: flex;
   gap: 4px;

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Header from "../components/Header.jsx";
-import { TABS, INTRO, CONFIG_NOTE } from "../content/simulatorPasteGuide.js";
+import { TABS, INTRO, CONFIG_NOTE, expectedRelPath } from "../content/simulatorPasteGuide.js";
 import { buildProgram } from "../lib/sim/runtime.js";
 import { createWorld, stepWorld, DEFAULT_PHYSICS } from "../lib/sim/physics.js";
 import { createEngine, FIXED_DT } from "../lib/sim/engine.js";
@@ -38,6 +38,23 @@ const SLIDERS = [
     note: "multiplicative on outgoing speed" },
 ];
 
+// Matches a wanted relative path (e.g. "include/brain_tree.h") against every file the
+// user's folder picker returned, by suffix — the user may have opened the repo root, just
+// src/brain, or anything in between, so the match can't assume a fixed depth. When several
+// files share a suffix (e.g. a build output that duplicated the tree), the shortest full
+// path wins as the least-nested, most-likely-canonical copy.
+function findFolderMatch(files, relPath) {
+  const wanted = "/" + relPath.toLowerCase();
+  let best = null;
+  for (const f of files) {
+    const p = f.relPath.toLowerCase();
+    if (p === relPath.toLowerCase() || p.endsWith(wanted)) {
+      if (!best || f.relPath.length < best.relPath.length) best = f;
+    }
+  }
+  return best;
+}
+
 function loadStored() {
   try {
     const raw = window.localStorage.getItem(STORAGE_KEY);
@@ -65,8 +82,12 @@ export default function RobotSimulator() {
   const [placement, setPlacement] = useState(INITIAL_PLACEMENT.striker);
   const [overrun, setOverrun] = useState(false);
   const [runtimeError, setRuntimeError] = useState(null);
+  const [folderScan, setFolderScan] = useState(null);
+  const [folderBusy, setFolderBusy] = useState(false);
 
   const svgRef = useRef(null);
+  const folderInputRef = useRef(null);
+  const folderFilesRef = useRef(null);
   const rendererRef = useRef(null);
   const engineRef = useRef(null);
   const worldRef = useRef(null);
@@ -94,6 +115,73 @@ export default function RobotSimulator() {
   useEffect(() => {
     physicsRef.current = physics;
   }, [physics]);
+
+  // ------------------------------------------------------------- folder open
+
+  const scanFolder = useCallback(async (files, roleId) => {
+    setFolderBusy(true);
+    const results = [];
+    const nextSources = {};
+    for (const t of TABS) {
+      const relPath = expectedRelPath(t.id, roleId);
+      const match = findFolderMatch(files, relPath);
+      if (!match) {
+        results.push({ tabId: t.id, path: relPath, found: false });
+        continue;
+      }
+      try {
+        nextSources[t.id] = await match.file.text();
+        results.push({ tabId: t.id, path: relPath, found: true, matchedPath: match.relPath });
+      } catch (err) {
+        results.push({ tabId: t.id, path: relPath, found: false, error: String((err && err.message) || err) });
+      }
+    }
+    setSources((prev) => ({ ...prev, ...nextSources }));
+    setFolderScan({ results });
+    setFolderBusy(false);
+  }, []);
+
+  const handleFolderInputChange = (evt) => {
+    const fileList = evt.target.files;
+    if (!fileList || fileList.length === 0) return;
+    // Read the FileList into a plain array before touching evt.target.value — it's live,
+    // and resetting the input's value clears it synchronously, so doing that first (to
+    // allow re-picking the same folder later) silently emptied every load.
+    const files = Array.from(fileList).map((file) => ({
+      relPath: (file.webkitRelativePath || file.name).replace(/\\/g, "/"),
+      file,
+    }));
+    evt.target.value = "";
+    folderFilesRef.current = files;
+    scanFolder(files, role);
+  };
+
+  // The XML file is role-specific (subtree_striker_play.xml vs. subtree_goal_keeper_play.xml),
+  // so switching role after a folder is already loaded re-matches just that one tab rather
+  // than re-reading everything and clobbering any manual edits made to the C++ or header tabs.
+  useEffect(() => {
+    if (!folderFilesRef.current) return;
+    const relPath = expectedRelPath("xml", role);
+    const match = findFolderMatch(folderFilesRef.current, relPath);
+    const applyResult = (result) => {
+      setFolderScan((prev) =>
+        prev ? { results: prev.results.map((r) => (r.tabId === "xml" ? result : r)) } : prev
+      );
+    };
+    if (!match) {
+      applyResult({ tabId: "xml", path: relPath, found: false });
+      return;
+    }
+    match.file.text().then(
+      (text) => {
+        setSources((prev) => ({ ...prev, xml: text }));
+        applyResult({ tabId: "xml", path: relPath, found: true, matchedPath: match.relPath });
+      },
+      (err) => {
+        applyResult({ tabId: "xml", path: relPath, found: false, error: String((err && err.message) || err) });
+      }
+    );
+  }, [role]);
 
   // Persist the paste so a reload does not lose it.
   useEffect(() => {
@@ -414,6 +502,10 @@ export default function RobotSimulator() {
               onRun={handleRun}
               selfTest={selfTest}
               onSelfTest={() => setSelfTest(runSelfTest())}
+              folderInputRef={folderInputRef}
+              folderBusy={folderBusy}
+              folderScan={folderScan}
+              onFolderInputChange={handleFolderInputChange}
             />
           ) : (
             <SimStep
@@ -450,6 +542,7 @@ function EditorStep(props) {
   const {
     role, setRole, roles, roleMeta, activeTab, setActiveTab, sources, setSources,
     report, buildError, required, canRun, onRun, selfTest, onSelfTest,
+    folderInputRef, folderBusy, folderScan, onFolderInputChange,
   } = props;
 
   const tab = TABS.find((t) => t.id === activeTab) || TABS[0];
@@ -488,6 +581,32 @@ function EditorStep(props) {
             expects <code>{roleMeta.xml}</code>
           </span>
         </div>
+
+        <div className="folder-row">
+          <button
+            type="button"
+            className="primary"
+            disabled={folderBusy}
+            onClick={() => folderInputRef.current && folderInputRef.current.click()}
+          >
+            {folderBusy ? "Scanning…" : "Open brain folder…"}
+          </button>
+          <input
+            ref={folderInputRef}
+            type="file"
+            webkitdirectory=""
+            directory=""
+            multiple
+            hidden
+            onChange={onFolderInputChange}
+          />
+          <span className="muted-note folder-hint">
+            Select your Robocup-Humanoid- checkout (or its src/brain folder) — the three files
+            below are found by relative path and loaded automatically. Pasting manually still
+            works per tab.
+          </span>
+        </div>
+        <FolderScanStatus scan={folderScan} />
 
         <div className="tab-row">
           {TABS.map((t) => {
@@ -573,6 +692,29 @@ function EditorStep(props) {
         )}
       </aside>
     </div>
+  );
+}
+
+function FolderScanStatus({ scan }) {
+  if (!scan) return null;
+  return (
+    <ul className="folder-status">
+      {scan.results.map((r) => {
+        const tab = TABS.find((t) => t.id === r.tabId);
+        return (
+          <li key={r.tabId} className={r.found ? "found" : "missing"}>
+            <span className="folder-status-state">{r.found ? "found" : "not found"}</span>
+            <span className="folder-status-label">{tab ? tab.label : r.tabId}</span>
+            <code>{r.path}</code>
+            {!r.found ? (
+              <span className="folder-status-note">
+                {r.error ? `could not read it — ${r.error}` : "paste it manually in that tab instead"}
+              </span>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
