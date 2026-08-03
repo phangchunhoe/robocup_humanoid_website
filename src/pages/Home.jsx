@@ -24,6 +24,11 @@ const sections = [
     title: "Team Communication",
     desc: "The fixed 16-byte UDP packet robots broadcast to coordinate roles, ball belief, and the goalkeeper handoff.",
   },
+  {
+    to: "/robot-simulator",
+    title: "Robot Simulator",
+    desc: "Paste brain_tree.cpp and watch it run: one robot chasing, adjusting and kicking a real ball in real time, driven by the interpreted C++ itself.",
+  },
 ];
 
 export default function Home() {

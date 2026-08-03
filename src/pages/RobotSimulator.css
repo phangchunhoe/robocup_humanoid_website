@@ -1,0 +1,788 @@
+.robot-simulator-page {
+  --paper: #eef2ee;
+  --panel: #ffffff;
+  --panel-border: #d7ded8;
+  --ink: #16201b;
+  --muted: #5b6b60;
+  --muted-2: #869489;
+  --turf: #bfe3cc;
+  --turf-deep: #a9d6bd;
+  --turf-line: rgba(12, 46, 28, 0.38);
+  --accent: #d97f2c;
+  --accent-ink: #7a4413;
+  --lead: #c8503f;
+  --assist: #2f6fb0;
+  --goalie: #7a4fae;
+  --ball-fill: #f5f1e6;
+  --ball-stroke: #2a2a24;
+  --pass: #2f8f5b;
+  --fail: #c8503f;
+  --code-bg: #f4f6f4;
+  --shadow: 0 1px 2px rgba(20, 30, 22, 0.06), 0 8px 24px -12px rgba(20, 30, 22, 0.18);
+  --font-mono: ui-monospace, "Cascadia Mono", "SF Mono", "JetBrains Mono", Consolas, "Roboto Mono", monospace;
+  --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --lead-rgb: 200, 80, 63;
+  --assist-rgb: 47, 111, 176;
+  --goalie-rgb: 122, 79, 174;
+  --accent-rgb: 217, 127, 44;
+  --pass-rgb: 47, 143, 91;
+
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  padding: 18px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .robot-simulator-page {
+    --paper: #0d1210;
+    --panel: #131a16;
+    --panel-border: #253128;
+    --ink: #e7ece8;
+    --muted: #93a399;
+    --muted-2: #64756a;
+    --turf: #163826;
+    --turf-deep: #112c1e;
+    --turf-line: rgba(232, 240, 233, 0.4);
+    --accent: #f2a541;
+    --accent-ink: #ffd9a0;
+    --lead: #e2766a;
+    --assist: #8fc4ff;
+    --goalie: #c6a6ff;
+    --ball-fill: #f5f1e6;
+    --ball-stroke: #171712;
+    --pass: #63c894;
+    --fail: #e2766a;
+    --code-bg: #0b100d;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 28px -12px rgba(0, 0, 0, 0.55);
+    --lead-rgb: 226, 118, 106;
+    --assist-rgb: 143, 196, 255;
+    --goalie-rgb: 198, 166, 255;
+    --accent-rgb: 242, 165, 65;
+    --pass-rgb: 99, 200, 148;
+  }
+}
+.robot-simulator-page[data-theme="dark"] {
+  --paper: #0d1210; --panel: #131a16; --panel-border: #253128; --ink: #e7ece8;
+  --muted: #93a399; --muted-2: #64756a; --turf: #163826; --turf-deep: #112c1e;
+  --turf-line: rgba(232, 240, 233, 0.4); --accent: #f2a541; --accent-ink: #ffd9a0;
+  --lead: #e2766a; --assist: #8fc4ff; --goalie: #c6a6ff;
+  --ball-fill: #f5f1e6; --ball-stroke: #171712; --pass: #63c894; --fail: #e2766a;
+  --code-bg: #0b100d;
+  --lead-rgb: 226, 118, 106; --assist-rgb: 143, 196, 255; --goalie-rgb: 198, 166, 255;
+  --accent-rgb: 242, 165, 65; --pass-rgb: 99, 200, 148;
+}
+.robot-simulator-page[data-theme="light"] {
+  --paper: #eef2ee; --panel: #ffffff; --panel-border: #d7ded8; --ink: #16201b;
+  --muted: #5b6b60; --muted-2: #869489; --turf: #bfe3cc; --turf-deep: #a9d6bd;
+  --turf-line: rgba(12, 46, 28, 0.38); --accent: #d97f2c; --accent-ink: #7a4413;
+  --lead: #c8503f; --assist: #2f6fb0; --goalie: #7a4fae;
+  --ball-fill: #f5f1e6; --ball-stroke: #2a2a24; --pass: #2f8f5b; --fail: #c8503f;
+  --code-bg: #f4f6f4;
+  --lead-rgb: 200, 80, 63; --assist-rgb: 47, 111, 176; --goalie-rgb: 122, 79, 174;
+  --accent-rgb: 217, 127, 44; --pass-rgb: 47, 143, 91;
+}
+
+.robot-simulator-page .app {
+  max-width: 1240px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.robot-simulator-page .top .eyebrow {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  font-size: 11.5px;
+  letter-spacing: 0.11em;
+  color: var(--muted-2);
+}
+.robot-simulator-page h1 {
+  font-family: var(--font-mono);
+  font-size: clamp(20px, 2.6vw, 27px);
+  margin: 6px 0 4px;
+  font-weight: 700;
+}
+.robot-simulator-page .sub {
+  color: var(--muted);
+  max-width: 78ch;
+  line-height: 1.55;
+  font-size: 14px;
+  margin: 0;
+}
+
+/* ---- wizard ---- */
+.robot-simulator-page .wizard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.robot-simulator-page .wizard-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+}
+.robot-simulator-page .wizard-step:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.robot-simulator-page .wizard-step.active {
+  border-color: rgba(var(--accent-rgb), 0.55);
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.robot-simulator-page .wizard-num {
+  display: inline-grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  background: currentColor;
+  color: var(--panel);
+  font-size: 11px;
+  font-weight: 700;
+}
+.robot-simulator-page .wizard-arrow { color: var(--muted-2); }
+
+/* ---- layout ---- */
+.robot-simulator-page .layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr);
+  gap: 16px;
+}
+.robot-simulator-page .editor-layout {
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
+}
+@media (max-width: 980px) {
+  .robot-simulator-page .layout,
+  .robot-simulator-page .editor-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.robot-simulator-page .panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 16px;
+  min-width: 0;
+}
+
+/* ---- editor ---- */
+.robot-simulator-page .editor-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.robot-simulator-page .role-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.robot-simulator-page .role-label,
+.robot-simulator-page .role-hint {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.robot-simulator-page .role-hint { margin-left: auto; }
+.robot-simulator-page .toggle-chip {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--panel-border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.robot-simulator-page .toggle-chip.on {
+  border-color: rgba(var(--accent-rgb), 0.55);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.robot-simulator-page .tab-row {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--panel-border);
+  flex-wrap: wrap;
+}
+.robot-simulator-page .tab {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 8px 12px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  margin-bottom: -1px;
+}
+.robot-simulator-page .tab.on {
+  border-color: var(--panel-border);
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 700;
+}
+.robot-simulator-page .tab .req,
+.robot-simulator-page .tab .opt {
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.robot-simulator-page .tab .req { background: rgba(var(--lead-rgb), 0.16); color: var(--lead); }
+.robot-simulator-page .tab .opt { background: rgba(var(--assist-rgb), 0.16); color: var(--assist); }
+.robot-simulator-page .tab.filled::before {
+  content: "●";
+  color: var(--pass);
+  font-size: 9px;
+}
+
+.robot-simulator-page .tab-hint {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.robot-simulator-page code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--code-bg);
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.robot-simulator-page .code-editor {
+  display: flex;
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  background: var(--code-bg);
+  overflow: hidden;
+  min-height: 340px;
+  max-height: 52vh;
+}
+.robot-simulator-page .code-editor .gutter {
+  margin: 0;
+  padding: 10px 8px 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted-2);
+  text-align: right;
+  background: rgba(var(--accent-rgb), 0.05);
+  border-right: 1px solid var(--panel-border);
+  overflow: hidden;
+  user-select: none;
+  min-width: 3.4em;
+}
+.robot-simulator-page .code-editor textarea {
+  flex: 1;
+  border: 0;
+  outline: none;
+  resize: none;
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: transparent;
+  white-space: pre;
+  overflow: auto;
+  tab-size: 2;
+}
+.robot-simulator-page .code-editor textarea::placeholder {
+  color: var(--muted-2);
+  opacity: 0.85;
+}
+
+.robot-simulator-page .editor-actions,
+.robot-simulator-page .controls-panel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.robot-simulator-page .controls-panel {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 10px 14px;
+}
+.robot-simulator-page button {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 7px 13px;
+  border-radius: 7px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--ink);
+  cursor: pointer;
+}
+.robot-simulator-page button:hover:not(:disabled) { border-color: var(--muted-2); }
+.robot-simulator-page button:disabled { opacity: 0.45; cursor: not-allowed; }
+.robot-simulator-page button.primary {
+  background: rgba(var(--pass-rgb), 0.16);
+  border-color: rgba(var(--pass-rgb), 0.5);
+  color: var(--pass);
+  font-weight: 700;
+}
+.robot-simulator-page button.ghost { color: var(--muted); }
+.robot-simulator-page .config-note,
+.robot-simulator-page .run-role {
+  font-size: 11.5px;
+  color: var(--muted-2);
+  margin-left: auto;
+  max-width: 46ch;
+  line-height: 1.4;
+}
+.robot-simulator-page .run-role {
+  font-family: var(--font-mono);
+  color: var(--accent-ink);
+  max-width: none;
+}
+.robot-simulator-page .speed {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.robot-simulator-page .speed select {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+/* ---- diagnostics ---- */
+.robot-simulator-page .diagnostics { font-size: 12.5px; }
+.robot-simulator-page .diagnostics h2 {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  margin: 0 0 10px;
+}
+.robot-simulator-page .diagnostics h3 {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-2);
+  margin: 14px 0 6px;
+}
+.robot-simulator-page .stat-line,
+.robot-simulator-page .muted-note {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+.robot-simulator-page .diag-ok,
+.robot-simulator-page .diag-warn,
+.robot-simulator-page .diag-error {
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  line-height: 1.5;
+  border: 1px solid;
+}
+.robot-simulator-page .diag-ok {
+  border-color: rgba(var(--pass-rgb), 0.4);
+  background: rgba(var(--pass-rgb), 0.1);
+  color: var(--pass);
+}
+.robot-simulator-page .diag-warn {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.1);
+  color: var(--accent-ink);
+}
+.robot-simulator-page .diag-error {
+  border-color: rgba(var(--lead-rgb), 0.45);
+  background: rgba(var(--lead-rgb), 0.1);
+  color: var(--lead);
+}
+.robot-simulator-page .diag-note {
+  border: 1px solid var(--panel-border);
+  background: var(--code-bg);
+  border-radius: 7px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.robot-simulator-page .diag-note summary {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  cursor: pointer;
+}
+.robot-simulator-page .diag-note p { margin: 8px 0 0; }
+
+.robot-simulator-page .diag-error ul,
+.robot-simulator-page .selftest ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.robot-simulator-page .fn-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.robot-simulator-page .fn {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  border-left: 3px solid var(--muted-2);
+  background: var(--code-bg);
+}
+.robot-simulator-page .fn.ok { border-left-color: var(--pass); }
+.robot-simulator-page .fn.bad { border-left-color: var(--fail); }
+.robot-simulator-page .fn.dim { opacity: 0.6; }
+.robot-simulator-page .fn-name {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12px;
+}
+.robot-simulator-page .fn-detail {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.robot-simulator-page .sym-list {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  word-break: break-word;
+  margin: 0;
+}
+
+.robot-simulator-page .selftest {
+  border-radius: 7px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  border: 1px solid;
+}
+.robot-simulator-page .selftest.ok {
+  border-color: rgba(var(--pass-rgb), 0.4);
+  background: rgba(var(--pass-rgb), 0.1);
+  color: var(--pass);
+}
+.robot-simulator-page .selftest.bad {
+  border-color: rgba(var(--lead-rgb), 0.45);
+  background: rgba(var(--lead-rgb), 0.1);
+  color: var(--lead);
+}
+
+/* ---- banners ---- */
+.robot-simulator-page .banner {
+  border-radius: 9px;
+  padding: 11px 14px;
+  font-size: 13px;
+  line-height: 1.5;
+  border: 1px solid;
+}
+.robot-simulator-page .banner.error {
+  border-color: rgba(var(--lead-rgb), 0.5);
+  background: rgba(var(--lead-rgb), 0.12);
+  color: var(--lead);
+}
+.robot-simulator-page .banner.warn {
+  border-color: rgba(var(--accent-rgb), 0.5);
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent-ink);
+}
+.robot-simulator-page .banner.stall {
+  border-color: rgba(var(--goalie-rgb), 0.5);
+  background: rgba(var(--goalie-rgb), 0.1);
+  color: var(--goalie);
+}
+.robot-simulator-page .banner.stall .banner-note { max-width: 86ch; }
+.robot-simulator-page .banner-note {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 3px;
+}
+
+/* ---- field ---- */
+.robot-simulator-page .field-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.robot-simulator-page .field-wrap {
+  aspect-ratio: 3 / 2;
+  background: var(--turf);
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--panel-border);
+}
+.robot-simulator-page svg#field {
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+.robot-simulator-page svg#field .goal-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  fill: var(--turf-line);
+  letter-spacing: 0.08em;
+}
+.robot-simulator-page .legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  align-items: center;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.robot-simulator-page .swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: -1px;
+}
+.robot-simulator-page .swatch.chase { background: var(--lead); }
+.robot-simulator-page .swatch.adjust { background: var(--accent); }
+.robot-simulator-page .swatch.kick { background: var(--pass); }
+.robot-simulator-page .swatch.other { background: var(--muted-2); }
+.robot-simulator-page .legend-note { margin-left: auto; color: var(--muted-2); }
+
+/* ---- console ---- */
+.robot-simulator-page .console {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.robot-simulator-page .scenario-pill {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 12.5px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.13);
+  color: var(--accent-ink);
+  line-height: 1.5;
+}
+.robot-simulator-page .scenario-pill.state-chase {
+  border-color: rgba(var(--lead-rgb), 0.45);
+  background: rgba(var(--lead-rgb), 0.14);
+  color: var(--lead);
+}
+.robot-simulator-page .scenario-pill.state-adjust {
+  border-color: rgba(var(--accent-rgb), 0.45);
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--accent-ink);
+}
+.robot-simulator-page .scenario-pill.state-kick,
+.robot-simulator-page .scenario-pill.state-cross {
+  border-color: rgba(var(--pass-rgb), 0.45);
+  background: rgba(var(--pass-rgb), 0.14);
+  color: var(--pass);
+}
+.robot-simulator-page .scenario-pill.state-find,
+.robot-simulator-page .scenario-pill.state-retreat {
+  border-color: rgba(var(--assist-rgb), 0.45);
+  background: rgba(var(--assist-rgb), 0.14);
+  color: var(--assist);
+}
+.robot-simulator-page .scenario-pill.state-other {
+  border-color: var(--panel-border);
+  background: var(--code-bg);
+  color: var(--muted);
+}
+
+.robot-simulator-page .readout-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  margin-top: 10px;
+}
+.robot-simulator-page .readout-table td {
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--panel-border);
+  vertical-align: top;
+}
+.robot-simulator-page .readout-table td:first-child {
+  color: var(--muted);
+  width: 52%;
+}
+.robot-simulator-page .readout-table td:last-child {
+  text-align: right;
+  font-weight: 600;
+}
+
+.robot-simulator-page .runtime-notes:empty { display: none; }
+.robot-simulator-page .runtime-notes h3 {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-2);
+  margin: 0 0 6px;
+}
+.robot-simulator-page .note-group {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 9px;
+  margin-bottom: 5px;
+  border-radius: 6px;
+  border-left: 3px solid var(--accent);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.robot-simulator-page .note-label {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+.robot-simulator-page .note-items {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--muted);
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.robot-simulator-page .log-panel h3,
+.robot-simulator-page .sliders h3 {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-2);
+  margin: 0 0 6px;
+}
+.robot-simulator-page .log-stream {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--muted);
+  background: var(--code-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  padding: 8px 10px;
+  height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.robot-simulator-page .sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+.robot-simulator-page .slider {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.robot-simulator-page .slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.robot-simulator-page .slider-label em {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--ink);
+}
+.robot-simulator-page .slider input[type="range"] { width: 100%; accent-color: var(--accent); }
+.robot-simulator-page .slider input[type="number"] {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  padding: 4px 7px;
+  border-radius: 6px;
+  border: 1px solid var(--panel-border);
+  background: var(--panel);
+  color: var(--ink);
+  width: 100%;
+}
+.robot-simulator-page .slider-note {
+  font-size: 10.5px;
+  color: var(--muted-2);
+  line-height: 1.4;
+}
+
+/* ---- reference ---- */
+.robot-simulator-page .formula-ref {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 12px 16px;
+}
+.robot-simulator-page .formula-ref summary {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  cursor: pointer;
+  color: var(--muted);
+}
+.robot-simulator-page .ref-body { margin-top: 12px; font-size: 13px; line-height: 1.6; }
+.robot-simulator-page .ref-body h4 {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted-2);
+  margin: 16px 0 6px;
+}
+.robot-simulator-page .ref-body ul { margin: 0; padding-left: 20px; color: var(--muted); }
+.robot-simulator-page .ref-body li { margin-bottom: 6px; }
+.robot-simulator-page .ref-body p { color: var(--muted); margin: 0; }
+.robot-simulator-page .const-table {
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  width: 100%;
+  max-width: 520px;
+  display: block;
+  overflow-x: auto;
+}
+.robot-simulator-page .const-table td {
+  padding: 3px 8px 3px 0;
+  border-bottom: 1px solid var(--panel-border);
+  white-space: nowrap;
+}
+.robot-simulator-page .const-table td:last-child { color: var(--muted); }
