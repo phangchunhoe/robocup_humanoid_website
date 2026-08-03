@@ -34,12 +34,17 @@
   border: 1px solid var(--color-separator);
   background: var(--color-elevated-background);
   cursor: pointer;
-  transition: border-color var(--duration-fast) var(--ease-out),
-    background-color var(--duration-fast) var(--ease-out);
+  transition: border-color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 .card:hover:not(.is-selected) {
   background: var(--color-elevated-background-hover);
+}
+
+.card:active {
+  transform: scale(0.98);
 }
 
 /* Selection = accent border + accent check. */
@@ -101,5 +106,8 @@
 @media (prefers-reduced-motion: reduce) {
   .card {
     transition: none;
+  }
+  .card:active {
+    transform: none;
   }
 }

@@ -25,13 +25,20 @@
   letter-spacing: var(--text-callout-tracking);
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out);
+  /* Color settles over --duration-base; the press nudge is quicker so the
+     control still feels responsive under the finger. */
+  transition: background-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
 }
 
 .segmented-segment:hover:not(.is-active) {
   color: var(--color-label);
   background: var(--color-elevated-background-hover);
+}
+
+.segmented-segment:active {
+  transform: scale(0.97);
 }
 
 /* The single accent, used for every active/interactive state. */
@@ -55,5 +62,8 @@
 @media (prefers-reduced-motion: reduce) {
   .segmented-segment {
     transition: none;
+  }
+  .segmented-segment:active {
+    transform: none;
   }
 }

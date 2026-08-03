@@ -10,12 +10,27 @@
  * Migration status section of CLAUDE.md.
  */
 
+/* There is no global box-sizing reset — index.css resets margins only, and a
+   global takeover would reach the unmigrated pages. Scope it here: without it
+   any element that sets an explicit width AND has padding (the progress
+   header, the code editor, the legacy sliders) renders wider than its column
+   by exactly its padding plus border, and stops lining up with its siblings. */
+.robot-simulator-page,
+.robot-simulator-page *,
+.robot-simulator-page *::before,
+.robot-simulator-page *::after {
+  box-sizing: border-box;
+}
+
 .robot-simulator-page {
+  /* The charcoal canvas. Nothing else on this page paints a page-level
+     background, so this is what renders. */
   background: var(--color-background);
   color: var(--color-label);
   font-family: var(--font-sans);
   min-height: 100vh;
-  padding: var(--space-8) var(--space-6) var(--space-16);
+  /* Symmetric: equal top/bottom, equal left/right. */
+  padding: var(--space-12) var(--space-6);
 }
 
 .robot-simulator-page .rs-shell {
@@ -26,26 +41,32 @@
 /* ------------------------------------------------------------------ hero */
 
 .robot-simulator-page .rs-hero {
-  padding: var(--space-12) 0 var(--space-16);
-  max-width: 34ch;
+  padding: var(--space-12) 0;
 }
 
+/* One line, always. The headline size steps down with the viewport rather
+   than wrapping the product name across two lines. */
 .robot-simulator-page .rs-headline {
   margin: 0;
   font-size: var(--text-headline);
   font-weight: var(--text-headline-weight);
   letter-spacing: var(--text-headline-tracking);
   line-height: var(--line-height-tight);
+  white-space: nowrap;
   /* Fully opaque primary label — never a low-contrast whisper. */
   color: var(--color-label);
   opacity: 1;
 }
 
+/* Deliberately smaller than the old descriptive subhead — it is a byline. */
 .robot-simulator-page .rs-subhead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
   margin: var(--space-4) 0 0;
-  font-size: var(--text-body);
+  font-size: var(--text-callout);
   font-weight: 400;
-  letter-spacing: var(--text-body-tracking);
+  letter-spacing: var(--text-callout-tracking);
   line-height: var(--line-height-base);
   color: var(--color-secondary-label);
 }
@@ -121,6 +142,14 @@
   animation: rs-cross-fade var(--duration-base) var(--ease-out) both;
 }
 
+/* One gap owns the rhythm inside a source panel, so nothing — a button least
+   of all — ever ends up flush against the element above it. */
+.robot-simulator-page .rs-source-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
 .robot-simulator-page .rs-folder-action-row,
 .robot-simulator-page .rs-run-row,
 .robot-simulator-page .rs-file-switch-row {
@@ -130,21 +159,25 @@
   flex-wrap: wrap;
 }
 
-.robot-simulator-page .rs-file-switch-row {
-  margin-bottom: var(--space-5);
-}
-
 .robot-simulator-page .rs-run-section {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-5);
+}
+
+/* A lone button in a column keeps clear air above it even when its parent
+   sets no gap. */
+.robot-simulator-page .rs-source-body > .btn {
+  align-self: flex-start;
+  margin-top: var(--space-2);
 }
 
 /* ---------------------------------------------------------- file status */
 
 .robot-simulator-page .rs-file-list {
   list-style: none;
-  margin: var(--space-6) 0 0;
+  /* Spacing comes from the parent's gap — no ad-hoc margins. */
+  margin: 0;
   padding: 0;
   display: flex;
   flex-direction: column;
@@ -172,7 +205,6 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
 }
 
 /* -------------------------------------------------------------- buttons */
@@ -191,10 +223,22 @@
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out),
-    color var(--duration-fast) var(--ease-out),
-    opacity var(--duration-fast) var(--ease-out);
+  /* Color settles over --duration-base so the state change is felt as a
+     transition, not a swap; the press nudge is quicker, so the control still
+     answers immediately under the finger. */
+  transition: background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.robot-simulator-page .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.robot-simulator-page .btn:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
 }
 
 .robot-simulator-page .btn:focus-visible {
@@ -212,7 +256,10 @@
   color: var(--color-on-accent);
 }
 
-.robot-simulator-page .btn-primary:hover:not(:disabled) {
+/* Terracotta on hover and press — the accent's other state, not a new color.
+   The ink label clears 4.5:1 on both, so only the fill moves. */
+.robot-simulator-page .btn-primary:hover:not(:disabled),
+.robot-simulator-page .btn-primary:active:not(:disabled) {
   background: var(--color-accent-hover);
 }
 
@@ -226,6 +273,11 @@
 .robot-simulator-page .btn-secondary:hover:not(:disabled) {
   background: var(--color-elevated-background-hover);
   border-color: var(--color-accent);
+}
+
+.robot-simulator-page .btn-secondary:active:not(:disabled) {
+  color: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 
 /* ------------------------------------------------------------- selftest */
@@ -271,12 +323,12 @@
   gap: var(--space-1);
 }
 
+/* No glyph to clear in this panel — status is carried by the label's color
+   alone — so the detail line sits flush under it. */
 .robot-simulator-page .rs-fn-detail {
   font-size: var(--text-caption);
   line-height: var(--line-height-base);
   color: var(--color-tertiary-label);
-  /* Align under the status label, past its glyph. */
-  padding-left: var(--space-5);
 }
 
 .robot-simulator-page .rs-symbols {
@@ -302,6 +354,11 @@
   font-size: var(--text-caption);
   color: var(--color-secondary-label);
   cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-disclosure summary:hover {
+  color: var(--color-accent);
 }
 
 .robot-simulator-page .rs-disclosure summary:focus-visible {
@@ -337,7 +394,7 @@
 
 .robot-simulator-page .code-editor .gutter {
   margin: 0;
-  padding: var(--space-4) var(--space-2) var(--space-4) var(--space-4);
+  padding: var(--space-4) var(--space-3);
   font-family: var(--font-mono);
   font-size: var(--text-caption);
   line-height: 1.6;
@@ -398,14 +455,38 @@
   animation: rs-enter var(--duration-slow) var(--ease-out) both;
 }
 
+/* The entrance leaves a transform applied (fill-mode `both`), and a non-none
+   transform makes each of these blocks its own stacking context — permanently,
+   not just while it animates. A popover inside one is therefore sealed in, and
+   would be painted under any block that comes later in the DOM however high
+   its own z-index went. Order them explicitly, earliest on top, so popovers
+   escape downward and rightward into their neighbours. */
+.robot-simulator-page .rs-hero,
+.robot-simulator-page .rs-init-col,
+.robot-simulator-page .rs-diagnostics {
+  position: relative;
+}
+
+.robot-simulator-page .rs-hero {
+  z-index: 3;
+}
+.robot-simulator-page .rs-init-col {
+  z-index: 2;
+}
+.robot-simulator-page .rs-diagnostics {
+  z-index: 1;
+}
+
+/* Widened with the longer duration so the stagger still reads as three
+   distinct beats rather than one block. */
 .robot-simulator-page .rs-hero {
   animation-delay: 0ms;
 }
 .robot-simulator-page .rs-init-col {
-  animation-delay: 90ms;
+  animation-delay: 180ms;
 }
 .robot-simulator-page .rs-diagnostics {
-  animation-delay: 180ms;
+  animation-delay: 360ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -416,6 +497,11 @@
   .robot-simulator-page .btn {
     animation: none;
     transition: none;
+  }
+
+  .robot-simulator-page .btn:hover:not(:disabled),
+  .robot-simulator-page .btn:active:not(:disabled) {
+    transform: none;
   }
 }
 

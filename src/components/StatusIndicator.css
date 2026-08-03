@@ -1,4 +1,5 @@
-/* Minimal status marker — dot/checkmark plus label, no badge chrome. */
+/* Minimal status marker — an optional dot plus a label, no badge chrome and
+   no tick glyph. Color is the status. */
 
 .status {
   display: inline-flex;
@@ -21,10 +22,9 @@
   flex: none;
 }
 
-.status-glyph {
-  width: var(--space-3);
-  height: var(--space-3);
-  flex: none;
+/* Label only — the dense-list variant. Color alone carries the status. */
+.status-bare {
+  gap: 0;
 }
 
 .status-success {
@@ -34,7 +34,7 @@
   color: var(--color-error);
 }
 .status-muted {
-  color: var(--color-tertiary-label);
+  color: var(--color-secondary-label);
 }
 
 @keyframes status-appear {

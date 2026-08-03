@@ -18,7 +18,9 @@
 
   /* Type scale. Larger sizes get progressively tighter tracking, matching
      the optical correction Apple applies to product-page headlines. */
-  --text-headline: clamp(2.5rem, 1.9rem + 2.6vw, 4rem);
+  /* The headline is sized to hold the product name on a single line at every
+     width — it steps down rather than wrapping. */
+  --text-headline: clamp(1.75rem, 1.1rem + 3vw, 3rem);
   --text-headline-tracking: -0.03em;
   --text-headline-weight: 600;
 
@@ -43,25 +45,34 @@
 
   /* --------------------------------------------------------------- color */
   /* Semantic roles only. Never reference a raw hex outside this block. */
-  --color-background: #000000;
-  --color-elevated-background: #1c1c1e;
-  --color-elevated-background-hover: #2c2c2e;
 
-  --color-label: #f5f5f7;
-  --color-secondary-label: #a1a1a6;
-  --color-tertiary-label: #6e6e73;
+  /* Three steps up one neutral charcoal ramp. Surfaces separate by value
+     alone — a panel must read as clearly raised above the canvas — so these
+     stay desaturated and leave all saturation to the accent. */
+  --color-background: #0b0f14;
+  --color-elevated-background: #161b22;
+  --color-elevated-background-hover: #1a2029;
 
-  --color-separator: rgba(255, 255, 255, 0.12);
+  /* Opaque, not a translucent white: it reads identically on either ground. */
+  --color-separator: #2a3038;
 
-  /* The single accent. Every interactive element uses this — links, primary
-     buttons, active segments, focus rings. Do not add a second accent. */
-  --color-accent: #0a84ff;
-  --color-accent-hover: #409cff;
-  --color-on-accent: #ffffff;
+  /* Neutrals, checked against the panel — the lighter of the two grounds, so
+     anything legible there is legible on the canvas too. */
+  --color-label: #f0ede9;
+  --color-secondary-label: #9ba3af;
+  --color-tertiary-label: #7d8590;
 
-  /* Status semantics only — never used for interactive chrome. */
-  --color-success: #30d158;
-  --color-error: #ff453a;
+  /* The single accent — peach, with terracotta as its hover/pressed state.
+     One flavor, two steps; not two accents. On-accent is the canvas charcoal,
+     which clears 4.5:1 on both, so hover is purely a background change. */
+  --color-accent: #e8a87c;
+  --color-accent-hover: #c67b54;
+  --color-on-accent: #0b0f14;
+
+  /* Status semantics only — never used for interactive chrome. Muted on
+     purpose, so they annotate rather than compete with the accent. */
+  --color-success: #7fbf8c;
+  --color-error: #d9776f;
 
   /* --------------------------------------------------------------- space */
   /* 8pt grid with 4pt subdivisions. */
@@ -93,9 +104,11 @@
   --shadow-hero: 0 30px 60px -20px rgba(0, 0, 0, 0.8);
 
   /* -------------------------------------------------------------- motion */
+  /* --duration-slow is the entrance duration. It is deliberately longer than
+     utility-UI motion: the load should feel cinematic, not snappy. */
   --duration-fast: 150ms;
   --duration-base: 300ms;
-  --duration-slow: 600ms;
+  --duration-slow: 1000ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }

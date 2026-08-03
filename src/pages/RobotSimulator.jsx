@@ -476,9 +476,9 @@ export default function RobotSimulator() {
       <div className="robot-simulator-page">
         <div className="rs-shell">
           <header className="rs-hero">
-            <h1 className="rs-headline">Robot simulator</h1>
+            <h1 className="rs-headline">Erecting Simulator</h1>
             <p className="rs-subhead">
-              Chase, adjust, and kick — running live, straight from your source.
+              Developed by Chun Hoe
               <InfoHint text={INTRO} label="About this simulator" />
             </p>
           </header>
@@ -583,6 +583,7 @@ function EditorStep(props) {
     <div className="rs-editor-layout">
       <div className="rs-init-col">
         <ProgressBar
+          surface
           value={progressValue}
           max={TABS.length + 1}
           label="Load source"
@@ -619,7 +620,12 @@ function EditorStep(props) {
           {/* Keyed so switching modes remounts and replays the cross-fade. */}
           <div className="rs-source-panel" key={inputMode}>
             {inputMode === "folder" ? (
-              <div id="rs-panel-folder" role="tabpanel" aria-labelledby="segment-folder">
+              <div
+                id="rs-panel-folder"
+                className="rs-source-body"
+                role="tabpanel"
+                aria-labelledby="segment-folder"
+              >
                 <div className="rs-folder-action-row">
                   <button
                     type="button"
@@ -672,7 +678,12 @@ function EditorStep(props) {
                 )}
               </div>
             ) : (
-              <div id="rs-panel-paste" role="tabpanel" aria-labelledby="segment-paste">
+              <div
+                id="rs-panel-paste"
+                className="rs-source-body"
+                role="tabpanel"
+                aria-labelledby="segment-paste"
+              >
                 <div className="rs-file-switch-row">
                   <SegmentedControl
                     size="sm"
@@ -752,7 +763,11 @@ function EditorStep(props) {
 
       <aside className="rs-panel rs-diagnostics">
         <span className="rs-panel-label">Parse diagnostics</span>
-        {buildError ? <Notice tone="error" title="Build failed">{buildError}</Notice> : null}
+        {buildError ? (
+          <Notice tone="error" title="Build failed" glyph={false}>
+            {buildError}
+          </Notice>
+        ) : null}
         {!report ? (
           <p className="rs-hint">
             Load <code className="rs-mono">brain_tree.cpp</code> and a behaviour-tree XML to
@@ -766,6 +781,11 @@ function EditorStep(props) {
   );
 }
 
+/**
+ * Every status in this panel is glyphless: the label's color is the status.
+ * A column of repeated ticks and dots was noise, so `glyph={false}` is passed
+ * throughout (see the status rule in CLAUDE.md).
+ */
 export function Diagnostics({ report, required }) {
   const byStatus = { parsed: [], failed: [], missing: [] };
   for (const f of report.functions) byStatus[f.status].push(f);
@@ -781,7 +801,7 @@ export function Diagnostics({ report, required }) {
 
       <div className="rs-diag-group">
         {report.missingRequired.length > 0 ? (
-          <Notice tone="error" title="Required functions not parsed">
+          <Notice tone="error" title="Required functions not parsed" glyph={false}>
             <ul>
               {report.missingRequired.map((n) => (
                 <li key={n}>
@@ -793,12 +813,13 @@ export function Diagnostics({ report, required }) {
         ) : (
           <StatusIndicator
             tone="success"
+            glyph={false}
             label={`All ${required.length} required functions parsed`}
           />
         )}
 
         {report.headerMissing ? (
-          <Notice tone="error" title="Header missing — cannot run">
+          <Notice tone="error" title="Header missing — cannot run" glyph={false}>
             <p>
               Load <code className="rs-mono">include/brain_tree.h</code>. The XML sets only a
               handful of ports; the rest come from each node&rsquo;s{" "}
@@ -815,7 +836,7 @@ export function Diagnostics({ report, required }) {
         ) : null}
 
         {report.unresolvedPorts && report.unresolvedPorts.length > 0 ? (
-          <Notice tone="error" title="Ports declared but unresolved">
+          <Notice tone="error" title="Ports declared but unresolved" glyph={false}>
             <ul>
               {report.unresolvedPorts.map((n) => (
                 <li key={n}>
@@ -827,12 +848,13 @@ export function Diagnostics({ report, required }) {
         ) : null}
 
         {report.xmlError ? (
-          <Notice tone="error" title="Behaviour XML">
+          <Notice tone="error" title="Behaviour XML" glyph={false}>
             {report.xmlError}
           </Notice>
         ) : report.xmlNodes.length ? (
           <StatusIndicator
             tone="success"
+            glyph={false}
             label={`Behaviour XML: ports from ${report.xmlNodes.length} tags`}
           />
         ) : null}
@@ -860,7 +882,7 @@ export function Diagnostics({ report, required }) {
         <ul className="rs-fn-list">
           {byStatus.parsed.map((f) => (
             <li key={f.name} className="rs-fn">
-              <StatusIndicator tone="success" label={f.name} />
+              <StatusIndicator tone="success" glyph={false} label={f.name} />
               <span className="rs-fn-detail">
                 {f.lines} lines
                 {f.role === "dependency" ? " · pulled in as a dependency" : ""}
@@ -869,7 +891,7 @@ export function Diagnostics({ report, required }) {
           ))}
           {byStatus.failed.map((f) => (
             <li key={f.name} className="rs-fn">
-              <StatusIndicator tone="error" label={f.name} />
+              <StatusIndicator tone="error" glyph={false} label={f.name} />
               <span className="rs-fn-detail">
                 failed at line {f.line}:{f.col} — {f.detail}
               </span>
@@ -877,7 +899,7 @@ export function Diagnostics({ report, required }) {
           ))}
           {byStatus.missing.map((f) => (
             <li key={f.name} className="rs-fn">
-              <StatusIndicator tone="muted" label={f.name} />
+              <StatusIndicator tone="muted" glyph={false} label={f.name} />
               <span className="rs-fn-detail">not found</span>
             </li>
           ))}

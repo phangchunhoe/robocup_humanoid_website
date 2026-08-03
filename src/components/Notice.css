@@ -1,5 +1,5 @@
 /* Status headline + explanatory body. No background, no border — the status
-   color lives only in the indicator glyph. */
+   color lives only in the title. */
 
 .notice {
   display: flex;
@@ -12,8 +12,13 @@
   font-size: var(--text-caption);
   line-height: var(--line-height-base);
   color: var(--color-secondary-label);
-  /* Align the body under the indicator's label, past its glyph. */
-  padding-left: var(--space-5);
+  /* Align the body under the indicator's label, past its dot. */
+  padding-left: var(--space-4);
+}
+
+/* No dot, so nothing to clear — the body sits flush with the title. */
+.notice-bare .notice-body {
+  padding-left: 0;
 }
 
 .notice-body p {

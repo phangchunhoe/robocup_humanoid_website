@@ -19,7 +19,12 @@
   background: transparent;
   color: var(--color-tertiary-label);
   cursor: pointer;
-  transition: color var(--duration-fast) var(--ease-out);
+  transition: color var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.info-hint-trigger:active {
+  transform: scale(0.92);
 }
 
 .info-hint-trigger svg {
@@ -80,5 +85,8 @@
   .info-hint-popover {
     transition: none;
     animation: none;
+  }
+  .info-hint-trigger:active {
+    transform: none;
   }
 }

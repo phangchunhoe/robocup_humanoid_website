@@ -65,23 +65,47 @@ Type scale tokens: `--text-headline`, `--text-title`, `--text-body`,
 Semantic, role-named tokens only — never hardcoded hex in page CSS, and never
 a raw color name that describes appearance instead of purpose.
 
-| Token | Role |
-|---|---|
-| `--color-background` | Near-black page canvas |
-| `--color-elevated-background` | Raised surface (panels, popovers) sitting on the canvas |
-| `--color-label` | Off-white primary text |
-| `--color-secondary-label` | Muted gray secondary text |
-| `--color-tertiary-label` | Faintest text — hints, placeholders |
-| `--color-separator` | Hairline dividers and borders |
-| `--color-accent` | The single accent — links, primary buttons, active states |
-| `--color-accent-hover` | Accent hover/pressed state |
-| `--color-success` | Success/found status only |
-| `--color-error` | Error/missing status only |
+The palette is **neutral charcoal carrying one warm accent**. The grounds are
+desaturated cool charcoals whose only job is to separate by *value*; every
+warm, saturated color on the page is interactive, and there is exactly one of
+them. Nothing decorative competes with it.
+
+| Token | Value | Role |
+|---|---|---|
+| `--color-background` | `#0b0f14` | Near-black cool charcoal page canvas |
+| `--color-elevated-background` | `#161b22` | Panel/card surface. Must read as clearly **raised** above the canvas — this is the first elevation level |
+| `--color-elevated-background-hover` | `#1a2029` | The second elevation level: the raised surface hovered, or a surface sitting on another surface |
+| `--color-separator` | `#2a3038` | Hairline borders and dividers. An opaque charcoal, not a translucent white — it reads the same on either ground |
+| `--color-accent` | `#e8a87c` | Peach — the single interactive color: links, primary buttons, active segments, focus rings |
+| `--color-accent-hover` | `#c67b54` | Terracotta — the accent's hover/pressed state. Same flavor, one step deeper |
+| `--color-on-accent` | `#0b0f14` | Charcoal ink for text/glyphs sitting *on* an accent fill. Clears 4.5:1 on both peach and terracotta, so hover is a background change only |
+| `--color-label` | `#f0ede9` | Warm off-white primary text |
+| `--color-secondary-label` | `#9ba3af` | Muted gray secondary text |
+| `--color-tertiary-label` | `#7d8590` | Faintest text — hints, placeholders |
+| `--color-success` | `#7fbf8c` | Muted green. Success/found status only |
+| `--color-error` | `#d9776f` | Warm-toned red. Error/missing status only |
+
+**Separation is by value, saturation is by role.** Canvas, panel, and hover
+surface are three distinct steps up the same neutral ramp — a panel must be
+visibly lighter than the canvas it sits on, so never flatten those steps or
+paint a panel with the canvas token. Conversely, saturation means *this is
+interactive*: if a color is warm and saturated, it is the accent, and if it is
+the accent, it responds to a pointer. Neutrals never carry meaning; the accent
+never decorates.
+
+**Contrast is checked against `--color-elevated-background`,** not the canvas.
+The panel is the lighter of the two grounds, so anything legible there is
+legible on the canvas too. Add a token that renders on a panel, check it there
+first.
 
 **One accent color.** Every interactive element — links, primary buttons,
-active segmented-control segments, focus rings — uses `--color-accent`. Do not
-introduce a second accent. `--color-success` and `--color-error` are *status
-semantics*, not accents; never use them for interactive chrome.
+active segmented-control segments, focus rings — uses `--color-accent`, with
+`--color-accent-hover` for its hover/pressed state. Those two are one accent
+in two states, not two accents; do not introduce a second accent flavor for
+interactive chrome. `--color-success` and `--color-error` are *status
+semantics*, not accents; never use them for interactive chrome. They are
+deliberately muted so they read as annotation next to the accent, not as
+rival accents.
 
 ## Surfaces, shadows, gradients
 
@@ -102,6 +126,20 @@ semantics*, not accents; never use them for interactive chrome.
   segmented control segments, icon buttons). Use `--tap-target-min`. If a
   control looks smaller than 44px, pad it out or give it a transparent hit
   area — visual size and hit size are allowed to differ.
+- **Symmetric padding.** Top matches bottom, left matches right, on every
+  padded box. The only exception is optical centering on a pill control. If
+  you find `padding: a b c d` with four different values, it is a bug.
+- **Border-box, always.** There is no app-wide `box-sizing` reset — `index.css`
+  resets margins only, and a global takeover would reach the unmigrated pages.
+  Each migrated page scopes its own reset to its container. Any component that
+  sets an explicit width *and* carries padding or a border must also set
+  `box-sizing: border-box` on itself, so it stays correct wherever it is
+  reused; otherwise it renders wider than its column by exactly its padding
+  plus border, and silently stops lining up with its siblings.
+- **Nothing sits flush.** No button — or any other control — may butt against
+  the element above it with zero space. Spacing between siblings comes from
+  the parent's `gap`, not from one-off margins on the children; if a column
+  has no `gap`, give it one rather than adding a margin to the odd child.
 - **Generous whitespace.** Prefer too much over too little. Sections breathe.
 - **Full-bleed sections; one clear idea per section.** Avoid dense multi-panel
   layouts. A section should do one thing and be legible at a glance.
@@ -116,10 +154,13 @@ There is no component library. Build from tokens, following Apple's patterns:
 - **Buttons** — pill-shaped. Exactly two variants: **primary** (filled
   `--color-accent`) and **secondary** (plain/ghost text or hairline outline).
   No tertiary, no danger variant.
-- **Status indicators** — minimal. A small dot or checkmark plus a short text
-  label, in `--color-success` / `--color-error` / `--color-secondary-label`.
-  No badge or tag chrome: no filled pill backgrounds, no borders, no uppercase
-  micro-labels.
+- **Status indicators** — minimal. A short text label in `--color-success` /
+  `--color-error` / `--color-secondary-label`, optionally preceded by a small
+  dot. No badge or tag chrome: no filled pill backgrounds, no borders, no
+  uppercase micro-labels, and no tick/checkmark glyphs. In a dense list of
+  statuses — the parse diagnostics panel is the case — drop the dot too and
+  let **color alone** carry the status (`glyph={false}`); a column of repeated
+  icons is noise.
 - Anything reused across pages goes in `src/components/`. Page-specific
   components can live alongside the page.
 
@@ -131,17 +172,21 @@ attention-seeking.
 - **Ease-out on entrance** (`--ease-out`). No bounce or spring unless
   *very* subtle.
 - **Entrance**: fade plus slight upward movement (~8–12px). The initial page
-  load may be slightly deliberate/cinematic — Apple's motion is slower than
-  utility-UI motion, so `--duration-slow` (~600ms) is appropriate here, staggered
+  load is deliberate and cinematic — Apple's motion is slower than utility-UI
+  motion, so `--duration-slow` (1000ms) is the entrance duration, staggered
   across a few elements.
 - **Tab/segment switches**: smooth cross-fade (`--duration-base`).
-- **Hover/press feedback**: quick (`--duration-fast`), so controls stay responsive.
+- **Hover/press feedback**: always a real transition, never an instant state
+  swap. Color, background, and border animate over `--duration-base`; the
+  transform nudge that accompanies them uses `--duration-fast` so the control
+  still feels responsive under the finger. Every interactive element needs a
+  `:hover` *and* an `:active` state, both eased with `--ease-out`.
 - **No scroll-triggered animation** on single-screen views. Entrance runs once,
   on load.
 - Always honor `prefers-reduced-motion: reduce` by disabling animation.
 
 Duration tokens: `--duration-fast` (150ms), `--duration-base` (300ms),
-`--duration-slow` (600ms). Easing: `--ease-out`, `--ease-in-out`.
+`--duration-slow` (1000ms). Easing: `--ease-out`, `--ease-in-out`.
 
 ## File conventions
 

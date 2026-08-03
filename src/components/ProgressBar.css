@@ -1,17 +1,43 @@
-/* Thin progress bar — accent fill, elevated track, legible label row. */
+/* Thin progress bar — accent fill, recessed track, legible label row. */
 
 .progress {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  /* width:100% plus the surface variant's padding — this has to be border-box
+     or the panel renders wider than the column and breaks its alignment with
+     the panels below it. Set here, not only on the page, so the component
+     stays correct wherever it is reused. */
+  box-sizing: border-box;
+  /* Clear air between the label row and the bar — the bar must not read as
+     attached to the text above it. */
+  gap: var(--space-4);
   width: 100%;
 }
 
+/* Panel variant: the bar carries its own raised surface, so a step header
+   sits on the elevated tone rather than bare on the canvas. Padding is the
+   panel system's --space-6 on all four sides — this header is a panel like
+   any other and must not sit tighter than the ones below it. That bottom
+   inset is also what keeps the bar clear of the panel edge. */
+.progress-surface {
+  padding: var(--space-6);
+  border-radius: var(--radius-panel);
+  background: var(--color-elevated-background);
+  /* Hairline only — no shadow on UI chrome. */
+  border: 1px solid var(--color-separator);
+}
+
+/* The label row stays on one line, with the label and its status optically
+   centered against each other rather than sharing a baseline — their type
+   sizes differ, and centering is what reads as level. The hint gives way
+   first if the row is tight. */
 .progress-row {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
+  flex-wrap: nowrap;
   gap: var(--space-4);
+  min-height: var(--space-6);
 }
 
 .progress-label {
@@ -20,18 +46,24 @@
   font-weight: 500;
   /* Fully legible, not a whisper. */
   color: var(--color-label);
+  white-space: nowrap;
 }
 
 .progress-hint {
   font-size: var(--text-caption);
   color: var(--color-secondary-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
+/* Recessed against the panel it sits on — the canvas tone reads as a well. */
 .progress-track {
   position: relative;
   height: var(--space-1);
   border-radius: var(--radius-pill);
-  background: var(--color-elevated-background);
+  background: var(--color-background);
   overflow: hidden;
 }
 
