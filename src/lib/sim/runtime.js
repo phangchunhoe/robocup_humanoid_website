@@ -225,10 +225,23 @@ export class SimRuntime {
     this.fileScopeVars = fileScopeVars;
     this.error = null;
 
+    // Only brain->log->strategy() is ever displayed (see drainLogs in RobotSimulator.jsx);
+    // debug()/log() fire far more often -- a real run hit 400 total log calls (any level)
+    // within one second of simulated time -- so a single shared, level-agnostic ring buffer
+    // let high-frequency debug/log noise evict rare strategy entries within moments of a
+    // run starting. Storing only strategy-level entries means the cap is sized for what is
+    // actually rare, and a full run doesn't silently lose its early transitions.
     this.logs = [];
+    // logSeq increments on every call and never resets when the ring evicts, unlike
+    // logs.length -- once logs.length plateaus at the cap, `length !== previous length`
+    // stops being true forever and the UI's "did anything change" check would silently
+    // stop firing. logSeq keeps changing for as long as new entries arrive.
+    this.logSeq = 0;
     host.onLog = (entry) => {
+      if (entry.level !== "strategy") return;
       this.logs.push(entry);
-      if (this.logs.length > 400) this.logs.shift();
+      this.logSeq += 1;
+      if (this.logs.length > 2000) this.logs.shift();
     };
 
     // Expose the extracted user functions as callable globals so, for example,
@@ -295,6 +308,7 @@ export class SimRuntime {
     this.host.reset(role || this.role);
     if (role) this.role = role;
     this.logs.length = 0;
+    this.logSeq = 0;
     this.unknownSymbols.length = 0;
     this.kickPhase = "idle";
     this.lastDecision = "";

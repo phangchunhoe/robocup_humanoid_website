@@ -801,7 +801,7 @@ function SimStep(props) {
           <div ref={notesRef} className="runtime-notes" />
 
           <div className="log-panel">
-            <h3>brain-&gt;log output</h3>
+            <h3>brain-&gt;log-&gt;strategy(...) output</h3>
             <pre ref={logRef} className="log-stream" />
           </div>
 
@@ -1030,14 +1030,48 @@ function paintNotes(root, runtime) {
 
 function drainLogs(pre, runtime, countRef) {
   if (!pre) return;
-  const logs = runtime.logs;
-  if (logs.length === countRef.current) return;
-  // The runtime keeps a bounded ring; re-render only when it changed.
-  const lines = logs
-    .filter((l) => l.level === "strategy" || l.level === "warn" || l.level === "error")
-    .slice(-60)
-    .map((l) => `[${l.t.toFixed(2)}s] ${l.scope}: ${l.msg.split("\n")[0]}`);
-  pre.textContent = lines.join("\n");
+  // runtime.logSeq increments on every strategy() call and never resets when the ring
+  // evicts old entries -- unlike runtime.logs.length, which plateaus once the ring hits
+  // its cap. Using length here would make this check silently stop firing forever the
+  // moment the cap is first reached (400 total log calls used to arrive within about a
+  // second of simulated time), freezing the panel on stale content while newer entries
+  // kept arriving unseen. runtime.logs itself already holds only level === "strategy"
+  // entries -- debug()/log() calls are dropped at the source in runtime.js, since nothing
+  // in this UI displays them and they were the high-frequency noise evicting the rare
+  // strategy entries in the first place.
+  if (runtime.logSeq === countRef.current) return;
+  // brain->log->strategy() calls are deliberately multi-line diagnostic dumps (see
+  // StrikerDecide's transition log: team/ball/kick/gates/robot/thresholds on separate
+  // lines, each pre-indented by the format string itself) -- show the message in full,
+  // not just its first line, or all of that detail is silently discarded. Only the first
+  // line gets the [t] [scope] prefix; the rest is printed exactly as the code formatted
+  // it, with no re-indenting.
+  //
+  // Not every strategy() call is change-gated the way StrikerDecide's transition log is --
+  // e.g. GoalieChase's "between ball and own goal" line (brain_tree.cpp:895) fires every
+  // tick for as long as that branch is active, with no dedup in the C++ itself. Left alone,
+  // one chatty call like that fills the whole window and pushes out everything else. Collapse
+  // consecutive entries with the same scope+message into one line with a repeat count and
+  // time range, so a real run of spam takes one line instead of forty.
+  const raw = runtime.logs.slice(-300);
+  const collapsed = [];
+  for (const l of raw) {
+    const last = collapsed[collapsed.length - 1];
+    if (last && last.scope === l.scope && last.msg === l.msg) {
+      last.count += 1;
+      last.tEnd = l.t;
+    } else {
+      collapsed.push({ scope: l.scope, msg: l.msg, tStart: l.t, tEnd: l.t, count: 1 });
+    }
+  }
+  const text = collapsed
+    .slice(-50)
+    .map((e) => {
+      const time = e.count > 1 ? `t=${e.tStart.toFixed(2)}-${e.tEnd.toFixed(2)}s (x${e.count})` : `t=${e.tStart.toFixed(2)}s`;
+      return `[${time}] [${e.scope}] ${e.msg}`;
+    })
+    .join("\n");
+  pre.textContent = text;
   pre.scrollTop = pre.scrollHeight;
-  countRef.current = logs.length;
+  countRef.current = runtime.logSeq;
 }

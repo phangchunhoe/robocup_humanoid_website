@@ -694,7 +694,7 @@
   border: 1px solid var(--panel-border);
   border-radius: 7px;
   padding: 8px 10px;
-  height: 160px;
+  height: 300px;
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
