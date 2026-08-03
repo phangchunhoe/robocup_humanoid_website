@@ -1,0 +1,59 @@
+/* Apple-style segmented control. Tokens only — see CLAUDE.md. */
+
+.segmented {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated-background);
+  /* No shadow on UI chrome — a hairline separates it from the canvas. */
+  border: 1px solid var(--color-separator);
+}
+
+.segmented-segment {
+  /* 44px minimum tap target, per CLAUDE.md. */
+  min-height: var(--tap-target-min);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-secondary-label);
+  font-family: var(--font-sans);
+  font-size: var(--text-callout);
+  font-weight: 500;
+  letter-spacing: var(--text-callout-tracking);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out);
+}
+
+.segmented-segment:hover:not(.is-active) {
+  color: var(--color-label);
+  background: var(--color-elevated-background-hover);
+}
+
+/* The single accent, used for every active/interactive state. */
+.segmented-segment.is-active {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.segmented-segment:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Smaller visual footprint for dense rows — the hit area stays at 44px via
+   the transparent vertical padding rather than shrinking the target. */
+.segmented-sm .segmented-segment {
+  padding: 0 var(--space-4);
+  font-size: var(--text-caption);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segmented-segment {
+    transition: none;
+  }
+}

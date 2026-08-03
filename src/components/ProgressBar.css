@@ -1,0 +1,52 @@
+/* Thin progress bar — accent fill, elevated track, legible label row. */
+
+.progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.progress-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.progress-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-callout);
+  font-weight: 500;
+  /* Fully legible, not a whisper. */
+  color: var(--color-label);
+}
+
+.progress-hint {
+  font-size: var(--text-caption);
+  color: var(--color-secondary-label);
+}
+
+.progress-track {
+  position: relative;
+  height: var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--color-elevated-background);
+  overflow: hidden;
+}
+
+.progress-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  /* Scale rather than width so the fill animates on the compositor. */
+  transform-origin: left center;
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-fill {
+    transition: none;
+  }
+}

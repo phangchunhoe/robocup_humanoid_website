@@ -1,0 +1,33 @@
+/* Status headline + explanatory body. No background, no border — the status
+   color lives only in the indicator glyph. */
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.notice-body {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: var(--line-height-base);
+  color: var(--color-secondary-label);
+  /* Align the body under the indicator's label, past its glyph. */
+  padding-left: var(--space-5);
+}
+
+.notice-body p {
+  margin: 0 0 var(--space-2);
+}
+
+.notice-body p:last-child {
+  margin-bottom: 0;
+}
+
+.notice-body ul {
+  margin: 0;
+  padding-left: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}

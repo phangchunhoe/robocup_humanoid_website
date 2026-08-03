@@ -1,0 +1,84 @@
+/* Info affordance + popover. No shadow on the popover — it is UI chrome, so
+   it separates from the canvas with an elevated surface plus a hairline. */
+
+.info-hint {
+  position: relative;
+  display: inline-flex;
+  vertical-align: middle;
+}
+
+.info-hint-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Visually small, but a full 44px target as CLAUDE.md requires. */
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-tertiary-label);
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-out);
+}
+
+.info-hint-trigger svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.info-hint-trigger:hover,
+.info-hint-trigger[aria-expanded="true"] {
+  color: var(--color-accent);
+}
+
+.info-hint-trigger:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -8px;
+  border-radius: var(--radius-pill);
+}
+
+.info-hint-popover {
+  position: absolute;
+  top: calc(100% - var(--space-2));
+  z-index: 20;
+  width: max-content;
+  max-width: 34ch;
+  padding: var(--space-4);
+  border-radius: var(--radius-control);
+  background: var(--color-elevated-background);
+  border: 1px solid var(--color-separator);
+  color: var(--color-secondary-label);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  line-height: var(--line-height-base);
+  text-align: left;
+  white-space: normal;
+  animation: info-hint-in var(--duration-base) var(--ease-out) both;
+}
+
+.info-hint-popover-start {
+  left: var(--space-2);
+}
+.info-hint-popover-end {
+  right: var(--space-2);
+}
+
+@keyframes info-hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .info-hint-trigger,
+  .info-hint-popover {
+    transition: none;
+    animation: none;
+  }
+}

@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Header from "../components/Header.jsx";
+import SegmentedControl from "../components/SegmentedControl.jsx";
+import StatusIndicator from "../components/StatusIndicator.jsx";
+import InfoHint from "../components/InfoHint.jsx";
+import SelectableCard from "../components/SelectableCard.jsx";
+import ProgressBar from "../components/ProgressBar.jsx";
+import Notice from "../components/Notice.jsx";
 import { TABS, INTRO, CONFIG_NOTE, expectedRelPath } from "../content/simulatorPasteGuide.js";
 import { buildProgram } from "../lib/sim/runtime.js";
 import { createWorld, stepWorld, DEFAULT_PHYSICS } from "../lib/sim/physics.js";
@@ -10,6 +16,20 @@ import { CONFIG_DEFAULTS } from "../lib/sim/host.js";
 import { runSelfTest } from "../lib/cpp/selftest.js";
 import { REQUIRED_BY_ROLE } from "../lib/cpp/extract.js";
 import "./RobotSimulator.css";
+
+// One status per required file, folding "is this required" and "did it load"
+// into a single state — every file this app asks for is required, so a
+// separate "required" marker would just repeat itself three times.
+function fileStatus(tabId, folderScan, sources) {
+  const scanResult = folderScan && folderScan.results.find((r) => r.tabId === tabId);
+  if (scanResult) {
+    return scanResult.found
+      ? { tone: "success", label: "Found" }
+      : { tone: "error", label: "Missing" };
+  }
+  const hasContent = (sources[tabId] || "").trim().length > 0;
+  return hasContent ? { tone: "success", label: "Loaded" } : { tone: "muted", label: "Required" };
+}
 
 const STORAGE_KEY = "robot-simulator-source-v1";
 
@@ -454,33 +474,14 @@ export default function RobotSimulator() {
     <>
       <Header />
       <div className="robot-simulator-page">
-        <div className="app">
-          <header className="top">
-            <span className="eyebrow">
-              brain_tree.cpp · TickChaseNode / Adjust / Kick · interpreted, not reimplemented
-            </span>
-            <h1>Robot simulator</h1>
-            <p className="sub">{INTRO}</p>
+        <div className="rs-shell">
+          <header className="rs-hero">
+            <h1 className="rs-headline">Robot simulator</h1>
+            <p className="rs-subhead">
+              Chase, adjust, and kick — running live, straight from your source.
+              <InfoHint text={INTRO} label="About this simulator" />
+            </p>
           </header>
-
-          <nav className="wizard">
-            <button
-              type="button"
-              className={`wizard-step ${step === "edit" ? "active" : ""}`}
-              onClick={() => setStep("edit")}
-            >
-              <span className="wizard-num">1</span> Paste the source
-            </button>
-            <span className="wizard-arrow">→</span>
-            <button
-              type="button"
-              className={`wizard-step ${step === "run" ? "active" : ""}`}
-              onClick={() => canRun && handleRun()}
-              disabled={!canRun}
-            >
-              <span className="wizard-num">2</span> Simulate
-            </button>
-          </nav>
 
           {step === "edit" ? (
             <EditorStep
@@ -545,9 +546,25 @@ function EditorStep(props) {
     folderInputRef, folderBusy, folderScan, onFolderInputChange,
   } = props;
 
+  // Jumps to "paste" automatically once a folder scan lands, since that's
+  // where the loaded files become visible.
+  const [inputMode, setInputMode] = useState("folder");
+  useEffect(() => {
+    if (folderScan) setInputMode("paste");
+  }, [folderScan]);
+
   const tab = TABS.find((t) => t.id === activeTab) || TABS[0];
   const value = sources[tab.id] || "";
   const lineCount = value ? value.split("\n").length : 1;
+  const activeStatus = fileStatus(tab.id, folderScan, sources);
+
+  // Progress reflects how close the page is to being runnable: one unit per
+  // required file that has content, plus a final unit for a clean parse.
+  const filesLoaded = TABS.filter((t) => (sources[t.id] || "").trim().length > 0).length;
+  const progressValue = canRun ? TABS.length + 1 : filesLoaded;
+  const progressHint = canRun
+    ? "Ready to run"
+    : `${filesLoaded} of ${TABS.length} files loaded`;
 
   const handleKeyDown = (evt) => {
     if (evt.key !== "Tab") return;
@@ -563,129 +580,183 @@ function EditorStep(props) {
   };
 
   return (
-    <div className="layout editor-layout">
-      <section className="panel editor-panel">
-        <div className="role-row">
-          <span className="role-label">Role</span>
-          {roles.map((r) => (
-            <button
-              key={r.id}
-              type="button"
-              className={`toggle-chip ${role === r.id ? "on" : ""}`}
-              onClick={() => setRole(r.id)}
-            >
-              {r.label}
-            </button>
-          ))}
-          <span className="role-hint">
-            expects <code>{roleMeta.xml}</code>
-          </span>
-        </div>
+    <div className="rs-editor-layout">
+      <div className="rs-init-col">
+        <ProgressBar
+          value={progressValue}
+          max={TABS.length + 1}
+          label="Load source"
+          hint={progressHint}
+        />
 
-        <div className="folder-row">
-          <button
-            type="button"
-            className="primary"
-            disabled={folderBusy}
-            onClick={() => folderInputRef.current && folderInputRef.current.click()}
-          >
-            {folderBusy ? "Scanning…" : "Open brain folder…"}
-          </button>
-          <input
-            ref={folderInputRef}
-            type="file"
-            webkitdirectory=""
-            directory=""
-            multiple
-            hidden
-            onChange={onFolderInputChange}
+        <section className="rs-panel rs-role-section">
+          <SelectableCard
+            name="role"
+            legend="Role"
+            options={roles.map((r) => ({ id: r.id, label: r.label }))}
+            value={role}
+            onChange={setRole}
           />
-          <span className="muted-note folder-hint">
-            Select your Robocup-Humanoid- checkout (or its src/brain folder) — the three files
-            below are found by relative path and loaded automatically. Pasting manually still
-            works per tab.
+          <span className="rs-role-hint">
+            Expects <code className="rs-mono">{roleMeta.xml}</code>
           </span>
-        </div>
-        <FolderScanStatus scan={folderScan} />
+        </section>
 
-        <div className="tab-row">
-          {TABS.map((t) => {
-            const filled = (sources[t.id] || "").trim().length > 0;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className={`tab ${activeTab === t.id ? "on" : ""} ${filled ? "filled" : ""}`}
-                onClick={() => setActiveTab(t.id)}
-              >
-                {t.label}
-                {t.required ? <span className="req">required</span> : <span className="opt">optional</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        <p className="tab-hint">
-          <code>{tab.file}</code> — {tab.hint}
-        </p>
-
-        <div className="code-editor">
-          <pre className="gutter" aria-hidden="true">
-            {Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")}
-          </pre>
-          <textarea
-            spellCheck="false"
-            value={value}
-            placeholder={tab.placeholder}
-            onChange={(evt) => setSources({ ...sources, [tab.id]: evt.target.value })}
-            onKeyDown={handleKeyDown}
-          />
-        </div>
-
-        <div className="editor-actions">
-          <button type="button" className="primary" disabled={!canRun} onClick={onRun}>
-            Run ▶
-          </button>
-          <button type="button" onClick={onSelfTest}>
-            Interpreter self-check
-          </button>
-          <button
-            type="button"
-            onClick={() => setSources({ ...sources, [tab.id]: "" })}
-            disabled={!value}
-          >
-            Clear this tab
-          </button>
-          <span className="config-note">{CONFIG_NOTE}</span>
-        </div>
-
-        {selfTest ? (
-          <div className={`selftest ${selfTest.failed === 0 ? "ok" : "bad"}`}>
-            <strong>
-              Self-check: {selfTest.passed} passed, {selfTest.failed} failed
-            </strong>
-            {selfTest.failed > 0 ? (
-              <ul>
-                {selfTest.results
-                  .filter((r) => !r.ok)
-                  .map((r) => (
-                    <li key={r.name}>
-                      {r.name} — {r.detail}
-                    </li>
-                  ))}
-              </ul>
-            ) : null}
+        <section className="rs-panel rs-source-section">
+          <div className="rs-source-header">
+            <span className="rs-panel-label">Source</span>
+            <SegmentedControl
+              ariaLabel="Source input method"
+              segments={[
+                { id: "folder", label: "Open folder", panelId: "rs-panel-folder" },
+                { id: "paste", label: "Paste source", panelId: "rs-panel-paste" },
+              ]}
+              value={inputMode}
+              onChange={setInputMode}
+            />
           </div>
-        ) : null}
-      </section>
 
-      <aside className="panel console diagnostics">
-        <h2>Parse diagnostics</h2>
-        {buildError ? <div className="diag-error">{buildError}</div> : null}
+          {/* Keyed so switching modes remounts and replays the cross-fade. */}
+          <div className="rs-source-panel" key={inputMode}>
+            {inputMode === "folder" ? (
+              <div id="rs-panel-folder" role="tabpanel" aria-labelledby="segment-folder">
+                <div className="rs-folder-action-row">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={folderBusy}
+                    onClick={() => folderInputRef.current && folderInputRef.current.click()}
+                  >
+                    {folderBusy ? "Scanning…" : "Choose folder"}
+                  </button>
+                  <InfoHint
+                    label="About opening a folder"
+                    text="Select your Robocup-Humanoid- checkout, or its src/brain folder. The files below are matched by relative path. Manual paste still works per file."
+                  />
+                  <input
+                    ref={folderInputRef}
+                    type="file"
+                    webkitdirectory=""
+                    directory=""
+                    multiple
+                    hidden
+                    onChange={onFolderInputChange}
+                  />
+                </div>
+
+                {folderScan ? (
+                  <ul className="rs-file-list">
+                    {folderScan.results.map((r) => {
+                      const t = TABS.find((entry) => entry.id === r.tabId);
+                      return (
+                        <li key={r.tabId} className="rs-file-row">
+                          <code className="rs-mono rs-file-path">{r.path}</code>
+                          <StatusIndicator
+                            tone={r.found ? "success" : "error"}
+                            label={r.found ? "Found" : "Missing"}
+                            animateKey={`${r.tabId}-${r.found}`}
+                          />
+                          {!r.found ? (
+                            <span className="rs-file-note">
+                              {r.error
+                                ? `Could not read it — ${r.error}`
+                                : `Paste it manually under ${t ? t.label : r.tabId}`}
+                            </span>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="rs-empty">Nothing loaded yet.</p>
+                )}
+              </div>
+            ) : (
+              <div id="rs-panel-paste" role="tabpanel" aria-labelledby="segment-paste">
+                <div className="rs-file-switch-row">
+                  <SegmentedControl
+                    size="sm"
+                    ariaLabel="Which file to paste"
+                    segments={TABS.map((t) => ({ id: t.id, label: t.label }))}
+                    value={activeTab}
+                    onChange={setActiveTab}
+                  />
+                  <StatusIndicator
+                    tone={activeStatus.tone}
+                    label={activeStatus.label}
+                    animateKey={`${tab.id}-${activeStatus.tone}-${activeStatus.label}`}
+                  />
+                </div>
+
+                <div className="rs-file-meta">
+                  <code className="rs-mono rs-file-path">{tab.file}</code>
+                  <InfoHint text={tab.hint} label={`About ${tab.label}`} />
+                </div>
+
+                <div className="code-editor">
+                  <pre className="gutter" aria-hidden="true">
+                    {Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")}
+                  </pre>
+                  <textarea
+                    spellCheck="false"
+                    value={value}
+                    placeholder={tab.placeholder}
+                    onChange={(evt) => setSources({ ...sources, [tab.id]: evt.target.value })}
+                    onKeyDown={handleKeyDown}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => setSources({ ...sources, [tab.id]: "" })}
+                  disabled={!value}
+                >
+                  Clear this file
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="rs-run-section">
+          <div className="rs-run-row">
+            <button type="button" className="btn btn-primary" disabled={!canRun} onClick={onRun}>
+              Run simulation
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={onSelfTest}>
+              Interpreter self-check
+            </button>
+            <InfoHint text={CONFIG_NOTE} label="About config.yaml values" align="end" />
+          </div>
+
+          {selfTest ? (
+            <p className={`rs-selftest rs-selftest-${selfTest.failed === 0 ? "ok" : "bad"}`}>
+              <StatusIndicator
+                tone={selfTest.failed === 0 ? "success" : "error"}
+                label={`${selfTest.passed} passed, ${selfTest.failed} failed`}
+                animateKey={`${selfTest.passed}-${selfTest.failed}`}
+              />
+              {selfTest.failed > 0 ? (
+                <span className="rs-selftest-detail">
+                  {selfTest.results
+                    .filter((r) => !r.ok)
+                    .map((r) => `${r.name} — ${r.detail}`)
+                    .join("; ")}
+                </span>
+              ) : null}
+            </p>
+          ) : null}
+        </section>
+      </div>
+
+      <aside className="rs-panel rs-diagnostics">
+        <span className="rs-panel-label">Parse diagnostics</span>
+        {buildError ? <Notice tone="error" title="Build failed">{buildError}</Notice> : null}
         {!report ? (
-          <p className="muted-note">
-            Paste <code>brain_tree.cpp</code> and a behaviour-tree XML to see what was
-            extracted. Nothing is parsed until you do.
+          <p className="rs-hint">
+            Load <code className="rs-mono">brain_tree.cpp</code> and a behaviour-tree XML to
+            see what was extracted.
           </p>
         ) : (
           <Diagnostics report={report} required={required} />
@@ -695,164 +766,148 @@ function EditorStep(props) {
   );
 }
 
-function FolderScanStatus({ scan }) {
-  if (!scan) return null;
-  return (
-    <ul className="folder-status">
-      {scan.results.map((r) => {
-        const tab = TABS.find((t) => t.id === r.tabId);
-        return (
-          <li key={r.tabId} className={r.found ? "found" : "missing"}>
-            <span className="folder-status-state">{r.found ? "found" : "not found"}</span>
-            <span className="folder-status-label">{tab ? tab.label : r.tabId}</span>
-            <code>{r.path}</code>
-            {!r.found ? (
-              <span className="folder-status-note">
-                {r.error ? `could not read it — ${r.error}` : "paste it manually in that tab instead"}
-              </span>
-            ) : null}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-function Diagnostics({ report, required }) {
+export function Diagnostics({ report, required }) {
   const byStatus = { parsed: [], failed: [], missing: [] };
   for (const f of report.functions) byStatus[f.status].push(f);
 
   return (
     <>
       {report.stats ? (
-        <div className="stat-line">
+        <p className="rs-hint">
           Scanned {report.stats.totalLines.toLocaleString()} lines; extracted{" "}
-          <strong>{report.stats.extractedLines.toLocaleString()}</strong> lines (
-          {report.stats.percent.toFixed(1)}% of the paste). The rest was never tokenised.
-        </div>
+          {report.stats.extractedLines.toLocaleString()} ({report.stats.percent.toFixed(1)}%).
+        </p>
       ) : null}
 
-      {report.missingRequired.length > 0 ? (
-        <div className="diag-error">
-          <strong>Cannot run.</strong> These functions are required for this role but were
-          not parsed:
-          <ul>
-            {report.missingRequired.map((n) => (
-              <li key={n}>
-                <code>{n}</code>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : (
-        <div className="diag-ok">
-          All {required.length} functions required for this role parsed successfully.
-        </div>
-      )}
+      <div className="rs-diag-group">
+        {report.missingRequired.length > 0 ? (
+          <Notice tone="error" title="Required functions not parsed">
+            <ul>
+              {report.missingRequired.map((n) => (
+                <li key={n}>
+                  <code className="rs-mono">{n}</code>
+                </li>
+              ))}
+            </ul>
+          </Notice>
+        ) : (
+          <StatusIndicator
+            tone="success"
+            label={`All ${required.length} required functions parsed`}
+          />
+        )}
 
-      {report.headerMissing ? (
-        <div className="diag-error">
-          <strong>Cannot run — paste <code>include/brain_tree.h</code>.</strong> The XML
-          only sets a handful of ports; the rest come from each node&rsquo;s{" "}
-          <code>providedPorts()</code> defaults in the header. Without it those ports
-          resolve to 0, and 0 does not degrade gracefully — it changes what the code does.{" "}
-          <code>Adjust.session_timeout_ms</code> is the sharp case: the real default is
-          4000&nbsp;ms, and at 0 the session watchdog trips on the first tick, so Adjust
-          never runs and the robot never lines up a kick.
-        </div>
-      ) : null}
+        {report.headerMissing ? (
+          <Notice tone="error" title="Header missing — cannot run">
+            <p>
+              Load <code className="rs-mono">include/brain_tree.h</code>. The XML sets only a
+              handful of ports; the rest come from each node&rsquo;s{" "}
+              <code className="rs-mono">providedPorts()</code> defaults. Without it those
+              ports resolve to 0, which changes what the code does rather than degrading
+              gracefully.
+            </p>
+            <p>
+              <code className="rs-mono">Adjust.session_timeout_ms</code> is the sharp case:
+              the real default is 4000&nbsp;ms, and at 0 the watchdog trips on the first
+              tick, so Adjust never runs and the robot never lines up a kick.
+            </p>
+          </Notice>
+        ) : null}
 
-      {report.unresolvedPorts && report.unresolvedPorts.length > 0 ? (
-        <div className="diag-error">
-          <strong>Cannot run.</strong> These ports are declared in{" "}
-          <code>providedPorts()</code> but no value could be resolved:
-          <ul>
-            {report.unresolvedPorts.map((n) => (
-              <li key={n}>
-                <code>{n}</code>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+        {report.unresolvedPorts && report.unresolvedPorts.length > 0 ? (
+          <Notice tone="error" title="Ports declared but unresolved">
+            <ul>
+              {report.unresolvedPorts.map((n) => (
+                <li key={n}>
+                  <code className="rs-mono">{n}</code>
+                </li>
+              ))}
+            </ul>
+          </Notice>
+        ) : null}
+
+        {report.xmlError ? (
+          <Notice tone="error" title="Behaviour XML">
+            {report.xmlError}
+          </Notice>
+        ) : report.xmlNodes.length ? (
+          <StatusIndicator
+            tone="success"
+            label={`Behaviour XML: ports from ${report.xmlNodes.length} tags`}
+          />
+        ) : null}
+      </div>
 
       {report.undeclaredPorts && report.undeclaredPorts.length > 0 ? (
-        <details className="diag-note">
+        <details className="rs-disclosure">
           <summary>
             {report.undeclaredPorts.length} port
             {report.undeclaredPorts.length === 1 ? " is" : "s are"} read but not declared —
             not a problem
           </summary>
-          <p className="muted-note">
-            The code calls <code>getInput()</code> for these, but no{" "}
-            <code>providedPorts()</code> entry declares them, so <em>the real robot cannot
-            resolve them either</em> and ignores the failed read. Most are behind a guard
-            that is false for this role — <code>TickChaseNode</code> only fetches the{" "}
-            <code>open_*</code> and <code>curve_*</code> ports when{" "}
-            <code>isOpenChase</code> is true, which excludes the goalkeeper.
+          <p>
+            The code calls <code className="rs-mono">getInput()</code> for these, but no{" "}
+            <code className="rs-mono">providedPorts()</code> entry declares them, so the real
+            robot cannot resolve them either and ignores the failed read. Most sit behind a
+            guard that is false for this role.
           </p>
-          <p className="sym-list">{report.undeclaredPorts.join(", ")}</p>
+          <p className="rs-symbols">{report.undeclaredPorts.join(", ")}</p>
         </details>
       ) : null}
 
-      {report.xmlError ? (
-        <div className="diag-warn">Behaviour XML: {report.xmlError}</div>
-      ) : report.xmlNodes.length ? (
-        <div className="diag-ok">
-          Behaviour XML: read ports from {report.xmlNodes.length} tags.
+      <div className="rs-diag-section">
+        <span className="rs-subhead-label">Functions</span>
+        <ul className="rs-fn-list">
+          {byStatus.parsed.map((f) => (
+            <li key={f.name} className="rs-fn">
+              <StatusIndicator tone="success" label={f.name} />
+              <span className="rs-fn-detail">
+                {f.lines} lines
+                {f.role === "dependency" ? " · pulled in as a dependency" : ""}
+              </span>
+            </li>
+          ))}
+          {byStatus.failed.map((f) => (
+            <li key={f.name} className="rs-fn">
+              <StatusIndicator tone="error" label={f.name} />
+              <span className="rs-fn-detail">
+                failed at line {f.line}:{f.col} — {f.detail}
+              </span>
+            </li>
+          ))}
+          {byStatus.missing.map((f) => (
+            <li key={f.name} className="rs-fn">
+              <StatusIndicator tone="muted" label={f.name} />
+              <span className="rs-fn-detail">not found</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {report.unresolved && report.unresolved.length ? (
+        <div className="rs-diag-section">
+          <span className="rs-subhead-label">Unresolved calls</span>
+          <p className="rs-hint">
+            Neither a host built-in nor defined in the source. Reaching one during a run
+            stops the tick.
+          </p>
+          <p className="rs-symbols">{report.unresolved.join(", ")}</p>
         </div>
       ) : null}
 
-      <h3>Functions</h3>
-      <ul className="fn-list">
-        {byStatus.parsed.map((f) => (
-          <li key={f.name} className="fn ok">
-            <span className="fn-name">{f.name}</span>
-            <span className="fn-detail">
-              parsed · {f.lines} lines{f.role === "dependency" ? " · pulled in as a dependency" : ""}
-            </span>
-          </li>
-        ))}
-        {byStatus.failed.map((f) => (
-          <li key={f.name} className="fn bad">
-            <span className="fn-name">{f.name}</span>
-            <span className="fn-detail">
-              failed at line {f.line}:{f.col} of your paste — {f.detail}
-            </span>
-          </li>
-        ))}
-        {byStatus.missing.map((f) => (
-          <li key={f.name} className="fn dim">
-            <span className="fn-name">{f.name}</span>
-            <span className="fn-detail">not found in the paste</span>
-          </li>
-        ))}
-      </ul>
-
-      {report.unresolved && report.unresolved.length ? (
-        <>
-          <h3>Unresolved calls</h3>
-          <p className="muted-note">
-            Called by extracted code but neither a host built-in nor defined in the paste.
-            Reaching one during a run stops the tick with an error.
-          </p>
-          <p className="sym-list">{report.unresolved.join(", ")}</p>
-        </>
-      ) : null}
-
       {report.fileScopeVars && report.fileScopeVars.length ? (
-        <>
-          <h3>File-scope variables</h3>
-          <p className="sym-list">{report.fileScopeVars.join(", ")}</p>
-        </>
+        <div className="rs-diag-section">
+          <span className="rs-subhead-label">File-scope variables</span>
+          <p className="rs-symbols">{report.fileScopeVars.join(", ")}</p>
+        </div>
       ) : null}
 
       {report.headerClasses && report.headerClasses.length ? (
-        <>
-          <h3>Header</h3>
-          <p className="muted-note">
-            Read <code>providedPorts()</code> defaults and member initial values from{" "}
-            {report.headerClasses.length} classes.
+        <div className="rs-diag-section">
+          <span className="rs-subhead-label">Header</span>
+          <p className="rs-hint">
+            Read defaults and member initial values from {report.headerClasses.length}{" "}
+            classes.
             {report.portSources ? (
               <>
                 {" "}
@@ -863,7 +918,7 @@ function Diagnostics({ report, required }) {
               </>
             ) : null}
           </p>
-        </>
+        </div>
       ) : null}
     </>
   );
