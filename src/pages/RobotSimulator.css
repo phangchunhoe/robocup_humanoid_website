@@ -31,6 +31,13 @@
   min-height: 100vh;
   /* Symmetric: equal top/bottom, equal left/right. */
   padding: var(--space-12) var(--space-6);
+  /* Containing block for the hero image, which is positioned against the
+     viewport edge rather than the shell. */
+  position: relative;
+  /* The image bleeds past the right edge; clip it rather than letting it
+     scroll the page sideways. `clip` on one axis only — `hidden` would make
+     this a scroll container and trap the popovers. */
+  overflow-x: clip;
 }
 
 .robot-simulator-page .rs-shell {
@@ -38,10 +45,65 @@
   margin: 0 auto;
 }
 
-/* ------------------------------------------------------------------ hero */
+/* ------------------------------------------------------- hero + hero image */
 
 .robot-simulator-page .rs-hero {
   padding: var(--space-12) 0;
+}
+
+/* The image is an atmospheric hero element, not content in a column: it sits
+   directly on the canvas with no card, border, or elevated surface, anchored
+   to the top-right of the viewport and bleeding off the right edge. One
+   viewport-height, so the section stays a single idea. */
+.robot-simulator-page .rs-hero-media {
+  position: absolute;
+  /* Dropped below the top edge so the figure sits lower in the frame than
+     the headline, rather than starting level with it. */
+  top: var(--space-16);
+  right: calc(-1 * var(--space-10));
+  /* `contain` makes this height-bound — the figure is far taller than it is
+     wide, so height is what sets its size and width only has to stay out of
+     the way. Overshooting the viewport is deliberate: the figure is cropped
+     at the knees by the fold, which is what makes it read as a bleed rather
+     than a picture that happens to be tall. */
+  width: min(52vw, 900px);
+  height: 124vh;
+  /* Purely decorative — never eat a click meant for the form beneath it. */
+  pointer-events: none;
+  /* Behind every content block; see the stacking order in the motion section. */
+  z-index: 0;
+}
+
+.robot-simulator-page .rs-hero-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: top right;
+}
+
+/* Legibility scrim, not decoration: the image fades into the canvas on its
+   left edge so headline and panels stay readable if they meet it. It is the
+   one permitted gradient (see CLAUDE.md) — it carries no color of its own,
+   only the canvas at varying alpha. */
+.robot-simulator-page .rs-hero-media::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to right,
+    var(--color-background) 0%,
+    color-mix(in srgb, var(--color-background) 72%, transparent) 28%,
+    transparent 62%
+  );
+}
+
+/* --------------------------------------------------------------- layout */
+
+/* The form keeps the left ~57%; the right of the hero area belongs to the
+   image. One column now — diagnostics moved inline, below the actions. */
+.robot-simulator-page .rs-hero,
+.robot-simulator-page .rs-editor-layout {
+  max-width: min(58%, 720px);
 }
 
 /* One line, always. The headline size steps down with the viewport rather
@@ -71,18 +133,17 @@
   color: var(--color-secondary-label);
 }
 
-/* --------------------------------------------------------------- layout */
+/* Below this width there is no room for the form and the image side by side.
+   The image is decorative, so it goes rather than being shrunk into a smear
+   behind the text, and the column takes the full width back. */
+@media (max-width: 900px) {
+  .robot-simulator-page .rs-hero-media {
+    display: none;
+  }
 
-.robot-simulator-page .rs-editor-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
-  gap: var(--space-8);
-  align-items: start;
-}
-
-@media (max-width: 1000px) {
+  .robot-simulator-page .rs-hero,
   .robot-simulator-page .rs-editor-layout {
-    grid-template-columns: minmax(0, 1fr);
+    max-width: none;
   }
 }
 
@@ -297,8 +358,71 @@
 
 /* ---------------------------------------------------------- diagnostics */
 
+/* No longer a full-height side panel — a compact strip under the actions,
+   summarising in a few lines and expanding inline on demand. */
 .robot-simulator-page .rs-diagnostics {
-  gap: var(--space-6);
+  gap: var(--space-4);
+}
+
+/* The collapsed summary: the essentials only, one short line each, status
+   carried by color alone. */
+.robot-simulator-page .rs-diag-strip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.robot-simulator-page .rs-diag-details {
+  border-top: 1px solid var(--color-separator);
+  padding-top: var(--space-2);
+}
+
+/* Standard inline disclosure — it pushes the content below it down, never
+   overlays. */
+.robot-simulator-page .rs-diag-details > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* 44px target via the row height rather than a taller visual box. */
+  min-height: var(--tap-target-min);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--color-accent);
+  cursor: pointer;
+  list-style: none;
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-diag-details > summary::-webkit-details-marker {
+  display: none;
+}
+
+.robot-simulator-page .rs-diag-details > summary:hover {
+  color: var(--color-accent-hover);
+}
+
+.robot-simulator-page .rs-diag-details > summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
+.robot-simulator-page .rs-diag-chevron {
+  width: var(--space-3);
+  height: var(--space-3);
+  flex: none;
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-diag-details[open] .rs-diag-chevron {
+  transform: rotate(180deg);
+}
+
+.robot-simulator-page .rs-diag-full {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding-top: var(--space-4);
 }
 
 .robot-simulator-page .rs-diag-group,
@@ -338,43 +462,6 @@
   color: var(--color-tertiary-label);
   word-break: break-word;
   margin: 0;
-}
-
-.robot-simulator-page .rs-disclosure {
-  border-top: 1px solid var(--color-separator);
-  border-bottom: 1px solid var(--color-separator);
-  padding: var(--space-4) 0;
-}
-
-.robot-simulator-page .rs-disclosure summary {
-  /* Meets the 44px target via padding rather than a taller visual box. */
-  display: flex;
-  align-items: center;
-  min-height: var(--tap-target-min);
-  font-size: var(--text-caption);
-  color: var(--color-secondary-label);
-  cursor: pointer;
-  transition: color var(--duration-base) var(--ease-out);
-}
-
-.robot-simulator-page .rs-disclosure summary:hover {
-  color: var(--color-accent);
-}
-
-.robot-simulator-page .rs-disclosure summary:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-
-.robot-simulator-page .rs-disclosure p {
-  font-size: var(--text-caption);
-  line-height: var(--line-height-base);
-  color: var(--color-tertiary-label);
-  margin: 0 0 var(--space-3);
-}
-
-.robot-simulator-page .rs-disclosure p:last-child {
-  margin-bottom: 0;
 }
 
 /* --------------------------------------------------------- code editor */
@@ -449,10 +536,26 @@
   }
 }
 
+/* The image arrives from off the right edge of the viewport. 100% of its own
+   width clears it completely, since it is anchored to that edge. */
+@keyframes rs-hero-media-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 .robot-simulator-page .rs-hero,
-.robot-simulator-page .rs-init-col,
-.robot-simulator-page .rs-diagnostics {
+.robot-simulator-page .rs-init-col {
   animation: rs-enter var(--duration-slow) var(--ease-out) both;
+}
+
+.robot-simulator-page .rs-hero-media {
+  animation: rs-hero-media-in var(--duration-slow) var(--ease-out) both;
 }
 
 /* The entrance leaves a transform applied (fill-mode `both`), and a non-none
@@ -460,42 +563,52 @@
    not just while it animates. A popover inside one is therefore sealed in, and
    would be painted under any block that comes later in the DOM however high
    its own z-index went. Order them explicitly, earliest on top, so popovers
-   escape downward and rightward into their neighbours. */
+   escape downward and rightward into their neighbours — and so the image
+   stays behind all of them. */
 .robot-simulator-page .rs-hero,
-.robot-simulator-page .rs-init-col,
-.robot-simulator-page .rs-diagnostics {
+.robot-simulator-page .rs-init-col {
   position: relative;
 }
 
 .robot-simulator-page .rs-hero {
-  z-index: 3;
-}
-.robot-simulator-page .rs-init-col {
   z-index: 2;
 }
-.robot-simulator-page .rs-diagnostics {
+.robot-simulator-page .rs-init-col {
   z-index: 1;
 }
 
-/* Widened with the longer duration so the stagger still reads as three
-   distinct beats rather than one block. */
+/* Sequenced so the read order is header → form → image. The image is the
+   payoff at the end of the load, landing just after the form panels rather
+   than competing with them for the first glance. */
 .robot-simulator-page .rs-hero {
   animation-delay: 0ms;
 }
 .robot-simulator-page .rs-init-col {
   animation-delay: 180ms;
 }
-.robot-simulator-page .rs-diagnostics {
-  animation-delay: 360ms;
+.robot-simulator-page .rs-hero-media {
+  animation-delay: 320ms;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .robot-simulator-page .rs-hero,
   .robot-simulator-page .rs-init-col,
-  .robot-simulator-page .rs-diagnostics,
   .robot-simulator-page .rs-source-panel,
   .robot-simulator-page .btn {
     animation: none;
+    transition: none;
+  }
+
+  /* The image simply is where it lands — no slide, no fade. `animation: none`
+     alone would leave it at the un-filled `from` state on some engines, so
+     the resting transform is restated explicitly. */
+  .robot-simulator-page .rs-hero-media {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .robot-simulator-page .rs-diag-chevron {
     transition: none;
   }
 

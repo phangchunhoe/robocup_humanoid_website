@@ -15,6 +15,7 @@ import { VIEW_W, VIEW_H, toField } from "../lib/sim/field.js";
 import { CONFIG_DEFAULTS } from "../lib/sim/host.js";
 import { runSelfTest } from "../lib/cpp/selftest.js";
 import { REQUIRED_BY_ROLE } from "../lib/cpp/extract.js";
+import optimusUrl from "../images/optimus.webp";
 import "./RobotSimulator.css";
 
 // One status per required file, folding "is this required" and "did it load"
@@ -474,6 +475,16 @@ export default function RobotSimulator() {
     <>
       <Header />
       <div className="robot-simulator-page">
+        {/* Atmospheric hero element — decorative, so it is hidden from
+            assistive tech, and it belongs to the landing step only. It sits
+            outside the shell because it is anchored to the viewport edge, not
+            to the content column. */}
+        {step === "edit" ? (
+          <div className="rs-hero-media" aria-hidden="true">
+            <img src={optimusUrl} alt="" decoding="async" />
+          </div>
+        ) : null}
+
         <div className="rs-shell">
           <header className="rs-hero">
             <h1 className="rs-headline">Erecting Simulator</h1>
@@ -580,6 +591,8 @@ function EditorStep(props) {
   };
 
   return (
+    /* The width constraint lives on the wrapper, the column layout on the
+       child — the right ~42% of the hero area belongs to the image. */
     <div className="rs-editor-layout">
       <div className="rs-init-col">
         <ProgressBar
@@ -759,34 +772,117 @@ function EditorStep(props) {
             </p>
           ) : null}
         </section>
-      </div>
 
-      <aside className="rs-panel rs-diagnostics">
-        <span className="rs-panel-label">Parse diagnostics</span>
-        {buildError ? (
-          <Notice tone="error" title="Build failed" glyph={false}>
-            {buildError}
-          </Notice>
-        ) : null}
-        {!report ? (
-          <p className="rs-hint">
-            Load <code className="rs-mono">brain_tree.cpp</code> and a behaviour-tree XML to
-            see what was extracted.
-          </p>
-        ) : (
-          <Diagnostics report={report} required={required} />
-        )}
-      </aside>
+        <section className="rs-panel rs-diagnostics">
+          <span className="rs-panel-label">Parse diagnostics</span>
+          {buildError ? (
+            <Notice tone="error" title="Build failed" glyph={false}>
+              {buildError}
+            </Notice>
+          ) : null}
+          {!report ? (
+            <p className="rs-hint">
+              Load <code className="rs-mono">brain_tree.cpp</code> and a behaviour-tree XML to
+              see what was extracted.
+            </p>
+          ) : (
+            <DiagnosticsSummary report={report} required={required} />
+          )}
+        </section>
+      </div>
     </div>
   );
 }
 
 /**
- * Every status in this panel is glyphless: the label's color is the status.
- * A column of repeated ticks and dots was noise, so `glyph={false}` is passed
+ * The collapsed view: the three things worth knowing at a glance — did the
+ * required functions parse, is anything critically broken, and how many ports
+ * were read without being declared. Status is color only, per CLAUDE.md.
+ *
+ * Everything else lives behind the disclosure, which is closed on load and
+ * expands inline, pushing the page down rather than overlaying it.
+ */
+function DiagnosticsSummary({ report, required }) {
+  const missing = report.missingRequired.length;
+  const undeclared = report.undeclaredPorts ? report.undeclaredPorts.length : 0;
+  const unresolvedPorts = report.unresolvedPorts ? report.unresolvedPorts.length : 0;
+
+  return (
+    <>
+      <div className="rs-diag-strip">
+        <StatusIndicator
+          glyph={false}
+          tone={missing === 0 ? "success" : "error"}
+          label={
+            missing === 0
+              ? `All ${required.length} required functions parsed`
+              : `${missing} of ${required.length} required functions not parsed`
+          }
+        />
+
+        {report.xmlError ? (
+          <StatusIndicator glyph={false} tone="error" label={`Behaviour XML: ${report.xmlError}`} />
+        ) : null}
+
+        {report.headerMissing ? (
+          <StatusIndicator glyph={false} tone="error" label="Header missing — cannot run" />
+        ) : null}
+
+        {unresolvedPorts > 0 ? (
+          <StatusIndicator
+            glyph={false}
+            tone="error"
+            label={`${unresolvedPorts} port${unresolvedPorts === 1 ? "" : "s"} declared but unresolved`}
+          />
+        ) : null}
+
+        {undeclared > 0 ? (
+          <StatusIndicator
+            glyph={false}
+            tone="muted"
+            label={`${undeclared} port${undeclared === 1 ? " is" : "s are"} read but not declared — not a problem`}
+          />
+        ) : null}
+      </div>
+
+      <details className="rs-diag-details">
+        <summary>
+          View full diagnostics
+          <svg
+            className="rs-diag-chevron"
+            viewBox="0 0 12 12"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path
+              d="M2.5 4.5L6 8l3.5-3.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </summary>
+        <div className="rs-diag-full">
+          <Diagnostics report={report} />
+        </div>
+      </details>
+    </>
+  );
+}
+
+/**
+ * The expanded detail, revealed by the disclosure in DiagnosticsSummary. It
+ * deliberately omits the headline statuses the collapsed strip already shows
+ * — the strip stays visible while this is open, and repeating those lines
+ * directly beneath themselves read as a bug.
+ *
+ * Every status here is glyphless: the label's color is the status. A column
+ * of repeated ticks and dots was noise, so `glyph={false}` is passed
  * throughout (see the status rule in CLAUDE.md).
  */
-export function Diagnostics({ report, required }) {
+export function Diagnostics({ report }) {
   const byStatus = { parsed: [], failed: [], missing: [] };
   for (const f of report.functions) byStatus[f.status].push(f);
 
@@ -810,13 +906,7 @@ export function Diagnostics({ report, required }) {
               ))}
             </ul>
           </Notice>
-        ) : (
-          <StatusIndicator
-            tone="success"
-            glyph={false}
-            label={`All ${required.length} required functions parsed`}
-          />
-        )}
+        ) : null}
 
         {report.headerMissing ? (
           <Notice tone="error" title="Header missing — cannot run" glyph={false}>
@@ -861,20 +951,16 @@ export function Diagnostics({ report, required }) {
       </div>
 
       {report.undeclaredPorts && report.undeclaredPorts.length > 0 ? (
-        <details className="rs-disclosure">
-          <summary>
-            {report.undeclaredPorts.length} port
-            {report.undeclaredPorts.length === 1 ? " is" : "s are"} read but not declared —
-            not a problem
-          </summary>
-          <p>
+        <div className="rs-diag-section">
+          <span className="rs-subhead-label">Ports read but not declared</span>
+          <p className="rs-hint">
             The code calls <code className="rs-mono">getInput()</code> for these, but no{" "}
             <code className="rs-mono">providedPorts()</code> entry declares them, so the real
             robot cannot resolve them either and ignores the failed read. Most sit behind a
             guard that is false for this role.
           </p>
           <p className="rs-symbols">{report.undeclaredPorts.join(", ")}</p>
-        </details>
+        </div>
       ) : null}
 
       <div className="rs-diag-section">

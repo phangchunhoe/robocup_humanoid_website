@@ -109,7 +109,12 @@ rival accents.
 
 ## Surfaces, shadows, gradients
 
-- **No decorative gradients.** Anywhere.
+- **No decorative gradients.** Anywhere. The one exception is a **legibility
+  scrim**, and it is not decoration: a single-hue fade from
+  `--color-background` to transparent, laid over imagery so text stays
+  readable where the two meet. It introduces no color of its own — only the
+  canvas at varying alpha. If a gradient is doing anything other than keeping
+  text legible, it does not belong.
 - **No shadows on UI chrome** — not on panels, cards, buttons, inputs, or
   popovers. Separate surfaces with `--color-elevated-background` and
   `--color-separator` hairlines instead.
@@ -154,6 +159,41 @@ There is no component library. Build from tokens, following Apple's patterns:
 - **Buttons** — pill-shaped. Exactly two variants: **primary** (filled
   `--color-accent`) and **secondary** (plain/ghost text or hairline outline).
   No tertiary, no danger variant.
+- **Hero image** — a large product image sitting *on the canvas*, opposite the
+  content column. The landing route is the reference: `src/images/optimus.webp`
+  on `#/robot-simulator`.
+  - The content column narrows to ~58% and keeps its normal vertical flow; the
+    image takes the remaining ~42% of the hero area.
+  - It **bleeds off the viewport edge** — anchored to the top-right, running
+    past the right edge, clipped by `overflow-x: clip` on the page container.
+    Use `clip`, not `hidden`: `hidden` makes the page a scroll container and
+    traps popovers.
+  - **No card, border, radius, or elevated surface**, and no shadow. It is
+    atmosphere, not a panel. (`--shadow-hero` is still the only permitted
+    shadow, but it is a *box* shadow — on a transparent cut-out image it draws
+    a rectangle behind the subject, so it does not apply here.)
+  - It is decorative: `aria-hidden`, empty `alt`, and `pointer-events: none`
+    so it never intercepts a click meant for the form.
+  - Where text may meet it, fade the image into the canvas with a legibility
+    scrim rather than boxing the text in a panel.
+  - Scaled against the hero viewport, overshooting it slightly so the subject
+    is cropped by the fold as well as by the right edge — a bleed on two sides
+    reads as atmosphere; a fully contained image reads as a picture. With
+    `object-fit: contain` a tall subject is *height*-bound, so height is the
+    control that sizes it and `width` only has to stay out of the way. It is
+    still one hero section, one clear idea.
+  - It enters **last**, sliding in from off the right edge — the payoff at the
+    end of the load sequence, not competing with the form for the first
+    glance. See Motion.
+- **Collapsible diagnostics summary** — the pattern that pairs with a hero
+  image, because the image takes the space a side panel used to occupy.
+  Detail that once filled a full-height column becomes a compact strip below
+  the primary actions: a few short color-only status lines (the headline
+  count, any critical error, any advisory count) plus a `View full
+  diagnostics` disclosure, closed on load, expanding **inline** so it pushes
+  content down rather than overlaying it. The expanded view must not repeat
+  the lines the collapsed strip already shows — the strip stays visible when
+  it opens.
 - **Status indicators** — minimal. A short text label in `--color-success` /
   `--color-error` / `--color-secondary-label`, optionally preceded by a small
   dot. No badge or tag chrome: no filled pill backgrounds, no borders, no
@@ -175,6 +215,14 @@ attention-seeking.
   load is deliberate and cinematic — Apple's motion is slower than utility-UI
   motion, so `--duration-slow` (1000ms) is the entrance duration, staggered
   across a few elements.
+- **Entrance order is reading order, and imagery lands last.** Header first
+  (0ms), then the form panels (~180ms), then the hero image (~320ms) sliding
+  in on X from off the viewport edge — same `--duration-slow` and `--ease-out`
+  as everything else, so it reads as the payoff of the load rather than a
+  separate effect. Under `prefers-reduced-motion` the image skips the slide
+  entirely and is simply present; restate its resting `opacity`/`transform`
+  when you cancel the animation, since `animation: none` alone can strand an
+  element at its unfilled `from` state.
 - **Tab/segment switches**: smooth cross-fade (`--duration-base`).
 - **Hover/press feedback**: always a real transition, never an instant state
   swap. Color, background, and border animate over `--duration-base`; the
@@ -201,9 +249,15 @@ Duration tokens: `--duration-fast` (150ms), `--duration-base` (300ms),
 ## Migration status
 
 **Migrated.** The entire `#/robot-simulator` landing route is on the token
-set — hero, progress bar, role selector, source panel, *and* the parse
-diagnostics panel. It contains no Carbon, no IBM Plex, and no hardcoded hex
-or spacing values. Use it as the reference implementation.
+set — hero, hero image, progress bar, role selector, source panel, *and* the
+inline parse-diagnostics summary. It contains no Carbon, no IBM Plex, and no
+hardcoded hex or spacing values. Use it as the reference implementation, for
+the hero-image and collapsible-summary patterns above as much as for the
+tokens.
+
+Its landing layout is a single column at ~58% with the hero image occupying
+the rest; below 900px the image is dropped and the column takes the full
+width back, rather than shrinking the image into a smear behind the text.
 
 Components built for it and available for reuse (`src/components/`):
 `SegmentedControl`, `SelectableCard`, `StatusIndicator`, `Notice`,
