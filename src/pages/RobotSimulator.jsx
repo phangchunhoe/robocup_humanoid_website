@@ -15,7 +15,7 @@ import { VIEW_W, VIEW_H, toField } from "../lib/sim/field.js";
 import { CONFIG_DEFAULTS } from "../lib/sim/host.js";
 import { runSelfTest } from "../lib/cpp/selftest.js";
 import { REQUIRED_BY_ROLE } from "../lib/cpp/extract.js";
-import optimusUrl from "../images/optimus.webp";
+import HeroField from "./HeroField.jsx";
 import "./RobotSimulator.css";
 
 // One status per required file, folding "is this required" and "did it load"
@@ -479,17 +479,13 @@ export default function RobotSimulator() {
             assistive tech, and it belongs to the landing step only. It sits
             outside the shell because it is anchored to the viewport edge, not
             to the content column. */}
-        {step === "edit" ? (
-          <div className="rs-hero-media" aria-hidden="true">
-            <img src={optimusUrl} alt="" decoding="async" />
-          </div>
-        ) : null}
+        {step === "edit" ? <HeroField /> : null}
 
         <div className="rs-shell">
           <header className="rs-hero">
-            <h1 className="rs-headline">Erecting Simulator</h1>
+            <h1 className="rs-headline">RoboErectus Simulator</h1>
             <p className="rs-subhead">
-              Developed by Chun Hoe
+              Created by Chun Hoe
               <InfoHint text={INTRO} label="About this simulator" />
             </p>
           </header>

@@ -29,8 +29,10 @@
   color: var(--color-label);
   font-family: var(--font-sans);
   min-height: 100vh;
-  /* Symmetric: equal top/bottom, equal left/right. */
-  padding: var(--space-12) var(--space-6);
+  /* Symmetric: equal top/bottom, equal left/right. One step tighter than the
+     space-12 default vertically, so the headline sits higher without the
+     page reading cramped — still 8pt-grid, still equal top and bottom. */
+  padding: var(--space-10) var(--space-6);
   /* Containing block for the hero image, which is positioned against the
      viewport edge rather than the shell. */
   position: relative;
@@ -45,62 +47,125 @@
   margin: 0 auto;
 }
 
-/* ------------------------------------------------------- hero + hero image */
+/* ------------------------------------------------------- hero + hero field */
 
 .robot-simulator-page .rs-hero {
   padding: var(--space-12) 0;
 }
 
-/* The image is an atmospheric hero element, not content in a column: it sits
-   directly on the canvas with no card, border, or elevated surface, anchored
-   to the top-right of the viewport and bleeding off the right edge. One
-   viewport-height, so the section stays a single idea. */
-.robot-simulator-page .rs-hero-media {
-  position: absolute;
-  /* Dropped below the top edge so the figure sits lower in the frame than
-     the headline, rather than starting level with it. */
-  top: var(--space-16);
-  right: calc(-1 * var(--space-10));
-  /* `contain` makes this height-bound — the figure is far taller than it is
-     wide, so height is what sets its size and width only has to stay out of
-     the way. Overshooting the viewport is deliberate: the figure is cropped
-     at the knees by the fold, which is what makes it read as a bleed rather
-     than a picture that happens to be tall. */
-  width: min(52vw, 900px);
-  height: 124vh;
+/* The field is an atmospheric hero element, not content in a column: it sits
+   directly on the canvas with no card, border, elevated surface, or shadow.
+   It is FIXED rather than absolute — it holds its place against the right of
+   the viewport while the page scrolls under it, because the scroll is what
+   drives the shot (see --rs-kick below). Full viewport height, so the section
+   stays a single idea. */
+.robot-simulator-page .rs-hero-field {
+  position: fixed;
+  top: 0;
+  right: 0;
+  /* Wider than the gap the content column leaves, so the field runs under the
+     column's right edge and the scrim — not a hard boundary — is what ends it. */
+  width: min(54vw, 860px);
+  height: 100vh;
+  /* Shot progress, 0 -> 1. HeroField.jsx writes it once per frame from scroll
+     position, for the parts of the shot that are pure styling (the ball and
+     the trajectory are positioned from the path itself, in JS). This
+     declaration is the resting value if nothing ever writes one. */
+  --rs-kick: 0;
   /* Purely decorative — never eat a click meant for the form beneath it. */
   pointer-events: none;
   /* Behind every content block; see the stacking order in the motion section. */
   z-index: 0;
 }
 
-.robot-simulator-page .rs-hero-media img {
+.robot-simulator-page .rs-hero-field svg {
   width: 100%;
   height: 100%;
-  object-fit: contain;
-  object-position: top right;
 }
 
-/* Legibility scrim, not decoration: the image fades into the canvas on its
-   left edge so headline and panels stay readable if they meet it. It is the
-   one permitted gradient (see CLAUDE.md) — it carries no color of its own,
-   only the canvas at varying alpha. */
-.robot-simulator-page .rs-hero-media::after {
+/* Legibility scrim, not decoration: the field fades into the canvas on its
+   left edge so headline and panels stay readable where they meet it. It is
+   the one permitted gradient (see CLAUDE.md) — it carries no color of its
+   own, only the canvas at varying alpha. */
+.robot-simulator-page .rs-hero-field::after {
   content: "";
   position: absolute;
   inset: 0;
   background: linear-gradient(
     to right,
     var(--color-background) 0%,
-    color-mix(in srgb, var(--color-background) 72%, transparent) 28%,
-    transparent 62%
+    color-mix(in srgb, var(--color-background) 72%, transparent) 26%,
+    transparent 58%
   );
+}
+
+/* Pitch markings are ground, not diagram: the same hairline value as any
+   other separator on the page. Everything in the shot is brighter than this,
+   which is what makes the eye follow the ball and not the lines. */
+.robot-simulator-page .rs-field-lines,
+.robot-simulator-page .rs-field-goal {
+  fill: none;
+  stroke: var(--color-separator);
+  stroke-width: 2;
+}
+
+.robot-simulator-page .rs-field-marks {
+  fill: var(--color-separator);
+}
+
+.robot-simulator-page .rs-field-net {
+  stroke-width: 1;
+}
+
+/* The goal mouth is the one pitch line that carries weight — it is the target. */
+.robot-simulator-page .rs-field-mouth {
+  fill: none;
+  stroke: var(--color-tertiary-label);
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+
+.robot-simulator-page .rs-striker {
+  fill: none;
+  stroke: var(--color-secondary-label);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* Cut out of the field so the head reads as above the torso, not through it. */
+.robot-simulator-page .rs-striker-head {
+  fill: var(--color-background);
+}
+
+/* The trajectory the ball rides. It draws itself in behind the ball, via a
+   dash offset HeroField.jsx sets from the path's own measured length — the
+   curve is authored once, in the markup, and never restated here. */
+.robot-simulator-page .rs-shot-line {
+  fill: none;
+  stroke: var(--color-tertiary-label);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+/* The brightest thing on the field, and the only filled one. Its position
+   comes from the path above, not from CSS. */
+.robot-simulator-page .rs-ball {
+  fill: var(--color-label);
+}
+
+/* Held at zero until the ball is all but in, then it is simply there. */
+.robot-simulator-page .rs-net-ripple {
+  fill: none;
+  stroke: var(--color-label);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: calc((var(--rs-kick) - 0.88) * 8);
 }
 
 /* --------------------------------------------------------------- layout */
 
 /* The form keeps the left ~57%; the right of the hero area belongs to the
-   image. One column now — diagnostics moved inline, below the actions. */
+   field. One column now — diagnostics moved inline, below the actions. */
 .robot-simulator-page .rs-hero,
 .robot-simulator-page .rs-editor-layout {
   max-width: min(58%, 720px);
@@ -133,11 +198,11 @@
   color: var(--color-secondary-label);
 }
 
-/* Below this width there is no room for the form and the image side by side.
-   The image is decorative, so it goes rather than being shrunk into a smear
+/* Below this width there is no room for the form and the field side by side.
+   The field is decorative, so it goes rather than being shrunk into a smear
    behind the text, and the column takes the full width back. */
 @media (max-width: 900px) {
-  .robot-simulator-page .rs-hero-media {
+  .robot-simulator-page .rs-hero-field {
     display: none;
   }
 
@@ -536,7 +601,7 @@
   }
 }
 
-/* The image arrives from off the right edge of the viewport. 100% of its own
+/* The field arrives from off the right edge of the viewport. 100% of its own
    width clears it completely, since it is anchored to that edge. */
 @keyframes rs-hero-media-in {
   from {
@@ -554,7 +619,7 @@
   animation: rs-enter var(--duration-slow) var(--ease-out) both;
 }
 
-.robot-simulator-page .rs-hero-media {
+.robot-simulator-page .rs-hero-field {
   animation: rs-hero-media-in var(--duration-slow) var(--ease-out) both;
 }
 
@@ -563,7 +628,7 @@
    not just while it animates. A popover inside one is therefore sealed in, and
    would be painted under any block that comes later in the DOM however high
    its own z-index went. Order them explicitly, earliest on top, so popovers
-   escape downward and rightward into their neighbours — and so the image
+   escape downward and rightward into their neighbours — and so the field
    stays behind all of them. */
 .robot-simulator-page .rs-hero,
 .robot-simulator-page .rs-init-col {
@@ -577,7 +642,7 @@
   z-index: 1;
 }
 
-/* Sequenced so the read order is header → form → image. The image is the
+/* Sequenced so the read order is header → form → field. The field is the
    payoff at the end of the load, landing just after the form panels rather
    than competing with them for the first glance. */
 .robot-simulator-page .rs-hero {
@@ -586,7 +651,7 @@
 .robot-simulator-page .rs-init-col {
   animation-delay: 180ms;
 }
-.robot-simulator-page .rs-hero-media {
+.robot-simulator-page .rs-hero-field {
   animation-delay: 320ms;
 }
 
@@ -599,13 +664,16 @@
     transition: none;
   }
 
-  /* The image simply is where it lands — no slide, no fade. `animation: none`
+  /* The field simply is where it lands — no slide, no fade. `animation: none`
      alone would leave it at the un-filled `from` state on some engines, so
-     the resting transform is restated explicitly. */
-  .robot-simulator-page .rs-hero-media {
+     the resting transform is restated explicitly. The shot is not scrubbed
+     either (HeroField.jsx never attaches the listener), so the frame held is
+     the one just before contact: ball at the striker's foot, net still. */
+  .robot-simulator-page .rs-hero-field {
     animation: none;
     opacity: 1;
     transform: none;
+    --rs-kick: 0;
   }
 
   .robot-simulator-page .rs-diag-chevron {

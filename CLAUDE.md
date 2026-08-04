@@ -159,34 +159,60 @@ There is no component library. Build from tokens, following Apple's patterns:
 - **Buttons** — pill-shaped. Exactly two variants: **primary** (filled
   `--color-accent`) and **secondary** (plain/ghost text or hairline outline).
   No tertiary, no danger variant.
-- **Hero image** — a large product image sitting *on the canvas*, opposite the
-  content column. The landing route is the reference: `src/images/optimus.webp`
-  on `#/robot-simulator`.
+- **Hero artwork** — one large piece of imagery sitting *on the canvas*,
+  opposite the content column. The landing route is the reference:
+  `src/pages/HeroField.jsx` on `#/robot-simulator` — a line-art pitch with a
+  striker shooting into the opponent goal.
   - The content column narrows to ~58% and keeps its normal vertical flow; the
-    image takes the remaining ~42% of the hero area.
-  - It **bleeds off the viewport edge** — anchored to the top-right, running
-    past the right edge, clipped by `overflow-x: clip` on the page container.
-    Use `clip`, not `hidden`: `hidden` makes the page a scroll container and
-    traps popovers.
+    artwork takes the rest of the hero area, running under the column's right
+    edge so the scrim, not a hard boundary, is what ends it.
   - **No card, border, radius, or elevated surface**, and no shadow. It is
     atmosphere, not a panel. (`--shadow-hero` is still the only permitted
-    shadow, but it is a *box* shadow — on a transparent cut-out image it draws
-    a rectangle behind the subject, so it does not apply here.)
-  - It is decorative: `aria-hidden`, empty `alt`, and `pointer-events: none`
-    so it never intercepts a click meant for the form.
-  - Where text may meet it, fade the image into the canvas with a legibility
-    scrim rather than boxing the text in a panel.
-  - Scaled against the hero viewport, overshooting it slightly so the subject
-    is cropped by the fold as well as by the right edge — a bleed on two sides
-    reads as atmosphere; a fully contained image reads as a picture. With
-    `object-fit: contain` a tall subject is *height*-bound, so height is the
-    control that sizes it and `width` only has to stay out of the way. It is
-    still one hero section, one clear idea.
+    shadow, and only under a raster product image — it is a *box* shadow, so
+    it applies to neither a cut-out subject nor an SVG.)
+  - It is decorative: `aria-hidden` and `pointer-events: none` so it never
+    intercepts a click meant for the form. A raster hero also takes an empty
+    `alt`.
+  - Where text may meet it, fade it into the canvas with a legibility scrim
+    rather than boxing the text in a panel.
   - It enters **last**, sliding in from off the right edge — the payoff at the
     end of the load sequence, not competing with the form for the first
     glance. See Motion.
-- **Collapsible diagnostics summary** — the pattern that pairs with a hero
-  image, because the image takes the space a side panel used to occupy.
+  - **Drawn artwork is built from the tokens like anything else.** Pitch
+    markings are `--color-separator`, the same hairline value as any other
+    divider, so the field reads as ground; the subject climbs the neutral ramp
+    above it (`--color-secondary-label` for the figure, `--color-tertiary-label`
+    for the trajectory, `--color-label` for the ball). The accent stays out of
+    it — a hero is not interactive, and saturation on this page means *this
+    responds to a pointer*.
+  - **A scroll-scrubbed hero holds its place.** It is `position: fixed` against
+    the right of the viewport, so the page scrolls under it rather than past
+    it, and scroll position drives one custom property (`--rs-kick`, 0 → 1) that
+    the artwork reads. Keep the scrub to one property, written once per frame
+    from `requestAnimationFrame`. Geometry that two elements share — a
+    trajectory and the ball riding it — is authored once in the markup and
+    measured with `getTotalLength()`/`getPointAtLength()`, never restated in
+    CSS where the two copies can drift apart.
+  - **The scrub is eased, not pinned.** Scroll sets a *target*; the artwork
+    eases toward it and arrives a beat later. Pinning it frame-exactly to the
+    wheel is the same instant state swap that is banned on hover — it reads as
+    mechanical where the rest of the page reads as physical. Use an exponential
+    approach (each frame closes a fraction of the remaining gap): it eases out
+    for free, cannot overshoot, and behaves identically at any refresh rate.
+    Take the time constant from the duration tokens rather than inventing a
+    number in JS — `--duration-base`, read once with `getComputedStyle`. Clamp
+    the frame delta, since a backgrounded tab hands back one enormous one.
+  - Under `prefers-reduced-motion`, a scrub is motion too: hold a still frame
+    (the moment before contact) instead of following the scroll.
+  - A raster hero instead **bleeds off the viewport edge** — anchored top-right,
+    running past the right edge, clipped by `overflow-x: clip` on the page
+    container. Use `clip`, not `hidden`: `hidden` makes the page a scroll
+    container and traps popovers. Overshoot the fold slightly so the subject is
+    cropped on two sides; a bleed reads as atmosphere, a fully contained image
+    reads as a picture. This does not apply to the fixed field above, whose
+    subject — the goal — has to stay in frame.
+- **Collapsible diagnostics summary** — the pattern that pairs with hero
+  artwork, because the artwork takes the space a side panel used to occupy.
   Detail that once filled a full-height column becomes a compact strip below
   the primary actions: a few short color-only status lines (the headline
   count, any critical error, any advisory count) plus a `View full
@@ -216,10 +242,10 @@ attention-seeking.
   motion, so `--duration-slow` (1000ms) is the entrance duration, staggered
   across a few elements.
 - **Entrance order is reading order, and imagery lands last.** Header first
-  (0ms), then the form panels (~180ms), then the hero image (~320ms) sliding
+  (0ms), then the form panels (~180ms), then the hero artwork (~320ms) sliding
   in on X from off the viewport edge — same `--duration-slow` and `--ease-out`
   as everything else, so it reads as the payoff of the load rather than a
-  separate effect. Under `prefers-reduced-motion` the image skips the slide
+  separate effect. Under `prefers-reduced-motion` the artwork skips the slide
   entirely and is simply present; restate its resting `opacity`/`transform`
   when you cancel the animation, since `animation: none` alone can strand an
   element at its unfilled `from` state.
@@ -229,9 +255,16 @@ attention-seeking.
   transform nudge that accompanies them uses `--duration-fast` so the control
   still feels responsive under the finger. Every interactive element needs a
   `:hover` *and* an `:active` state, both eased with `--ease-out`.
-- **No scroll-triggered animation** on single-screen views. Entrance runs once,
-  on load.
-- Always honor `prefers-reduced-motion: reduce` by disabling animation.
+- **No scroll-triggered animation** on single-screen views, and no
+  scroll-*triggered* entrances anywhere — content does not fade in as it comes
+  into view. Entrance runs once, on load.
+- **Scroll-scrubbed hero artwork is the one exception**, and only on a route
+  that already scrolls. It is *scrubbed*, not triggered: it tracks scroll
+  position continuously in both directions, has no threshold, and never
+  animates on its own. Exactly one such element per page, it is decorative, and
+  scrolling back up must return it exactly to where it started.
+- Always honor `prefers-reduced-motion: reduce` by disabling animation —
+  including a scrub, which holds a still frame instead.
 
 Duration tokens: `--duration-fast` (150ms), `--duration-base` (300ms),
 `--duration-slow` (1000ms). Easing: `--ease-out`, `--ease-in-out`.
@@ -249,15 +282,15 @@ Duration tokens: `--duration-fast` (150ms), `--duration-base` (300ms),
 ## Migration status
 
 **Migrated.** The entire `#/robot-simulator` landing route is on the token
-set — hero, hero image, progress bar, role selector, source panel, *and* the
-inline parse-diagnostics summary. It contains no Carbon, no IBM Plex, and no
-hardcoded hex or spacing values. Use it as the reference implementation, for
-the hero-image and collapsible-summary patterns above as much as for the
-tokens.
+set — hero, hero field artwork, progress bar, role selector, source panel,
+*and* the inline parse-diagnostics summary. It contains no Carbon, no IBM
+Plex, and no hardcoded hex or spacing values. Use it as the reference
+implementation, for the hero-artwork and collapsible-summary patterns above as
+much as for the tokens.
 
-Its landing layout is a single column at ~58% with the hero image occupying
-the rest; below 900px the image is dropped and the column takes the full
-width back, rather than shrinking the image into a smear behind the text.
+Its landing layout is a single column at ~58% with the hero field occupying
+the rest; below 900px the field is dropped and the column takes the full
+width back, rather than shrinking it into a smear behind the text.
 
 Components built for it and available for reuse (`src/components/`):
 `SegmentedControl`, `SelectableCard`, `StatusIndicator`, `Notice`,
