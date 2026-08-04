@@ -121,6 +121,19 @@ rival accents.
 - The **only** permitted shadow is a single soft drop-shadow beneath
   hero/product-style *imagery* sitting on a surface, via `--shadow-hero`.
   Nothing else may use it.
+- **No blur/translucency on chrome, with one narrow, named exception:**
+  `.rs-glass` (`RobotSimulator.css`), used by exactly two elements — the
+  simulate step's stats card and its physics drawer. Both sit *on top of* the
+  field rather than beside it, so a flat panel fill can't separate them from a
+  busy, moving background the way it can everywhere else on the page; a
+  translucent, blurred surface can. `.rs-glass` is `color-mix(in srgb,
+  var(--color-elevated-background) 65%, transparent)` plus `backdrop-filter:
+  blur(20px)` and a `--color-separator` hairline — still the same elevated
+  surface and separator tokens as an ordinary `.rs-panel`, just given
+  translucency instead of opacity, with a solid high-opacity fallback under
+  `@supports not (backdrop-filter: …)`. Do not reach for `.rs-glass` for an
+  ordinary panel, card, or popover — if it isn't stacked over moving content,
+  it gets `.rs-panel` like everything else.
 
 ## Layout and spacing
 
@@ -201,7 +214,10 @@ There is no component library. Build from tokens, following Apple's patterns:
     for free, cannot overshoot, and behaves identically at any refresh rate.
     Take the time constant from the duration tokens rather than inventing a
     number in JS — `--duration-base`, read once with `getComputedStyle`. Clamp
-    the frame delta, since a backgrounded tab hands back one enormous one.
+    the frame delta, since a backgrounded tab hands back one enormous one. This
+    is `src/lib/useScrollScrub.js`, not a one-off in `HeroField.jsx` — the
+    simulate step's physics drawer is the second call site; extend the shared
+    hook for a third rather than re-deriving this loop again.
   - Under `prefers-reduced-motion`, a scrub is motion too: hold a still frame
     (the moment before contact) instead of following the scroll.
   - A raster hero instead **bleeds off the viewport edge** — anchored top-right,
@@ -226,7 +242,19 @@ There is no component library. Build from tokens, following Apple's patterns:
   uppercase micro-labels, and no tick/checkmark glyphs. In a dense list of
   statuses — the parse diagnostics panel is the case — drop the dot too and
   let **color alone** carry the status (`glyph={false}`); a column of repeated
-  icons is noise.
+  icons is noise. The simulate step's stats card wraps a `StatusIndicator` in
+  a `<button>` for its collapsed error/overrun alert — that's still one
+  `StatusIndicator`, not a list of them, so the no-badge rule still applies to
+  it; the button chrome around it is a hit target, not status chrome.
+- **Decision pill** (simulate step only) — a **named exception** to the status
+  indicator's no-filled-background rule: `.rs-decision-pill` in
+  `RobotSimulator.css`, a filled/tinted, bordered pill carrying the robot's
+  current chase/adjust/kick/idle state. It's exempt because it isn't a status
+  in a list — it's the one always-visible headline of the stats card, playing
+  the role a prominent stat tile plays elsewhere, and it draws from the
+  decision-legend colors (see Migration status → Color), not
+  success/error/secondary-label. Don't generalize from it — a second status
+  anywhere else still follows the plain-text rule above.
 - Anything reused across pages goes in `src/components/`. Page-specific
   components can live alongside the page.
 
@@ -258,13 +286,27 @@ attention-seeking.
 - **No scroll-triggered animation** on single-screen views, and no
   scroll-*triggered* entrances anywhere — content does not fade in as it comes
   into view. Entrance runs once, on load.
-- **Scroll-scrubbed hero artwork is the one exception**, and only on a route
-  that already scrolls. It is *scrubbed*, not triggered: it tracks scroll
+- **Scroll-scrubbed elements are the one exception**, and only on a view that
+  already scrolls. A scrub is *scrubbed*, not triggered: it tracks scroll
   position continuously in both directions, has no threshold, and never
-  animates on its own. Exactly one such element per page, it is decorative, and
+  animates on its own. Exactly one such element per *view* — the landing/edit
+  step's hero shot and the simulate step's physics drawer are each the only
+  scrub in their own view, and the two views are mutually exclusive (this
+  route never mounts both at once), so this still holds one-at-a-time even
+  though both live under `#/robot-simulator`. A scrub is decorative or purely
+  supplementary chrome, never the only way to reach required content, and
   scrolling back up must return it exactly to where it started.
+- **A scrub eases toward scroll, it does not track it frame-exact.** Scroll
+  sets a target; the value approaches it (exponential approach — each frame
+  closes a fraction of the remaining gap) rather than snapping straight to
+  it, so it trails the wheel by a beat the same way a hover state transitions
+  instead of swapping instantly. Take the time constant from `--duration-base`
+  via `getComputedStyle`, read once, not a number invented in JS. Both current
+  scrubs share one implementation, `src/lib/useScrollScrub.js` — extend that
+  rather than writing a third copy of the easing loop.
 - Always honor `prefers-reduced-motion: reduce` by disabling animation —
-  including a scrub, which holds a still frame instead.
+  including a scrub, which holds a still resting frame instead (the moment
+  before the hero's shot connects; the physics drawer closed).
 
 Duration tokens: `--duration-fast` (150ms), `--duration-base` (300ms),
 `--duration-slow` (1000ms). Easing: `--ease-out`, `--ease-in-out`.
@@ -281,27 +323,68 @@ Duration tokens: `--duration-fast` (150ms), `--duration-base` (300ms),
 
 ## Migration status
 
-**Migrated.** The entire `#/robot-simulator` landing route is on the token
-set — hero, hero field artwork, progress bar, role selector, source panel,
-*and* the inline parse-diagnostics summary. It contains no Carbon, no IBM
-Plex, and no hardcoded hex or spacing values. Use it as the reference
-implementation, for the hero-artwork and collapsible-summary patterns above as
-much as for the tokens.
+**Migrated.** The entire `#/robot-simulator` route is on the token set now,
+both steps:
+
+- The **landing/edit step** — hero, hero field artwork, progress bar, role
+  selector, source panel, *and* the inline parse-diagnostics summary.
+- The **simulate step** — field, playback controls, the stats card, and the
+  physics drawer. There is no constants/assumptions reference any more; it
+  was removed outright (not collapsed) when this step went full-viewport, to
+  reclaim the vertical space rather than find it a new home.
+
+It contains no Carbon, no IBM Plex, and no hardcoded hex or spacing values
+outside the scoped exceptions below. Use it as the reference implementation —
+for the hero-artwork and collapsible-summary patterns above, the glassmorphism
+and card-stack patterns below, as much as for the tokens.
 
 Its landing layout is a single column at ~58% with the hero field occupying
 the rest; below 900px the field is dropped and the column takes the full
-width back, rather than shrinking it into a smear behind the text.
+width back, rather than shrinking it into a smear behind the text. The
+simulate step has no such column at all: it has no header, no back control,
+and no site nav — navigation back to the editor is browser-back only — and
+its `position: fixed` root layout occupies the full viewport edge to edge.
+The field is sized to `height: 100vh` directly, with its own `aspect-ratio: 3
+/ 2` deciding its width, and the console takes whatever width that leaves
+(`flex: 1 1 auto; min-width: 0`, so it shrinks rather than overflows if the
+field's derived width ever leaves it less than it needs).
 
-Components built for it and available for reuse (`src/components/`):
+The field surface (`.rs-field-panel`) is one element, not a sizing wrapper
+around a separately-sized visual box — an earlier version split those and the
+two disagreed about width, with the visual box spilling into the console.
+One box that is simultaneously the sizing root and the painted surface can't
+disagree with itself. Its legend is an overlay pinned to its top edge, not a
+row below it — a flush, full-height field has no spare row left for one.
+
+Three named, scoped exceptions live in the simulate step's own custom-property
+block at the top of its section in `RobotSimulator.css` (not the shared
+`tokens.css`, since neither is reusable outside this one view):
+
+- **The pitch stays green** (`--turf`/`--turf-line`). It's a functional
+  playing surface, not decorative chrome, unlike the landing page's neutral
+  line-art hero field — so it's exempt from "separation is by value" rather
+  than a leftover.
+- **The four-way decision legend** (chase/adjust/kick/idle,
+  `--decision-chase`/`--decision-adjust`/`--decision-kick`/`--decision-idle`)
+  keeps a fixed categorical palette distinct from status colors and the
+  accent. A legend needs more hues than the two-color status system provides;
+  these are never used for interactive chrome, same rule as
+  success/error. `renderer.js`'s `DECISION_COLOR` map and the CSS legend/pill
+  both read from these same four custom properties, so they can't drift apart.
+- **The field surface has zero border-radius**, unlike every panel and card
+  elsewhere on this page. It's flush against the top and bottom of the
+  viewport, and a rounded corner sitting exactly on the viewport edge reads
+  as a rendering bug, not a design choice. Don't generalize from it — this is
+  the one element on the whole page that touches the viewport edge this way;
+  a panel that doesn't still gets `--radius-panel`.
+
+Components built for this route and available for reuse (`src/components/`):
 `SegmentedControl`, `SelectableCard`, `StatusIndicator`, `Notice`,
-`ProgressBar`, `InfoHint`.
+`ProgressBar`, `InfoHint`. The simulate step also introduced
+`src/lib/useScrollScrub.js`, shared with the landing hero field — see Motion.
 
 **Not yet migrated**, still on legacy bespoke styling:
 
-- The robot simulator's **simulate step** (field, console, physics sliders) —
-  its legacy custom properties are confined to a clearly marked block at the
-  bottom of `RobotSimulator.css`, pinned to dark values so it stays coherent
-  on the dark canvas. Nothing on the landing route depends on that block.
 - The shared **site header** (`src/components/Header.css`) and
   **improvement modal**.
 - The two **field explorers** (`FreekickExplorer`, `GoalieExplorer`). They are

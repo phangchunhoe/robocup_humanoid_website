@@ -1,9 +1,20 @@
+/* height: 100% alongside the existing min-height: 100% (not replacing it) so
+   the html -> body -> #root chain is a genuine, unbroken 100%-of-viewport
+   chain, not just a floor other content could exceed. This doesn't change
+   how any other page scrolls: a child taller than its own box still expands
+   past it and the viewport still gets a scrollbar from that overflow
+   regardless of these elements' own height, exactly as it always has.
+   RobotSimulator.jsx's run step doesn't actually depend on this chain — its
+   root layout is position: fixed, which sizes against the true viewport
+   directly, bypassing ancestor height entirely — but the chain should be
+   sound on its own terms rather than relying on one page routing around it. */
 html,
 body,
 #root {
   margin: 0;
   padding: 0;
   min-height: 100%;
+  height: 100%;
 }
 
 body {

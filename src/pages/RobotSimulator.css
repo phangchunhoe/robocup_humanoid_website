@@ -687,155 +687,136 @@
 }
 
 /* ====================================================================== */
-/* LEGACY — SIMULATE STEP ONLY (field, console, physics sliders).         */
-/* Not migrated to the token set yet; see CLAUDE.md "Migration status".    */
-/* These custom properties are pinned to dark values so the simulate view  */
-/* stays coherent on the dark canvas until it gets its own pass. Nothing   */
-/* on the landing route depends on anything below this line.               */
+/* SIMULATE STEP — migrated. Two scoped exceptions to the token palette,   */
+/* confirmed in CLAUDE.md: the pitch stays green (a functional playing     */
+/* surface, not decorative chrome) and the four-way decision legend keeps  */
+/* its existing hues (a categorical legend needs more colors than the      */
+/* two-color status system provides). Everything else below is tokens.     */
 /* ====================================================================== */
 
 .robot-simulator-page {
-  --panel: #131a16;
-  --panel-border: #253128;
-  --ink: #e7ece8;
-  --muted: #93a399;
-  --muted-2: #64756a;
+  /* Playing surface — kept off the neutral scale on purpose; see above. */
   --turf: #163826;
   --turf-line: rgba(232, 240, 233, 0.4);
-  --accent-legacy: #f2a541;
-  --accent-ink: #ffd9a0;
-  --lead: #e2766a;
-  --assist: #8fc4ff;
-  --goalie: #c6a6ff;
-  --pass: #63c894;
-  --fail: #e2766a;
+  /* Decision legend — categorical, not status. Same hues the page always
+     had, renamed to say what they mean. chase/adjust/kick are the only
+     branches this simulator actually runs (see "what this simulation does
+     not model" below); everything else reports as idle. */
+  --decision-chase: #e2766a;
+  --decision-adjust: #f2a541;
+  --decision-kick: #63c894;
+  --decision-idle: #64756a;
+  /* Cosmetic ball colors, same category as the turf — a two-tone ball reads
+     against green better than the app's cream-on-charcoal label color would. */
   --ball-fill: #f5f1e6;
   --ball-stroke: #171712;
-  --code-bg: #0b100d;
-  --font-mono-legacy: ui-monospace, "Cascadia Mono", "SF Mono", Consolas, monospace;
-  --lead-rgb: 226, 118, 106;
-  --assist-rgb: 143, 196, 255;
-  --accent-rgb: 242, 165, 65;
-  --pass-rgb: 47, 143, 91;
 }
 
-.robot-simulator-page .layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr);
-  gap: 16px;
+/* ---------------------------------------------------------------- layout */
+
+/* position: fixed, not sticky: `sticky` breaks silently the moment ANY
+   ancestor's overflow computes to non-visible on either axis, and
+   `.robot-simulator-page` sets `overflow-x: clip` for the hero image bleed
+   (see top of this file) — per the CSS Overflow spec, that forces its
+   overflow-y to compute to `auto` too, which would make THAT box, not the
+   real viewport, sticky's reference. `position: fixed` has no such trap:
+   its containing block is the viewport unless an ancestor sets
+   `transform`/`filter`/`perspective`/`will-change`, none of which apply
+   here. Same mechanism `HeroField` already uses successfully on this exact
+   page — see `.rs-hero-field` above.
+
+   It is the entire visible content of the run step, full stop: the site nav
+   and this page's own headline are both skipped for this step (see
+   RobotSimulator.jsx), so `inset: 0` puts the field's top-left corner at the
+   viewport's top-left corner exactly, with no chrome height to account for
+   and no padding of its own — the field and console each own their own
+   spacing (zero on the field, which is meant to be flush; --space-8 on the
+   console, see rs-run-console) rather than this shared box splitting the
+   difference between two elements that want different things. */
+.robot-simulator-page .rs-run-layout {
+  position: fixed;
+  inset: 0;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-6);
+  z-index: 1;
 }
-@media (max-width: 980px) {
-  .robot-simulator-page .layout {
-    grid-template-columns: minmax(0, 1fr);
+
+/* Fixed elements occupy no space in normal flow, so this exists purely to
+   give window.scrollY somewhere to go — the drawer's scroll-scrub has
+   nothing else to read since rs-run-layout itself is a full, unchanging
+   100vh. Never visible, nothing to reach: there is no more content below it
+   on this step (the constants/assumptions reference was removed). Kept
+   generously oversized because `.robot-simulator-page` carries its own
+   `min-height: 100vh` floor, which would otherwise swallow a tightly-sized
+   spacer and leave no actual scrollable overflow at all. Keep the 240px
+   here in sync with DRAWER_REVEAL_PX in RobotSimulator.jsx. */
+.robot-simulator-page .rs-run-spacer {
+  height: calc(100vh + 240px);
+}
+
+@media (max-width: 900px) {
+  .robot-simulator-page .rs-run-layout {
+    position: static;
+    inset: auto;
+    width: auto;
+    flex-direction: column;
+    height: auto;
+  }
+  .robot-simulator-page .rs-run-spacer {
+    display: none;
   }
 }
-.robot-simulator-page .panel {
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  padding: 16px;
+
+/* -------------------------------------------------------- field + legend */
+
+/* The field surface itself — not a wrapper around one. An earlier version
+   split this into an outer flex/sizing box (rs-field-panel) and an inner
+   visual box (rs-field-wrap, the turf) that derived its own width from
+   height independently via aspect-ratio. The two had no way to be told to
+   agree, and in practice didn't: the wrap rendered wider than the panel
+   that was supposedly containing it and spilled into the console. One
+   element that is simultaneously the sizing root and the visual surface
+   can't disagree with itself. */
+.robot-simulator-page .rs-field-panel {
+  position: relative;
+  /* Confines the physics drawer's slide, and this box's own corners, to
+     this box's edges — nothing here may render past them. */
+  overflow: hidden;
+  /* No grow (this box's size is dictated by height + aspect-ratio, not by
+     however much row space happens to be available) but shrink is left at
+     its default (not 0): if the console's own min-width ever needs more
+     room than height*1.5 leaves on a tall-but-narrow viewport, the browser
+     resolves that by shrinking this box's flex-basis rather than the two
+     overflowing each other — the field may narrow before that happens, but
+     narrowing beats overlapping. min-width: 0 permits that shrink; the
+     default flex min-width:auto would floor it at content size instead. */
+  flex: 0 1 auto;
   min-width: 0;
-}
-
-.robot-simulator-page .console code,
-.robot-simulator-page .formula-ref code {
-  font-family: var(--font-mono-legacy);
-  font-size: 0.92em;
-  background: var(--code-bg);
-  padding: 1px 4px;
-  border-radius: 4px;
-}
-
-.robot-simulator-page .controls-panel {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  padding: 10px 14px;
-}
-.robot-simulator-page .controls-panel button {
-  font-family: var(--font-mono-legacy);
-  font-size: 12.5px;
-  padding: 7px 13px;
-  border-radius: 7px;
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
-  color: var(--ink);
-  cursor: pointer;
-}
-.robot-simulator-page .controls-panel button:hover:not(:disabled) { border-color: var(--muted-2); }
-.robot-simulator-page .controls-panel button:disabled { opacity: 0.45; cursor: not-allowed; }
-.robot-simulator-page .controls-panel button.primary {
-  background: rgba(var(--pass-rgb), 0.16);
-  border-color: rgba(var(--pass-rgb), 0.5);
-  color: var(--pass);
-  font-weight: 700;
-}
-.robot-simulator-page .controls-panel button.ghost { color: var(--muted); }
-.robot-simulator-page .run-role {
-  font-size: 11.5px;
-  color: var(--muted-2);
-  margin-left: auto;
-  font-family: var(--font-mono-legacy);
-  line-height: 1.4;
-}
-.robot-simulator-page .speed {
-  font-family: var(--font-mono-legacy);
-  font-size: 12px;
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.robot-simulator-page .speed select {
-  font-family: var(--font-mono-legacy);
-  font-size: 12px;
-  padding: 5px 8px;
-  border-radius: 6px;
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
-  color: var(--ink);
-}
-
-.robot-simulator-page .banner {
-  border-radius: 9px;
-  padding: 11px 14px;
-  font-size: 13px;
-  line-height: 1.5;
-  border: 1px solid;
-}
-.robot-simulator-page .banner.error {
-  border-color: rgba(var(--lead-rgb), 0.5);
-  background: rgba(var(--lead-rgb), 0.12);
-  color: var(--lead);
-}
-.robot-simulator-page .banner.warn {
-  border-color: rgba(var(--accent-rgb), 0.5);
-  background: rgba(var(--accent-rgb), 0.12);
-  color: var(--accent-ink);
-}
-.robot-simulator-page .banner-note {
-  display: block;
-  color: var(--muted);
-  font-size: 12px;
-  margin-top: 3px;
-}
-
-.robot-simulator-page .field-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.robot-simulator-page .field-wrap {
+  height: 100vh;
+  width: auto;
   aspect-ratio: 3 / 2;
   background: var(--turf);
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid var(--panel-border);
+  border: 1px solid var(--color-separator);
+  /* The one deliberate exception to every panel/card/button on this page
+     having --radius-panel or --radius-control: this box is flush against
+     the top and bottom of the viewport, and a rounded corner sitting
+     exactly on the viewport edge reads as a rendering bug, not a design
+     choice. Hard-edged is correct here specifically because it touches the
+     edge; nothing else on this page should follow this example. */
+  border-radius: 0;
 }
+
+@media (max-width: 900px) {
+  .robot-simulator-page .rs-field-panel {
+    height: auto;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+  }
+}
+
 .robot-simulator-page svg#field {
   width: 100%;
   height: 100%;
@@ -843,233 +824,420 @@
   touch-action: none;
   cursor: grab;
 }
+
 .robot-simulator-page svg#field .goal-label {
-  font-family: var(--font-mono-legacy);
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
   fill: var(--turf-line);
   letter-spacing: 0.08em;
 }
-.robot-simulator-page .legend {
+
+/* Overlaid on the field rather than given its own row: a flush, full-height
+   field has no spare row left below it for a legend to live in. Pinned to
+   the top so it can never compete with the physics drawer, which only ever
+   occupies the bottom 40% (see rs-physics-drawer). */
+.robot-simulator-page .rs-legend {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  right: var(--space-4);
+  z-index: 1;
   display: flex;
-  gap: 14px;
+  gap: var(--space-4);
   flex-wrap: wrap;
   align-items: center;
-  font-family: var(--font-mono-legacy);
-  font-size: 11.5px;
-  color: var(--muted);
+  font-size: var(--text-caption);
+  color: var(--color-tertiary-label);
 }
-.robot-simulator-page .swatch {
+
+.robot-simulator-page .rs-legend-swatch {
   display: inline-block;
-  width: 10px;
-  height: 10px;
+  width: var(--space-2);
+  height: var(--space-2);
   border-radius: 50%;
-  margin-right: 5px;
+  margin-right: var(--space-1);
   vertical-align: -1px;
 }
-.robot-simulator-page .swatch.chase { background: var(--lead); }
-.robot-simulator-page .swatch.adjust { background: var(--accent-legacy); }
-.robot-simulator-page .swatch.kick { background: var(--pass); }
-.robot-simulator-page .swatch.other { background: var(--muted-2); }
-.robot-simulator-page .legend-note { margin-left: auto; color: var(--muted-2); }
+.robot-simulator-page .rs-legend-swatch--chase { background: var(--decision-chase); }
+.robot-simulator-page .rs-legend-swatch--adjust { background: var(--decision-adjust); }
+.robot-simulator-page .rs-legend-swatch--kick { background: var(--decision-kick); }
+.robot-simulator-page .rs-legend-swatch--idle { background: var(--decision-idle); }
 
-.robot-simulator-page .console {
+.robot-simulator-page .rs-legend-note {
+  margin-left: auto;
+  color: var(--color-tertiary-label);
+}
+
+/* ----------------------------------------------------- glass (2 uses only) */
+/* Narrow, named carve-out from "no shadows/gradients on chrome": the stats
+   card and the physics drawer sit ON TOP of the field rather than beside it,
+   so they need to visually separate from a busy background in a way a flat
+   panel fill can't. Nothing else on the page may use this — see CLAUDE.md. */
+.robot-simulator-page .rs-glass {
+  background: color-mix(in srgb, var(--color-elevated-background) 65%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--color-separator);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .robot-simulator-page .rs-glass {
+    background: color-mix(in srgb, var(--color-elevated-background) 94%, transparent);
+  }
+}
+
+/* ------------------------------------------------------- physics drawer */
+
+.robot-simulator-page .rs-physics-drawer {
+  --rs-drawer: 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  /* At most 40% of rs-field-panel's height — never more. rs-field-panel's own
+     overflow: hidden is the hard backstop that keeps this from ever painting
+     past the field's edges regardless of content or transform. */
+  height: 40%;
+  /* Not the field-panel's no-radius rule — this is a distinct surface (glass,
+     not turf) stacked on top of it, not the flush edge-to-edge field itself. */
+  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
+  border-bottom: none;
+  padding: var(--space-4) var(--space-6);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-}
-.robot-simulator-page .scenario-pill {
-  font-family: var(--font-mono-legacy);
-  font-weight: 700;
-  font-size: 12.5px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  border: 1px solid rgba(var(--accent-rgb), 0.4);
-  background: rgba(var(--accent-rgb), 0.13);
-  color: var(--accent-ink);
-  line-height: 1.5;
-}
-.robot-simulator-page .scenario-pill.state-chase {
-  border-color: rgba(var(--lead-rgb), 0.45);
-  background: rgba(var(--lead-rgb), 0.14);
-  color: var(--lead);
-}
-.robot-simulator-page .scenario-pill.state-adjust {
-  border-color: rgba(var(--accent-rgb), 0.45);
-  background: rgba(var(--accent-rgb), 0.14);
-  color: var(--accent-ink);
-}
-.robot-simulator-page .scenario-pill.state-kick,
-.robot-simulator-page .scenario-pill.state-cross {
-  border-color: rgba(var(--pass-rgb), 0.45);
-  background: rgba(var(--pass-rgb), 0.14);
-  color: var(--pass);
-}
-.robot-simulator-page .scenario-pill.state-find,
-.robot-simulator-page .scenario-pill.state-retreat {
-  border-color: rgba(var(--assist-rgb), 0.45);
-  background: rgba(var(--assist-rgb), 0.14);
-  color: var(--assist);
-}
-.robot-simulator-page .scenario-pill.state-other {
-  border-color: var(--panel-border);
-  background: var(--code-bg);
-  color: var(--muted);
+  gap: var(--space-3);
+  overflow-y: auto;
+  z-index: 2;
+  transform: translateY(calc((1 - var(--rs-drawer)) * 100%));
+  opacity: clamp(0, calc(var(--rs-drawer) / 0.35), 1);
 }
 
-.robot-simulator-page .readout-table {
+.robot-simulator-page .rs-physics-drawer-label {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-tertiary-label);
+}
+
+.robot-simulator-page .rs-slider {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.robot-simulator-page .rs-slider-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-caption);
+  color: var(--color-secondary-label);
+}
+
+.robot-simulator-page .rs-slider-label em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--color-label);
+  font-family: var(--font-mono);
+}
+
+.robot-simulator-page .rs-slider input[type="range"] {
+  width: 100%;
+  accent-color: var(--color-accent);
+}
+
+.robot-simulator-page .rs-slider input[type="number"] {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-separator);
+  background: var(--color-elevated-background);
+  color: var(--color-label);
+  width: 100%;
+}
+
+.robot-simulator-page .rs-slider-note {
+  font-size: var(--text-caption);
+  color: var(--color-tertiary-label);
+  line-height: var(--line-height-base);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page .rs-physics-drawer {
+    transition: none;
+  }
+}
+
+/* --------------------------------------------------------- right column */
+
+.robot-simulator-page .rs-run-console {
+  display: flex;
+  flex-direction: column;
+  /* Separates the playback row from the stats card. The same token as the
+     outer padding below, so the rhythm reads as one consistent unit rather
+     than two different spacings competing. */
+  gap: var(--space-6);
+  height: 100vh;
+  /* Without a grow factor a flex item only takes its content width — this is
+     what actually makes the console fill the row's remaining space rather
+     than floating at whatever width its content happens to need. min-width:
+     0 (not the default auto, which floors a flex item at its content size)
+     is what lets the browser actually shrink this column instead of letting
+     it overflow the row when rs-field-panel's height-driven width leaves it
+     less room than its content would otherwise demand. */
+  flex: 1 1 auto;
+  min-width: 0;
+  /* Equal on all four sides — this is what keeps the playback row off the
+     viewport's top edge and everything else off the field's edge, per
+     CLAUDE.md's "nothing sits flush" rule. One token, not four separate
+     values: --space-8 rather than --space-6, since this box is now carrying
+     the breathing room the removed rs-run-layout padding used to leave
+     implicit — it reads better generous than tight on a box this size. */
+  padding: var(--space-8);
+  box-sizing: border-box;
+  overflow-y: auto;
+}
+
+.robot-simulator-page .rs-playback-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.robot-simulator-page .rs-role-label {
+  font-size: var(--text-caption);
+  color: var(--color-tertiary-label);
+  margin-left: auto;
+}
+
+/* ------------------------------------------------------------ stats card */
+
+.robot-simulator-page .rs-stats-card {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 280px;
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+
+.robot-simulator-page .rs-stats-toggle {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  z-index: 3;
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--color-separator);
+  background: var(--color-elevated-background-hover);
+  color: var(--color-secondary-label);
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.robot-simulator-page .rs-stats-toggle:hover {
+  color: var(--color-accent);
+  border-color: var(--color-accent);
+}
+.robot-simulator-page .rs-stats-toggle:active {
+  transform: scale(0.94);
+}
+.robot-simulator-page .rs-stats-toggle:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+.robot-simulator-page .rs-stats-toggle svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+/* Both faces stay mounted always — paintReadout/paintNotes/drainLogs write
+   into them every simulation frame via refs, and unmounting one would break
+   those refs. The toggle only changes which is visually on top. */
+.robot-simulator-page .rs-stats-face {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-6);
+  overflow-y: auto;
+  opacity: 0;
+  transform: scale(0.96) translateY(var(--space-2));
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-stats-face.is-active {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page .rs-stats-face {
+    transition: none;
+  }
+}
+
+.robot-simulator-page .rs-decision-pill {
+  display: inline-flex;
+  align-self: flex-start;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-callout);
+  font-weight: 600;
+  line-height: var(--line-height-base);
+  border: 1px solid transparent;
+}
+.robot-simulator-page .rs-decision-pill--chase {
+  color: var(--decision-chase);
+  border-color: color-mix(in srgb, var(--decision-chase) 45%, transparent);
+  background: color-mix(in srgb, var(--decision-chase) 14%, transparent);
+}
+.robot-simulator-page .rs-decision-pill--adjust {
+  color: var(--decision-adjust);
+  border-color: color-mix(in srgb, var(--decision-adjust) 45%, transparent);
+  background: color-mix(in srgb, var(--decision-adjust) 14%, transparent);
+}
+.robot-simulator-page .rs-decision-pill--kick {
+  color: var(--decision-kick);
+  border-color: color-mix(in srgb, var(--decision-kick) 45%, transparent);
+  background: color-mix(in srgb, var(--decision-kick) 14%, transparent);
+}
+.robot-simulator-page .rs-decision-pill--idle {
+  color: var(--color-tertiary-label);
+  border-color: var(--color-separator);
+  background: var(--color-elevated-background-hover);
+}
+
+.robot-simulator-page .rs-stat-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-4);
+  font-size: var(--text-callout);
+}
+.robot-simulator-page .rs-stat-row > span:first-child {
+  color: var(--color-secondary-label);
+}
+.robot-simulator-page .rs-stat-row > span:last-child {
+  color: var(--color-label);
+  font-family: var(--font-mono);
+  text-align: right;
+}
+
+/* The "more detail" disclosure reuses the diagnostics panel's own pattern
+   (rs-diag-details / rs-diag-chevron / rs-diag-full) rather than a new one —
+   same collapsed-by-default, pushes-content-down behaviour. */
+.robot-simulator-page .rs-stats-detail-table {
   width: 100%;
   border-collapse: collapse;
-  font-family: var(--font-mono-legacy);
-  font-size: 11.5px;
-  margin-top: 10px;
+  font-size: var(--text-caption);
 }
-.robot-simulator-page .readout-table td {
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--panel-border);
+.robot-simulator-page .rs-stats-detail-table td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--color-separator);
   vertical-align: top;
 }
-.robot-simulator-page .readout-table td:first-child {
-  color: var(--muted);
+.robot-simulator-page .rs-stats-detail-table td:first-child {
+  color: var(--color-secondary-label);
   width: 52%;
 }
-.robot-simulator-page .readout-table td:last-child {
+.robot-simulator-page .rs-stats-detail-table td:last-child {
   text-align: right;
-  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--color-label);
 }
 
-.robot-simulator-page .runtime-notes:empty { display: none; }
-.robot-simulator-page .runtime-notes h3 {
-  font-family: var(--font-mono-legacy);
-  font-size: 11.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted-2);
-  margin: 0 0 6px;
+.robot-simulator-page .rs-run-notes:empty { display: none; }
+.robot-simulator-page .rs-run-notes h3 {
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-tertiary-label);
+  margin: var(--space-4) 0 var(--space-2);
 }
-.robot-simulator-page .note-group {
+.robot-simulator-page .rs-note-group {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  padding: 6px 9px;
-  margin-bottom: 5px;
-  border-radius: 6px;
-  border-left: 3px solid var(--accent-legacy);
-  background: rgba(var(--accent-rgb), 0.08);
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-2);
+  border-radius: var(--radius-control);
+  border-left: 3px solid var(--decision-adjust);
+  background: color-mix(in srgb, var(--decision-adjust) 8%, transparent);
 }
-.robot-simulator-page .note-label {
-  font-family: var(--font-mono-legacy);
-  font-size: 10.5px;
-  color: var(--accent-ink);
-  font-weight: 700;
+.robot-simulator-page .rs-note-label {
+  font-size: var(--text-caption);
+  color: var(--decision-adjust);
+  font-weight: 600;
 }
-.robot-simulator-page .note-items {
-  font-family: var(--font-mono-legacy);
-  font-size: 10.5px;
-  color: var(--muted);
-  line-height: 1.5;
+.robot-simulator-page .rs-note-items {
+  font-size: var(--text-caption);
+  font-family: var(--font-mono);
+  color: var(--color-secondary-label);
+  line-height: var(--line-height-base);
   word-break: break-word;
 }
 
-.robot-simulator-page .log-panel h3,
-.robot-simulator-page .sliders h3 {
-  font-family: var(--font-mono-legacy);
-  font-size: 11.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted-2);
-  margin: 0 0 6px;
+/* ---------------------------------------------------------------- log face */
+
+/* Its own positioning context, sized to exactly the log area (not the whole
+   face) — the alert detail below overlays precisely this box, whatever
+   height the alert button beneath it ends up taking. */
+.robot-simulator-page .rs-log-stream-wrap {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
 }
-.robot-simulator-page .log-stream {
+
+.robot-simulator-page .rs-log-stream {
   margin: 0;
-  font-family: var(--font-mono-legacy);
-  font-size: 10.5px;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
   line-height: 1.55;
-  color: var(--muted);
-  background: var(--code-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 7px;
-  padding: 8px 10px;
-  height: 300px;
+  color: var(--color-secondary-label);
+  background: var(--color-background);
+  border: 1px solid var(--color-separator);
+  border-radius: var(--radius-control);
+  padding: var(--space-3) var(--space-4);
   overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
+  box-sizing: border-box;
 }
 
-.robot-simulator-page .sliders {
-  display: flex;
-  flex-direction: column;
-  gap: 11px;
-}
-.robot-simulator-page .slider {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.robot-simulator-page .slider-label {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--font-mono-legacy);
-  font-size: 11.5px;
-  color: var(--muted);
-}
-.robot-simulator-page .slider-label em {
-  font-style: normal;
-  font-weight: 700;
-  color: var(--ink);
-}
-.robot-simulator-page .slider input[type="range"] { width: 100%; accent-color: var(--accent-legacy); }
-.robot-simulator-page .slider input[type="number"] {
-  font-family: var(--font-mono-legacy);
-  font-size: 11.5px;
-  padding: 4px 7px;
-  border-radius: 6px;
-  border: 1px solid var(--panel-border);
-  background: var(--panel);
-  color: var(--ink);
-  width: 100%;
-}
-.robot-simulator-page .slider-note {
-  font-size: 10.5px;
-  color: var(--muted-2);
-  line-height: 1.4;
-}
-
-.robot-simulator-page .formula-ref {
-  background: var(--panel);
-  border: 1px solid var(--panel-border);
-  border-radius: 10px;
-  padding: 12px 16px;
-}
-.robot-simulator-page .formula-ref summary {
-  font-family: var(--font-mono-legacy);
-  font-size: 12.5px;
+/* Collapsed by default, and only rendered at all when there is something to
+   report — clicking it swaps the log stream above for the error detail
+   rather than stacking a banner elsewhere on the page. */
+.robot-simulator-page .rs-log-alert {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  border: none;
+  background: none;
+  padding: var(--space-1) 0;
   cursor: pointer;
-  color: var(--muted);
+  min-height: var(--tap-target-min);
 }
-.robot-simulator-page .ref-body { margin-top: 12px; font-size: 13px; line-height: 1.6; }
-.robot-simulator-page .ref-body h4 {
-  font-family: var(--font-mono-legacy);
-  font-size: 11.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--muted-2);
-  margin: 16px 0 6px;
+
+.robot-simulator-page .rs-log-alert-detail {
+  position: absolute;
+  inset: 0;
+  background: var(--color-background);
+  border: 1px solid var(--color-separator);
+  border-radius: var(--radius-control);
+  padding: var(--space-4);
+  overflow: auto;
+  z-index: 1;
+  animation: rs-cross-fade var(--duration-base) var(--ease-out) both;
 }
-.robot-simulator-page .ref-body ul { margin: 0; padding-left: 20px; color: var(--muted); }
-.robot-simulator-page .ref-body li { margin-bottom: 6px; }
-.robot-simulator-page .ref-body p { color: var(--muted); margin: 0; }
-.robot-simulator-page .const-table {
-  border-collapse: collapse;
-  font-family: var(--font-mono-legacy);
-  font-size: 11.5px;
-  width: 100%;
-  max-width: 520px;
-  display: block;
-  overflow-x: auto;
-}
-.robot-simulator-page .const-table td {
-  padding: 3px 8px 3px 0;
-  border-bottom: 1px solid var(--panel-border);
-  white-space: nowrap;
-}
-.robot-simulator-page .const-table td:last-child { color: var(--muted); }
+

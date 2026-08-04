@@ -47,8 +47,8 @@ export const TABS = [
 ];
 
 export const CONFIG_NOTE =
-  "config.yaml is not pasted. brain->config->get_*() returns the repo defaults, listed under " +
-  "“Constants this run assumed” on the simulation view.";
+  "config.yaml is not pasted. brain->config->get_*() returns the repo defaults from " +
+  "src/lib/sim/host.js's CONFIG_DEFAULTS.";
 
 export const INTRO =
   "Open your Robocup-Humanoid- checkout (or its src/brain folder) below and the three files " +

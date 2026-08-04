@@ -15,112 +15,52 @@
  *
  * The ball is placed by measuring the trajectory path itself rather than by
  * repeating its curve in CSS, so the two can never disagree about where the
- * ball is. Scroll does not place it directly — it moves a target the ball
- * eases toward, so the shot trails the wheel instead of being pinned to it.
- * That eased value is also published as --rs-kick (0 -> 1) on the container,
- * for the parts of the shot that are pure styling; see RobotSimulator.css.
+ * ball is. Scroll does not place it directly — useScrollScrub (src/lib) eases
+ * a target toward the ball, so the shot trails the wheel instead of being
+ * pinned to it. That eased value is also published as --rs-kick (0 -> 1) on
+ * the container, for the parts of the shot that are pure styling; see
+ * RobotSimulator.css.
  */
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { useScrollScrub } from "../lib/useScrollScrub.js";
 
 export default function HeroField() {
   const rootRef = useRef(null);
   const pathRef = useRef(null);
   const ballRef = useRef(null);
+  // Path length in user units — constant, so it is measured once. It reads 0
+  // while the field is display:none (below the 900px breakpoint), hence the
+  // lazy read: the first frame after it comes back picks the real value up.
+  const lengthRef = useRef(0);
 
-  useEffect(() => {
+  const getTarget = () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return 0;
+    const range = document.documentElement.scrollHeight - window.innerHeight;
+    if (range <= 0) return 0;
+    return Math.min(1, Math.max(0, window.scrollY / range));
+  };
+
+  const onFrame = (progress) => {
     const root = rootRef.current;
     const path = pathRef.current;
     const ball = ballRef.current;
     if (!root || !path || !ball) return;
+    if (!lengthRef.current) {
+      lengthRef.current = path.getTotalLength();
+      if (!lengthRef.current) return;
+      path.style.strokeDasharray = lengthRef.current;
+    }
+    const length = lengthRef.current;
+    const point = path.getPointAtLength(length * progress);
+    ball.setAttribute("cx", point.x);
+    ball.setAttribute("cy", point.y);
+    // The trajectory draws itself in behind the ball.
+    path.style.strokeDashoffset = length * (1 - progress);
+    root.style.setProperty("--rs-kick", progress.toFixed(4));
+  };
 
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
-
-    // Path length in user units — constant, so it is measured once. It reads 0
-    // while the field is display:none (below the 900px breakpoint), hence the
-    // retry: the first apply() after it comes back picks the real value up.
-    let length = 0;
-
-    const apply = (progress) => {
-      if (!length) {
-        length = path.getTotalLength();
-        if (!length) return;
-        path.style.strokeDasharray = length;
-      }
-      const point = path.getPointAtLength(length * progress);
-      ball.setAttribute("cx", point.x);
-      ball.setAttribute("cy", point.y);
-      // The trajectory draws itself in behind the ball.
-      path.style.strokeDashoffset = length * (1 - progress);
-      root.style.setProperty("--rs-kick", progress.toFixed(4));
-    };
-
-    // Scroll-linked movement is still movement: with reduced motion the shot
-    // holds the frame before contact instead of scrubbing.
-    const scrollProgress = () => {
-      if (reduce.matches) return 0;
-      const range = document.documentElement.scrollHeight - window.innerHeight;
-      if (range <= 0) return 0;
-      return Math.min(1, Math.max(0, window.scrollY / range));
-    };
-
-    // The follow is eased, not pinned: scroll sets where the ball is headed and
-    // the ball takes its time getting there, the same way every other control
-    // on this page transitions rather than swapping state. The time constant
-    // comes from the duration tokens rather than a number invented here — read
-    // once, since a token cannot change without a reload.
-    const easing = window.getComputedStyle(root).getPropertyValue("--duration-base");
-    const parsed = parseFloat(easing);
-    const tau = Number.isFinite(parsed) && parsed > 0
-      ? (easing.trim().endsWith("ms") ? parsed : parsed * 1000)
-      : 300;
-
-    let shown = scrollProgress();
-    let target = shown;
-    let frame = 0;
-    let previous = 0;
-
-    const tick = (now) => {
-      // Exponential approach: the step is a fraction of the remaining gap, so
-      // it eases out on its own, never overshoots, and behaves the same at any
-      // refresh rate. Clamped because a backgrounded tab hands back one huge
-      // delta, which would otherwise snap the ball across the field.
-      const elapsed = previous ? Math.min(now - previous, 100) : 0;
-      previous = now;
-      shown += (target - shown) * (1 - Math.exp(-elapsed / tau));
-      // It approaches without ever arriving; cut it off below a sub-pixel gap
-      // so the loop can actually stop.
-      if (Math.abs(target - shown) < 0.0005) shown = target;
-      apply(shown);
-      if (shown === target) {
-        frame = 0;
-        previous = 0;
-      } else {
-        frame = window.requestAnimationFrame(tick);
-      }
-    };
-
-    // Scroll fires far more often than the display refreshes, so it only ever
-    // moves the target — the loop below is what writes to the DOM, once a frame
-    // and only while there is a gap left to close.
-    const schedule = () => {
-      target = scrollProgress();
-      // Reduced motion has nothing to ease toward; it is already where it goes.
-      if (reduce.matches) shown = target;
-      if (!frame) frame = window.requestAnimationFrame(tick);
-    };
-
-    // On mount the ball starts wherever the page already is — a reload that
-    // restores scroll position should not replay the shot.
-    apply(shown);
-    window.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
-    };
-  }, []);
+  useScrollScrub(rootRef, getTarget, onFrame);
 
   return (
     <div className="rs-hero-field" ref={rootRef} aria-hidden="true">

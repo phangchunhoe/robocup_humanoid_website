@@ -16,6 +16,7 @@ import { CONFIG_DEFAULTS } from "../lib/sim/host.js";
 import { runSelfTest } from "../lib/cpp/selftest.js";
 import { REQUIRED_BY_ROLE } from "../lib/cpp/extract.js";
 import HeroField from "./HeroField.jsx";
+import { useScrollScrub } from "../lib/useScrollScrub.js";
 import "./RobotSimulator.css";
 
 // One status per required file, folding "is this required" and "did it load"
@@ -114,6 +115,7 @@ export default function RobotSimulator() {
   const worldRef = useRef(null);
   const runtimeRef = useRef(null);
   const readoutRef = useRef(null);
+  const detailRef = useRef(null);
   const notesRef = useRef(null);
   const logRef = useRef(null);
   const logCountRef = useRef(0);
@@ -283,7 +285,7 @@ export default function RobotSimulator() {
     if (!world || !runtime || !rendererRef.current) return;
 
     rendererRef.current.update(world, runtime.telemetry);
-    paintReadout(readoutRef.current, world, runtime, engineRef.current);
+    paintReadout(readoutRef.current, detailRef.current, world, runtime, engineRef.current);
     paintNotes(notesRef.current, runtime);
     drainLogs(logRef.current, runtime, logCountRef);
 
@@ -368,14 +370,6 @@ export default function RobotSimulator() {
     onRender();
   };
 
-  const handleStepOnce = () => {
-    if (!engineRef.current) return;
-    if (engineRef.current.isRunning()) {
-      engineRef.current.stop();
-      setRunning(false);
-    }
-    engineRef.current.stepOnce();
-  };
 
   // ------------------------------------------------------------- dragging
 
@@ -473,7 +467,10 @@ export default function RobotSimulator() {
 
   return (
     <>
-      <Header />
+      {/* The site nav and this page's own headline belong to the landing/edit
+          step only — the run step is a full-viewport, edge-to-edge view with
+          no chrome above it, so neither renders once a simulation starts. */}
+      {step === "edit" ? <Header /> : null}
       <div className="robot-simulator-page">
         {/* Atmospheric hero element — decorative, so it is hidden from
             assistive tech, and it belongs to the landing step only. It sits
@@ -482,13 +479,15 @@ export default function RobotSimulator() {
         {step === "edit" ? <HeroField /> : null}
 
         <div className="rs-shell">
-          <header className="rs-hero">
-            <h1 className="rs-headline">RoboErectus Simulator</h1>
-            <p className="rs-subhead">
-              Created by Chun Hoe
-              <InfoHint text={INTRO} label="About this simulator" />
-            </p>
-          </header>
+          {step === "edit" ? (
+            <header className="rs-hero">
+              <h1 className="rs-headline">RoboErectus Simulator</h1>
+              <p className="rs-subhead">
+                Created by Chun Hoe
+                <InfoHint text={INTRO} label="About this simulator" />
+              </p>
+            </header>
+          ) : null}
 
           {step === "edit" ? (
             <EditorStep
@@ -519,11 +518,11 @@ export default function RobotSimulator() {
             <SimStep
               svgRef={svgRef}
               readoutRef={readoutRef}
+              detailRef={detailRef}
               notesRef={notesRef}
               logRef={logRef}
               running={running}
               onTogglePlay={togglePlay}
-              onStepOnce={handleStepOnce}
               onReset={handleReset}
               onSpeed={(v) => engineRef.current && engineRef.current.setSpeed(v)}
               physics={physics}
@@ -531,11 +530,6 @@ export default function RobotSimulator() {
               overrun={overrun}
               runtimeError={runtimeError}
               roleMeta={roleMeta}
-              onBack={() => {
-                if (engineRef.current) engineRef.current.stop();
-                setRunning(false);
-                setStep("edit");
-              }}
             />
           )}
         </div>
@@ -1030,87 +1024,108 @@ export function Diagnostics({ report }) {
 
 /* ------------------------------------------------------------------ step 2 */
 
+const SPEED_SEGMENTS = [
+  { id: "0.5", label: "0.5×" },
+  { id: "1", label: "1×" },
+  { id: "2", label: "2×" },
+];
+
+// A single stroked cycle icon for the stats-card toggle — flips between the
+// two faces, so it reads as "swap" rather than picking from a menu.
+function FlipIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path
+        d="M3 8a5 5 0 0 1 8.5-3.5M13 8a5 5 0 0 1-8.5 3.5M11 2.5V5h2.5M5 13.5V11H2.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function ChevronIcon() {
+  return (
+    <svg className="rs-diag-chevron" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
+      <path
+        d="M2.5 4.5L6 8l3.5-3.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// Physical interaction constant, not a spacing value — how much the page has
+// to scroll before the physics drawer is fully open. Same carve-out category
+// as this file's other untokenized container dimensions.
+const DRAWER_REVEAL_PX = 240;
+
 function SimStep(props) {
   const {
-    svgRef, readoutRef, notesRef, logRef, running, onTogglePlay, onStepOnce, onReset, onSpeed,
-    physics, setPhysics, overrun, runtimeError, roleMeta, onBack,
+    svgRef, readoutRef, detailRef, notesRef, logRef, running, onTogglePlay, onReset, onSpeed,
+    physics, setPhysics, overrun, runtimeError, roleMeta,
   } = props;
+
+  const [speedId, setSpeedId] = useState("1");
+  const [statsFace, setStatsFace] = useState("telemetry");
+  const [logAlertOpen, setLogAlertOpen] = useState(false);
+  const drawerRef = useRef(null);
+
+  // Closes itself once there is nothing left to report, so it never lingers
+  // open on stale content after a Reset clears the error.
+  useEffect(() => {
+    if (!runtimeError && !overrun) setLogAlertOpen(false);
+  }, [runtimeError, overrun]);
+
+  // rs-run-layout is position: fixed (see RobotSimulator.css), so it never
+  // moves regardless of scroll — plain window.scrollY is all the drawer
+  // needs, same as it would for any other fixed element.
+  const getDrawerTarget = () => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return 0;
+    return Math.min(1, Math.max(0, window.scrollY / DRAWER_REVEAL_PX));
+  };
+  const onDrawerFrame = (progress) => {
+    if (drawerRef.current) drawerRef.current.style.setProperty("--rs-drawer", progress.toFixed(4));
+  };
+  useScrollScrub(drawerRef, getDrawerTarget, onDrawerFrame);
 
   return (
     <>
-      <div className="controls-panel">
-        <button type="button" className="ghost" onClick={onBack}>
-          ← Back to editor
-        </button>
-        <button type="button" className="primary" onClick={onTogglePlay}>
-          {running ? "⏸ Pause" : "▶ Play"}
-        </button>
-        <button type="button" onClick={onStepOnce}>
-          Step 1 tick
-        </button>
-        <button type="button" onClick={onReset}>
-          ⟲ Reset
-        </button>
-        <label className="speed">
-          Speed
-          <select defaultValue="1" onChange={(e) => onSpeed(Number(e.target.value))}>
-            <option value="0.25">0.25×</option>
-            <option value="0.5">0.5×</option>
-            <option value="1">1× (real time)</option>
-            <option value="2">2×</option>
-            <option value="4">4×</option>
-          </select>
-        </label>
-        <span className="run-role">{roleMeta.label}</span>
-      </div>
+      <div className="rs-run-layout">
+        {/* This IS the field surface now — turf background, hairline border,
+            zero radius, sized directly by height:100vh + aspect-ratio in CSS.
+            There is no separate wrap div: the previous field-wrap/field-panel
+            split was two boxes that could (and did) disagree on width; one
+            box that's both the sizing root and the visual surface can't. */}
+        <section className="rs-field-panel">
+          <svg ref={svgRef} id="field" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} />
 
-      {runtimeError ? (
-        <div className="banner error">
-          <strong>Execution stopped:</strong> {runtimeError.message}
-          <span className="banner-note">
-            The robot is halted. Fix the pasted code or the missing symbol, then Run again.
-          </span>
-        </div>
-      ) : null}
-      {overrun ? (
-        <div className="banner warn">
-          Cannot keep real time — the interpreted tick is taking longer than 10&nbsp;ms.
-          Frames are being dropped; lower the speed multiplier for an accurate trace.
-        </div>
-      ) : null}
-
-      <div className="layout">
-        <section className="panel field-panel">
-          <div className="field-wrap">
-            <svg ref={svgRef} id="field" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} />
-          </div>
-          <div className="legend">
-            <span><i className="swatch chase" /> chase</span>
-            <span><i className="swatch adjust" /> adjust</span>
-            <span><i className="swatch kick" /> kick</span>
-            <span><i className="swatch other" /> not simulated</span>
-            <span className="legend-note">
-              Drag the ball, the robot, or the heading handle to set up a scenario.
+          {/* Overlaid on the field rather than occupying its own row below —
+              a hard-edged, full-height field has no spare row left for it,
+              and top-left keeps it clear of the physics drawer's bottom 40%. */}
+          <div className="rs-legend">
+            <span><i className="rs-legend-swatch rs-legend-swatch--chase" /> chase</span>
+            <span><i className="rs-legend-swatch rs-legend-swatch--adjust" /> adjust</span>
+            <span><i className="rs-legend-swatch rs-legend-swatch--kick" /> kick</span>
+            <span><i className="rs-legend-swatch rs-legend-swatch--idle" /> not simulated</span>
+            <span className="rs-legend-note">
+              Drag the ball, the robot, or the heading handle to set up a scenario. Scroll to
+              reveal physics.
             </span>
           </div>
-        </section>
 
-        <aside className="panel console">
-          {/* Populated imperatively by paintReadout/paintNotes on every frame; React
-              deliberately renders no children here so the two never fight. */}
-          <div ref={readoutRef} className="readout" />
-          <div ref={notesRef} className="runtime-notes" />
-
-          <div className="log-panel">
-            <h3>brain-&gt;log-&gt;strategy(...) output</h3>
-            <pre ref={logRef} className="log-stream" />
-          </div>
-
-          <div className="sliders">
-            <h3>Physics</h3>
+          <div ref={drawerRef} className="rs-physics-drawer rs-glass">
+            <span className="rs-physics-drawer-label">Physics</span>
             {SLIDERS.map((s) => (
-              <label key={s.key} className="slider">
-                <span className="slider-label">
+              <label key={s.key} className="rs-slider">
+                <span className="rs-slider-label">
                   {s.label}
                   <em>
                     {Number(physics[s.key]).toFixed(s.step < 0.05 ? 2 : s.step < 1 ? 2 : 1)}
@@ -1125,11 +1140,11 @@ function SimStep(props) {
                   value={physics[s.key]}
                   onChange={(e) => setPhysics({ ...physics, [s.key]: Number(e.target.value) })}
                 />
-                <span className="slider-note">{s.note}</span>
+                <span className="rs-slider-note">{s.note}</span>
               </label>
             ))}
-            <label className="slider">
-              <span className="slider-label">
+            <label className="rs-slider">
+              <span className="rs-slider-label">
                 RNG seed<em>{physics.seed}</em>
               </span>
               <input
@@ -1137,83 +1152,122 @@ function SimStep(props) {
                 value={physics.seed}
                 onChange={(e) => setPhysics({ ...physics, seed: Number(e.target.value) || 1 })}
               />
-              <span className="slider-note">
+              <span className="rs-slider-note">
                 Same seed, same scatter — reset to re-run a scenario identically.
               </span>
             </label>
           </div>
+        </section>
+
+        <aside className="rs-run-console">
+          <div className="rs-playback-row">
+            <button
+              type="button"
+              className={`btn ${running ? "btn-secondary" : "btn-primary"}`}
+              onClick={onTogglePlay}
+            >
+              {running ? "⏸ Stop" : "▶ Play"}
+            </button>
+            <button type="button" className="btn btn-secondary" onClick={onReset}>
+              ⟲ Reset
+            </button>
+            <SegmentedControl
+              segments={SPEED_SEGMENTS}
+              value={speedId}
+              onChange={(id) => {
+                setSpeedId(id);
+                onSpeed(Number(id));
+              }}
+              ariaLabel="Playback speed"
+            />
+            <span className="rs-role-label">{roleMeta.label}</span>
+          </div>
+
+          <div className="rs-stats-card rs-glass">
+            <button
+              type="button"
+              className="rs-stats-toggle"
+              onClick={() => setStatsFace((f) => (f === "telemetry" ? "log" : "telemetry"))}
+              aria-label={statsFace === "telemetry" ? "Show brain log" : "Show telemetry"}
+            >
+              <FlipIcon />
+            </button>
+
+            {/* Both faces stay mounted at all times — paintReadout/paintNotes/
+                drainLogs write into readoutRef/detailRef/notesRef/logRef on
+                every simulation frame, and unmounting either face would break
+                those refs. The toggle only changes which is on top. */}
+            <div className={`rs-stats-face${statsFace === "telemetry" ? " is-active" : ""}`}>
+              <div ref={readoutRef} className="rs-stats-readout" />
+              <details className="rs-diag-details">
+                <summary>
+                  More detail
+                  <ChevronIcon />
+                </summary>
+                <div className="rs-diag-full">
+                  <table ref={detailRef} className="rs-stats-detail-table" />
+                  <div ref={notesRef} className="rs-run-notes" />
+                </div>
+              </details>
+            </div>
+
+            <div className={`rs-stats-face${statsFace === "log" ? " is-active" : ""}`}>
+              <div className="rs-log-stream-wrap">
+                <pre ref={logRef} className="rs-log-stream" />
+                {logAlertOpen ? (
+                  <div className="rs-log-alert-detail">
+                    <Notice
+                      tone={runtimeError ? "error" : "muted"}
+                      title={runtimeError ? "Execution stopped" : "Cannot keep real time"}
+                    >
+                      {runtimeError ? (
+                        <>
+                          {runtimeError.message} The robot is halted. Fix the pasted code or the
+                          missing symbol, then Run again.
+                        </>
+                      ) : (
+                        <>
+                          The interpreted tick is taking longer than 10&nbsp;ms. Frames are being
+                          dropped; lower the speed multiplier for an accurate trace.
+                        </>
+                      )}
+                    </Notice>
+                  </div>
+                ) : null}
+              </div>
+              {runtimeError || overrun ? (
+                <button
+                  type="button"
+                  className="rs-log-alert"
+                  onClick={() => setLogAlertOpen((v) => !v)}
+                >
+                  <StatusIndicator
+                    tone={runtimeError ? "error" : "muted"}
+                    label={runtimeError ? "Execution stopped — tap for detail" : "Frames dropped — tap for detail"}
+                  />
+                </button>
+              ) : null}
+            </div>
+          </div>
         </aside>
       </div>
 
-      <details className="formula-ref">
-        <summary>Constants this run assumed, and what the simulation omits</summary>
-        <div className="ref-body">
-          <h4>config.yaml values (hardcoded — there is no config tab)</h4>
-          <table className="const-table">
-            <tbody>
-              {Object.keys(CONFIG_DEFAULTS).map((k) => (
-                <tr key={k}>
-                  <td><code>{k}</code></td>
-                  <td>{String(CONFIG_DEFAULTS[k])}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-
-          <h4>What this simulation does not model</h4>
-          <ul>
-            <li>
-              <strong>Perception is perfect.</strong> <code>ball_location_known</code> is
-              always true and the ball position carries no noise, so the <code>find</code>
-              branch, the close-ball guard and the anti-phantom latch never fire. One
-              consequence: a borderline gate (e.g. <code>Kick::onStart</code>&rsquo;s
-              straight-kick alignment check, or a decision that flip-flops between two
-              states whose commands cancel out) can leave the robot motionless
-              indefinitely, since its pose is bit-for-bit unchanged tick to tick with no
-              noise to nudge it past the threshold. On hardware this resolves within a
-              second or two on its own; here it can persist. If the robot looks frozen,
-              check the log panel and readout for the decision it is stuck on.
-            </li>
-            <li>
-              <strong>One robot, empty pitch.</strong> <code>distToObstacle()</code> always
-              returns 99 m, so obstacle avoidance never engages and no teammate or opponent
-              exists. Teammate-dependent branches (assist, cost ranking, zone reports) are
-              inert.
-            </li>
-            <li>
-              <strong>Normal play only.</strong> GameController state is fixed to PLAY, so
-              free kicks, corners, throw-ins, penalties and kickoff branches are skipped.
-            </li>
-            <li>
-              <strong>No walk dynamics.</strong> The robot is a rate-limited holonomic base;
-              there is no gait, no CoM sway, no falling, and no head or camera model.
-            </li>
-            <li>
-              <strong>The kick is contact physics, not an animation.</strong> That matches
-              the C++, where Kick::onRunning is a walk-through strike, but the ball leaves at
-              a tuned multiple of foot speed rather than from a modelled foot swing.
-            </li>
-            <li>
-              Nodes outside chase/adjust/kick (FindBall, Assist, GoToGoalBlockingPosition,
-              RLVisionKick, the set-piece subtrees) are not run — the robot holds position
-              and the decision is reported as “not simulated”.
-            </li>
-          </ul>
-
-          <h4>Simulation loop</h4>
-          <p>
-            Fixed timestep of {FIXED_DT}s, one brain tick per step, matching{" "}
-            <code>#define HZ 100</code> in <code>main.cpp</code>. Display refresh rate does
-            not affect the trajectory.
-          </p>
-        </div>
-      </details>
+      {/* rs-run-layout above is position: fixed, so it occupies no space in
+          normal flow — window.scrollY needs somewhere to go at all for the
+          drawer's scrub to read, and this is the only thing left to provide
+          it now that the constants/assumptions reference is gone. Purely
+          functional, never visible: nothing renders here to reach. */}
+      <div className="rs-run-spacer" aria-hidden="true" />
     </>
   );
 }
 
 /* --------------------------------------------------------------- readouts */
 
+// Everything the run tracks. The compact card shows decision/robot/ball/cost
+// up front (COMPACT_FIELDS); the "More detail" disclosure gets the rest
+// (DETAIL_FIELDS) — split from this one list so the two can never drift out
+// of sync with what paintReadout actually knows how to fill in.
 const FIELDS = [
   ["decision", "decision"],
   ["node", "node ticked"],
@@ -1230,68 +1284,92 @@ const FIELDS = [
   ["cost", "interpreter cost"],
 ];
 
+const COMPACT_KEYS = ["robot", "ball", "cost"];
+const COMPACT_LABELS = { robot: "robot pose", ball: "ball pose", cost: "interpreter cost" };
+const DETAIL_FIELDS = FIELDS.filter(([key]) => !["decision", ...COMPACT_KEYS].includes(key));
+
+// Mirrors renderer.js's DECISION_COLOR grouping: chase/adjust/kick are the
+// only branches this simulator actually runs (see "what this simulation does
+// not model" below the layout), everything else is idle.
+const DECISION_BUCKET = {
+  chase: "chase",
+  adjust: "adjust",
+  kick: "kick",
+  cross: "kick",
+  find: "idle",
+  retreat: "idle",
+  assist: "idle",
+  zone_find: "idle",
+};
+
 /**
  * Written straight into the DOM rather than through React state: this runs on every
  * animation frame, and re-rendering the tree that often would dominate the frame budget.
+ * `root` gets the decision pill and the three compact rows; `detailTable` (inside the
+ * card's "More detail" disclosure) gets everything else FIELDS knows about.
  */
-function paintReadout(root, world, runtime, engine) {
+function paintReadout(root, detailTable, world, runtime, engine) {
   if (!root) return;
-  let table = root.querySelector(".readout-table");
-  if (!table) {
-    const pillEl = document.createElement("div");
-    pillEl.className = "scenario-pill";
-    pillEl.dataset.role = "pill";
-    pillEl.textContent = "—";
-    root.appendChild(pillEl);
+  let pill = root.querySelector(".rs-decision-pill");
+  let rows = root.querySelector(".rs-stat-rows");
+  if (!pill) {
+    pill = document.createElement("div");
+    pill.className = "rs-decision-pill";
+    pill.textContent = "—";
+    root.appendChild(pill);
 
-    table = document.createElement("table");
-    table.className = "readout-table";
-    table.innerHTML = FIELDS.map(
+    rows = document.createElement("div");
+    rows.className = "rs-stat-rows";
+    rows.innerHTML = COMPACT_KEYS.map(
+      (key) => `<div class="rs-stat-row"><span>${COMPACT_LABELS[key]}</span><span data-k="${key}">—</span></div>`
+    ).join("");
+    root.appendChild(rows);
+  }
+  if (detailTable && !detailTable.childElementCount) {
+    detailTable.innerHTML = DETAIL_FIELDS.map(
       ([key, label]) => `<tr><td>${label}</td><td data-k="${key}">—</td></tr>`
     ).join("");
-    root.appendChild(table);
   }
 
   const t = runtime.telemetry || {};
   const d = runtime.host.data;
-  const set = (key, text) => {
-    const cell = table.querySelector(`[data-k="${key}"]`);
+  const set = (container, key, text) => {
+    if (!container) return;
+    const cell = container.querySelector(`[data-k="${key}"]`);
     if (cell && cell.textContent !== text) cell.textContent = text;
   };
 
-  const pill = root.querySelector('[data-role="pill"]');
   const decision = t.decision || "—";
-  const known = ["chase", "adjust", "kick", "cross", "find", "retreat"];
-  pill.className = `scenario-pill state-${known.includes(decision) ? decision : "other"}`;
+  const bucket = DECISION_BUCKET[decision] || "idle";
+  pill.className = `rs-decision-pill rs-decision-pill--${bucket}`;
   pill.textContent = world.result
     ? `${decision.toUpperCase()} · episode ended: ${world.result.replace("_", " ")}`
     : decision.toUpperCase() + (t.simulatedNode ? ` · ${t.simulatedNode}` : " · not simulated");
 
   const w = t.decideWatched || {};
-  set("decision", decision);
-  set("node", t.simulatedNode || "none");
-  set("targetType", t.targetType || "—");
-  set("ballRange", `${d.ball.range.toFixed(3)} m`);
-  set("deltaDir", typeof w.deltaDir === "number" ? `${w.deltaDir.toFixed(3)} rad` : "—");
-  set("kickDir", `${Number(d.kickDir || 0).toFixed(3)} rad`);
-  set("kickType", String(d.kickType || "—"));
-  const c = runtime.host.command;
-  set("cmd", `${c.vx.toFixed(2)} / ${c.vy.toFixed(2)} / ${c.vtheta.toFixed(2)}`);
+  set(rows, "robot", `${world.robot.x.toFixed(2)}, ${world.robot.y.toFixed(2)} @ ${world.robot.theta.toFixed(2)}`);
   set(
-    "actual",
-    `${world.robot.vx.toFixed(2)} / ${world.robot.vy.toFixed(2)} / ${world.robot.vtheta.toFixed(2)}`
-  );
-  set(
-    "robot",
-    `${world.robot.x.toFixed(2)}, ${world.robot.y.toFixed(2)} @ ${world.robot.theta.toFixed(2)}`
-  );
-  set(
+    rows,
     "ball",
     `${world.ball.x.toFixed(2)}, ${world.ball.y.toFixed(2)} · ${Math.hypot(world.ball.vx, world.ball.vy).toFixed(2)} m/s`
   );
-  set("elapsed", `${world.t.toFixed(2)} s`);
   const stats = engine ? engine.stats() : null;
-  set("cost", stats ? `${stats.stepCostMs.toFixed(3)} ms/tick` : "—");
+  set(rows, "cost", stats ? `${stats.stepCostMs.toFixed(3)} ms/tick` : "—");
+
+  set(detailTable, "node", t.simulatedNode || "none");
+  set(detailTable, "targetType", t.targetType || "—");
+  set(detailTable, "ballRange", `${d.ball.range.toFixed(3)} m`);
+  set(detailTable, "deltaDir", typeof w.deltaDir === "number" ? `${w.deltaDir.toFixed(3)} rad` : "—");
+  set(detailTable, "kickDir", `${Number(d.kickDir || 0).toFixed(3)} rad`);
+  set(detailTable, "kickType", String(d.kickType || "—"));
+  const c = runtime.host.command;
+  set(detailTable, "cmd", `${c.vx.toFixed(2)} / ${c.vy.toFixed(2)} / ${c.vtheta.toFixed(2)}`);
+  set(
+    detailTable,
+    "actual",
+    `${world.robot.vx.toFixed(2)} / ${world.robot.vy.toFixed(2)} / ${world.robot.vtheta.toFixed(2)}`
+  );
+  set(detailTable, "elapsed", `${world.t.toFixed(2)} s`);
 }
 
 /**
@@ -1323,8 +1401,8 @@ function paintNotes(root, runtime) {
     groups
       .map(
         ([label, items]) =>
-          `<div class="note-group"><span class="note-label">${label}</span>` +
-          `<span class="note-items">${items.join(", ")}</span></div>`
+          `<div class="rs-note-group"><span class="rs-note-label">${label}</span>` +
+          `<span class="rs-note-items">${items.join(", ")}</span></div>`
       )
       .join("");
 }

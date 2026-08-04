@@ -8,14 +8,14 @@ import { FD, PXPM, toSvg, svgEl, buildPitch, OPP_GOAL_X } from "./field.js";
 import { BALL_RADIUS, ROBOT_RADIUS } from "./physics.js";
 
 const DECISION_COLOR = {
-  chase: "var(--lead)",
-  adjust: "var(--accent-legacy)",
-  kick: "var(--pass)",
-  cross: "var(--pass)",
-  find: "var(--assist)",
-  retreat: "var(--goalie)",
-  assist: "var(--assist)",
-  zone_find: "var(--assist)",
+  chase: "var(--decision-chase)",
+  adjust: "var(--decision-adjust)",
+  kick: "var(--decision-kick)",
+  cross: "var(--decision-kick)",
+  find: "var(--decision-idle)",
+  retreat: "var(--decision-idle)",
+  assist: "var(--decision-idle)",
+  zone_find: "var(--decision-idle)",
 };
 
 export function createRenderer(svg) {
@@ -27,7 +27,7 @@ export function createRenderer(svg) {
   // Dynamic layers, back to front
   const trailPath = svgEl("polyline", {
     fill: "none",
-    stroke: "var(--lead)",
+    stroke: "var(--decision-chase)",
     "stroke-width": 2,
     "stroke-opacity": 0.45,
     "stroke-linejoin": "round",
@@ -37,7 +37,7 @@ export function createRenderer(svg) {
 
   const plannedPath = svgEl("path", {
     fill: "none",
-    stroke: "var(--accent-legacy)",
+    stroke: "var(--decision-adjust)",
     "stroke-width": 2.5,
     "stroke-dasharray": "7 5",
     "stroke-opacity": 0.9,
@@ -45,7 +45,7 @@ export function createRenderer(svg) {
   svg.appendChild(plannedPath);
 
   const kickRay = svgEl("line", {
-    stroke: "var(--pass)",
+    stroke: "var(--decision-kick)",
     "stroke-width": 2,
     "stroke-dasharray": "4 4",
     "stroke-opacity": 0.85,
@@ -54,10 +54,10 @@ export function createRenderer(svg) {
 
   const targetMark = svgEl("g", {});
   targetMark.appendChild(
-    svgEl("circle", { r: 7, fill: "none", stroke: "var(--accent-legacy)", "stroke-width": 2 })
+    svgEl("circle", { r: 7, fill: "none", stroke: "var(--decision-adjust)", "stroke-width": 2 })
   );
   targetMark.appendChild(
-    svgEl("circle", { r: 2.5, fill: "var(--accent-legacy)" })
+    svgEl("circle", { r: 2.5, fill: "var(--decision-adjust)" })
   );
   svg.appendChild(targetMark);
 
@@ -78,20 +78,20 @@ export function createRenderer(svg) {
   const robotG = svgEl("g", { class: "sim-robot" });
   const robotBody = svgEl("circle", {
     r: ROBOT_RADIUS * PXPM,
-    fill: "var(--lead)",
+    fill: "var(--decision-chase)",
     "fill-opacity": 0.22,
-    stroke: "var(--lead)",
+    stroke: "var(--decision-chase)",
     "stroke-width": 2.5,
   });
   robotG.appendChild(robotBody);
   const robotHeading = svgEl("path", {
     d: `M 0 0 L ${ROBOT_RADIUS * PXPM * 1.55} -6 L ${ROBOT_RADIUS * PXPM * 1.55} 6 Z`,
-    fill: "var(--lead)",
+    fill: "var(--decision-chase)",
     "fill-opacity": 0.8,
   });
   robotG.appendChild(robotHeading);
-  const footL = svgEl("circle", { r: 4, fill: "var(--ink)", "fill-opacity": 0.7 });
-  const footR = svgEl("circle", { r: 4, fill: "var(--ink)", "fill-opacity": 0.7 });
+  const footL = svgEl("circle", { r: 4, fill: "var(--color-label)", "fill-opacity": 0.7 });
+  const footR = svgEl("circle", { r: 4, fill: "var(--color-label)", "fill-opacity": 0.7 });
   robotG.appendChild(footL);
   robotG.appendChild(footR);
   svg.appendChild(robotG);
@@ -111,7 +111,7 @@ export function createRenderer(svg) {
       "transform",
       `translate(${rx.toFixed(2)} ${ry.toFixed(2)}) rotate(${((-r.theta * 180) / Math.PI).toFixed(2)})`
     );
-    const color = DECISION_COLOR[telemetry.decision] || "var(--muted)";
+    const color = DECISION_COLOR[telemetry.decision] || "var(--decision-idle)";
     robotBody.setAttribute("stroke", color);
     robotBody.setAttribute("fill", color);
     robotHeading.setAttribute("fill", color);
