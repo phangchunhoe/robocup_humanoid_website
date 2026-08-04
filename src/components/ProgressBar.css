@@ -1,4 +1,6 @@
-/* Thin progress bar — accent fill, recessed track, legible label row. */
+/* Technical HUD status indicator: a hairline track, a glowing lead edge, and
+   a monospace readout. Deliberately not a generic progress bar — no numerals
+   inside the bar, no step chrome, no rounded capsule fill. */
 
 .progress {
   display: flex;
@@ -23,13 +25,13 @@
   padding: var(--space-6);
   border-radius: var(--radius-panel);
   background: var(--color-elevated-background);
-  /* Hairline only — no shadow on UI chrome. */
+  /* Hairline only — no shadow on a panel. */
   border: 1px solid var(--color-separator);
 }
 
-/* The label row stays on one line, with the label and its status optically
+/* The label row stays on one line, with the label and its readout optically
    centered against each other rather than sharing a baseline — their type
-   sizes differ, and centering is what reads as level. The hint gives way
+   sizes differ, and centering is what reads as level. The readout gives way
    first if the row is tight. */
 .progress-row {
   display: flex;
@@ -40,45 +42,98 @@
   min-height: var(--space-6);
 }
 
+/* An instrument marking, not a heading: the micro step, tracked wide. */
 .progress-label {
   font-family: var(--font-sans);
-  font-size: var(--text-callout);
-  font-weight: 500;
-  /* Fully legible, not a whisper. */
-  color: var(--color-label);
+  font-size: var(--text-micro);
+  font-weight: var(--text-micro-weight);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+  color: var(--color-secondary-label);
   white-space: nowrap;
 }
 
-.progress-hint {
-  font-size: var(--text-caption);
-  color: var(--color-secondary-label);
+/* A live readout, so it takes the mono face — this is exactly the technical
+   value --font-mono is reserved for, and tabular figures keep the row from
+   twitching as the count changes. */
+.progress-readout {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--text-micro-tracking);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-tertiary-label);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+  transition: color var(--duration-base) var(--ease-out);
 }
 
-/* Recessed against the panel it sits on — the canvas tone reads as a well. */
+/* Complete is the one state the readout brightens for — it is the cue that
+   the step is done, and the only accent in the row besides the lead edge. */
+.progress-readout.is-complete {
+  color: var(--color-accent);
+}
+
+/* A hairline rule, not a capsule: 2px, square-ended, recessed into the panel
+   so it reads as an etched track rather than a pill sitting on top of one. */
 .progress-track {
   position: relative;
-  height: var(--space-1);
-  border-radius: var(--radius-pill);
-  background: var(--color-background);
+  height: 2px;
+  background: var(--color-separator);
   overflow: hidden;
 }
 
+/* Fill and lead edge are driven from ONE number — --progress-ratio, set once
+   on the track — so the two can never drift apart the way two independently
+   computed positions would. Both move on a compositor transform rather than
+   on width/left. */
 .progress-fill {
   position: absolute;
   inset: 0;
-  border-radius: var(--radius-pill);
   background: var(--color-accent);
-  /* Scale rather than width so the fill animates on the compositor. */
   transform-origin: left center;
+  transform: scaleX(var(--progress-ratio, 0));
   transition: transform var(--duration-base) var(--ease-out);
 }
 
+/* Full-track width, slid left so its right edge lands exactly on the head of
+   the fill: at ratio 0 it is translated fully off, at ratio 1 it sits flush
+   against the track's right edge. Scaling it instead — as a child of the
+   fill — would squash the tick horizontally as the fill shrank. */
+.progress-lead {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translateX(calc((var(--progress-ratio, 0) - 1) * 100%));
+  transition: transform var(--duration-base) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
+}
+
+/* The tick itself: a short solid bar, brighter than the fill it leads, with
+   the glow doing the falloff. Solid rather than a gradient — the glow is the
+   named exception here, a decorative gradient would not be. */
+.progress-lead::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: var(--space-2);
+  background: color-mix(in srgb, var(--color-accent) 40%, var(--color-label));
+  box-shadow: var(--glow-accent-lead);
+}
+
+/* Nothing to lead at either end: a tick pinned at 0 or at 100% reads as a
+   rendering artifact rather than as a position. */
+.progress-lead.is-idle {
+  opacity: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .progress-fill {
+  .progress-fill,
+  .progress-lead,
+  .progress-readout {
     transition: none;
   }
 }

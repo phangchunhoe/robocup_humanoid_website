@@ -22,6 +22,97 @@
   box-sizing: border-box;
 }
 
+/* ----------------------------------------------------------- scrollbars */
+/* The native scrollbar is a light-mode artifact — a white track and a mid-grey
+   thumb — and it is glaring against dark glass. Restyled once, for every
+   scrollable box on the page rather than per panel, so the physics drawer,
+   the HUD console, the stats faces, the log stream and the code editor can
+   never disagree about what a scrollbar looks like.
+
+   Both mechanisms are declared because they are not interchangeable: Firefox
+   only understands scrollbar-width/scrollbar-color, Chrome and Safari only
+   understand the ::-webkit-scrollbar pseudo-elements. A browser applies the
+   one it knows and ignores the other. */
+.robot-simulator-page,
+.robot-simulator-page * {
+  scrollbar-width: thin;
+  /* thumb, then track. Muted enough to sit under the content. */
+  scrollbar-color: color-mix(in srgb, var(--color-secondary-label) 40%, transparent)
+    transparent;
+}
+
+.robot-simulator-page ::-webkit-scrollbar {
+  width: var(--space-2);
+  height: var(--space-2);
+}
+
+/* Transparent, not a filled channel: on a glass panel a painted track would
+   read as a seam across the surface. */
+.robot-simulator-page ::-webkit-scrollbar-track,
+.robot-simulator-page ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.robot-simulator-page ::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-secondary-label) 40%, transparent);
+  border-radius: var(--radius-pill);
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+
+/* Brightens under the pointer, the same way every other control on the page
+   answers one. */
+.robot-simulator-page ::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary-label);
+}
+
+/* Firefox has no ::-webkit-scrollbar-thumb:hover equivalent, so the hover
+   brightening is declared on the scroll containers themselves. Listed rather
+   than matched with a universal *:hover, which would test every element on
+   the page against a rule only these six can use. */
+.robot-simulator-page .rs-physics-drawer:hover,
+.robot-simulator-page .rs-run-console:hover,
+.robot-simulator-page .rs-stats-face:hover,
+.robot-simulator-page .rs-log-stream:hover,
+.robot-simulator-page .rs-log-alert-detail:hover,
+.robot-simulator-page .code-editor textarea:hover {
+  scrollbar-color: var(--color-secondary-label) transparent;
+}
+
+/* The run step also scrolls the WINDOW — that is what drives the drawer's
+   scrub — and that scrollbar belongs to the root element, so none of the
+   rules above can reach it. Scoped with :has() to the run step rather than
+   declared globally, because a global takeover would hand the unmigrated
+   light-themed pages a dark scrollbar (CLAUDE.md → Core discipline). On a
+   browser without :has() the root scrollbar simply stays native. */
+html:has(.rs-run-layout) {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-secondary-label) 40%, transparent)
+    transparent;
+}
+
+html:has(.rs-run-layout)::-webkit-scrollbar {
+  width: var(--space-2);
+}
+
+html:has(.rs-run-layout)::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html:has(.rs-run-layout)::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-secondary-label) 40%, transparent);
+  border-radius: var(--radius-pill);
+}
+
+html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary-label);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page ::-webkit-scrollbar-thumb {
+    transition: none;
+  }
+}
+
 .robot-simulator-page {
   /* The charcoal canvas. Nothing else on this page paints a page-level
      background, so this is what renders. */
@@ -139,10 +230,17 @@
 
 /* The trajectory the ball rides. It draws itself in behind the ball, via a
    dash offset HeroField.jsx sets from the path's own measured length — the
-   curve is authored once, in the markup, and never restated here. */
+   curve is authored once, in the markup, and never restated here.
+
+   The one element of the hero carrying the accent, and the narrow reason it
+   may: this is the same predicted-path vector the simulator itself draws on
+   the live field, so the hero is quoting the product rather than decorating
+   itself. It stays mixed well back toward the neutral ramp, so it reads as a
+   tinted trace and never as something you could click. The pitch markings
+   and the striker below stay fully neutral. */
 .robot-simulator-page .rs-shot-line {
   fill: none;
-  stroke: var(--color-tertiary-label);
+  stroke: color-mix(in srgb, var(--color-accent) 55%, var(--color-tertiary-label));
   stroke-width: 2;
   stroke-linecap: round;
 }
@@ -233,9 +331,17 @@
   min-width: 0;
 }
 
-.robot-simulator-page .rs-panel-label {
-  font-size: var(--text-caption);
-  font-weight: 600;
+/* Instrument marking, not a heading — the micro step, tracked wide and set
+   uppercase so a one-word section label reads as a marking on a panel rather
+   than as undersized body copy. This is the panel/section label only; status
+   indicators deliberately do NOT get this treatment (see CLAUDE.md). */
+.robot-simulator-page .rs-panel-label,
+.robot-simulator-page .rs-physics-drawer-label,
+.robot-simulator-page .rs-role-label {
+  font-size: var(--text-micro);
+  font-weight: var(--text-micro-weight);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
   color: var(--color-tertiary-label);
 }
 
@@ -334,7 +440,10 @@
 }
 
 /* -------------------------------------------------------------- buttons */
-/* Pill-shaped. Exactly two variants — primary (filled accent) and secondary. */
+/* Pill-shaped. Exactly two variants — primary (filled accent) and secondary
+   (glass). Primary deliberately keeps its solid fill rather than joining the
+   glass treatment: it is the single dominant action in its row, and if it
+   read the same as its neighbours the hierarchy would be gone. */
 
 .robot-simulator-page .btn {
   display: inline-flex;
@@ -349,11 +458,12 @@
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  /* Color settles over --duration-base so the state change is felt as a
-     transition, not a swap; the press nudge is quicker, so the control still
-     answers immediately under the finger. */
+  /* Color and glow settle over --duration-base so the state change is felt as
+     a transition, not a swap; the press nudge is quicker, so the control
+     still answers immediately under the finger. */
   transition: background-color var(--duration-base) var(--ease-out),
     border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
     color var(--duration-base) var(--ease-out),
     opacity var(--duration-base) var(--ease-out),
     transform var(--duration-fast) var(--ease-out);
@@ -372,9 +482,13 @@
   outline-offset: 2px;
 }
 
+/* Disabled is inert: no glow, no lift, no pointer feedback of any kind. The
+   glow is a response to a pointer, and a control that cannot respond must
+   not appear to. */
 .robot-simulator-page .btn:disabled {
   opacity: 0.36;
   cursor: not-allowed;
+  box-shadow: none;
 }
 
 .robot-simulator-page .btn-primary {
@@ -382,28 +496,36 @@
   color: var(--color-on-accent);
 }
 
-/* Terracotta on hover and press — the accent's other state, not a new color.
-   The ink label clears 4.5:1 on both, so only the fill moves. */
+/* The deeper emerald on hover and press — the accent's other state, not a new
+   color. The ink label clears 4.5:1 on both, so only the fill moves; the glow
+   is what makes the change felt rather than merely seen. */
 .robot-simulator-page .btn-primary:hover:not(:disabled),
 .robot-simulator-page .btn-primary:active:not(:disabled) {
   background: var(--color-accent-hover);
+  box-shadow: var(--glow-accent);
 }
 
-/* Secondary is accent-on-transparent with a hairline — never a white outline. */
+/* Secondary is glass: an accent-tinted fill under a low-alpha accent hairline,
+   with the label carrying the accent. Blur resolves only where the inherited
+   --chrome-blur is switched on — over the live field — since there is nothing
+   behind a button to blur when it sits on a flat panel. */
 .robot-simulator-page .btn-secondary {
-  background: transparent;
-  border-color: var(--color-separator);
+  background: var(--glass-chrome);
+  backdrop-filter: var(--chrome-blur);
+  -webkit-backdrop-filter: var(--chrome-blur);
+  border-color: var(--border-accent-subtle);
   color: var(--color-accent);
 }
 
 .robot-simulator-page .btn-secondary:hover:not(:disabled) {
-  background: var(--color-elevated-background-hover);
-  border-color: var(--color-accent);
+  background: var(--glass-chrome-hover);
+  border-color: var(--border-accent-strong);
+  box-shadow: var(--glow-accent);
 }
 
 .robot-simulator-page .btn-secondary:active:not(:disabled) {
   color: var(--color-accent-hover);
-  border-color: var(--color-accent-hover);
+  border-color: var(--border-accent-strong);
 }
 
 /* ------------------------------------------------------------- selftest */
@@ -695,21 +817,35 @@
 /* ====================================================================== */
 
 .robot-simulator-page {
-  /* Playing surface — kept off the neutral scale on purpose; see above. */
-  --turf: #163826;
-  --turf-line: rgba(232, 240, 233, 0.4);
-  /* Decision legend — categorical, not status. Same hues the page always
-     had, renamed to say what they mean. chase/adjust/kick are the only
-     branches this simulator actually runs (see "what this simulation does
-     not model" below); everything else reports as idle. */
+  /* Playing surface — kept off the neutral scale on purpose; see above.
+     Deliberately deeper and duller than it used to be (#163826), for two
+     reasons. Green now also means "interactive" — the accent is emerald — so
+     the pitch has to sit far enough down the value/saturation ramp that no
+     one reads the ground as a control. And the console is now glass floating
+     ON this surface rather than a column beside it, which only separates if
+     what is behind it is dark. */
+  --turf: #102a1c;
+  /* Chalk, so it stays neutral rather than picking up the accent — derived
+     from the label token instead of a raw rgba, so there is one white in the
+     app and this is a transparency of it. */
+  --turf-line: color-mix(in srgb, var(--color-label) 34%, transparent);
+  /* Decision legend — categorical, not status, and never interactive chrome.
+     chase/adjust/kick are the only branches this simulator actually runs
+     (see "what this simulation does not model" below); everything else
+     reports as idle. */
   --decision-chase: #e2766a;
   --decision-adjust: #f2a541;
-  --decision-kick: #63c894;
+  /* Shifted off green (#63c894, ~150°) to a cooler, less saturated cyan-teal
+     at ~188°. The accent is emerald at ~160°, so the old kick color sat only
+     10° away from "this is clickable" — on a robot fill and a dashed ray that
+     was a real ambiguity. Cyan reads as instrumentation, not as a control. */
+  --decision-kick: #56bccb;
   --decision-idle: #64756a;
-  /* Cosmetic ball colors, same category as the turf — a two-tone ball reads
-     against green better than the app's cream-on-charcoal label color would. */
-  --ball-fill: #f5f1e6;
-  --ball-stroke: #171712;
+  /* Cosmetic ball colors, same category as the turf. Derived from the neutral
+     ramp rather than restated as raw hex: a two-tone ball still reads against
+     the pitch, and now it cannot drift from the app's own white and black. */
+  --ball-fill: var(--color-label);
+  --ball-stroke: var(--color-background);
 }
 
 /* ---------------------------------------------------------------- layout */
@@ -729,19 +865,33 @@
    and this page's own headline are both skipped for this step (see
    RobotSimulator.jsx), so `inset: 0` puts the field's top-left corner at the
    viewport's top-left corner exactly, with no chrome height to account for
-   and no padding of its own — the field and console each own their own
-   spacing (zero on the field, which is meant to be flush; --space-8 on the
-   console, see rs-run-console) rather than this shared box splitting the
-   difference between two elements that want different things. */
+   and no padding of its own.
+
+   This is no longer a two-column flex row. The field is the whole viewport
+   and the console floats ON it as a HUD, so both children are positioned
+   against this box rather than sharing a row with it — see rs-field-panel
+   and rs-run-console below. */
 .robot-simulator-page .rs-run-layout {
   position: fixed;
   inset: 0;
   height: 100vh;
   width: 100vw;
-  display: flex;
-  align-items: stretch;
-  gap: var(--space-6);
   z-index: 1;
+
+  /* The HUD column's own width, and the strip of viewport reserved for it.
+     Container dimensions, not spacing — the allowed carve-out from the
+     spacing scale (see CLAUDE.md → Core discipline). Everything that has to
+     stay clear of the HUD (the pitch drawing, the legend, the physics
+     drawer) is inset by the reserve rather than guessing at its own number,
+     so there is one value to change and nothing can fall out of step. */
+  --rs-hud-width: clamp(320px, 26vw, 420px);
+  --rs-hud-reserve: calc(var(--rs-hud-width) + var(--space-6) * 2);
+
+  /* This is the one container in the app that genuinely stacks chrome over
+     moving content, so it is where glass controls switch their blur on.
+     Everything inheriting from here — buttons, segments, pills — resolves
+     backdrop-filter to a real blur instead of `none`. */
+  --chrome-blur: var(--blur-chrome);
 }
 
 /* Fixed elements occupy no space in normal flow, so this exists purely to
@@ -757,14 +907,43 @@
   height: calc(100vh + 240px);
 }
 
+/* Below this width there is no room to float chrome over the field without
+   burying it. The HUD unstacks: the field goes back to being a block with
+   its own aspect ratio and the console becomes an ordinary panel beneath it.
+   Everything that inset itself by the HUD reserve gets that reserve zeroed
+   here — one override, because they all read the same property. */
 @media (max-width: 900px) {
   .robot-simulator-page .rs-run-layout {
     position: static;
     inset: auto;
     width: auto;
-    flex-direction: column;
     height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    padding: var(--space-4);
+    --rs-hud-reserve: 0px;
   }
+
+  .robot-simulator-page .rs-field-panel {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 3 / 2;
+    border: 1px solid var(--color-separator);
+    border-radius: var(--radius-panel);
+  }
+
+  /* The SVG needs no override — --rs-hud-reserve is 0px here, so its
+     calc(100% - reserve) width already resolves to the full field box. */
+
+  .robot-simulator-page .rs-run-console {
+    position: relative;
+    inset: auto;
+    width: auto;
+  }
+
   .robot-simulator-page .rs-run-spacer {
     display: none;
   }
@@ -772,53 +951,50 @@
 
 /* -------------------------------------------------------- field + legend */
 
-/* The field surface itself — not a wrapper around one. An earlier version
-   split this into an outer flex/sizing box (rs-field-panel) and an inner
-   visual box (rs-field-wrap, the turf) that derived its own width from
-   height independently via aspect-ratio. The two had no way to be told to
-   agree, and in practice didn't: the wrap rendered wider than the panel
-   that was supposedly containing it and spilled into the console. One
-   element that is simultaneously the sizing root and the visual surface
-   can't disagree with itself. */
+/* The field surface itself — not a wrapper around one, and now the entire
+   viewport rather than a column in a row. It is the ground the whole run
+   step is built on: the console floats on it, the legend and the physics
+   drawer are pinned to its edges.
+
+   The turf is painted here and the pitch is drawn by the SVG inside, which
+   is inset from this box's right edge by exactly the HUD's reserve — one
+   value, declared once on rs-run-layout, so the drawing and the chrome that
+   must not cover it cannot disagree about where the boundary is. That is
+   the same failure an earlier version hit when a sizing wrapper and a
+   visual box each derived a width independently. */
 .robot-simulator-page .rs-field-panel {
-  position: relative;
-  /* Confines the physics drawer's slide, and this box's own corners, to
-     this box's edges — nothing here may render past them. */
+  position: absolute;
+  inset: 0;
+  /* Confines the physics drawer's slide to this box's edges — nothing here
+     may render past them. */
   overflow: hidden;
-  /* No grow (this box's size is dictated by height + aspect-ratio, not by
-     however much row space happens to be available) but shrink is left at
-     its default (not 0): if the console's own min-width ever needs more
-     room than height*1.5 leaves on a tall-but-narrow viewport, the browser
-     resolves that by shrinking this box's flex-basis rather than the two
-     overflowing each other — the field may narrow before that happens, but
-     narrowing beats overlapping. min-width: 0 permits that shrink; the
-     default flex min-width:auto would floor it at content size instead. */
-  flex: 0 1 auto;
-  min-width: 0;
-  height: 100vh;
-  width: auto;
-  aspect-ratio: 3 / 2;
   background: var(--turf);
-  border: 1px solid var(--color-separator);
-  /* The one deliberate exception to every panel/card/button on this page
-     having --radius-panel or --radius-control: this box is flush against
-     the top and bottom of the viewport, and a rounded corner sitting
-     exactly on the viewport edge reads as a rendering bug, not a design
-     choice. Hard-edged is correct here specifically because it touches the
-     edge; nothing else on this page should follow this example. */
+  /* No border and no radius: this box IS the viewport now. There is nothing
+     outside it to be separated from by a hairline, and a rounded corner
+     sitting exactly on the viewport edge reads as a rendering bug. Nothing
+     else on this page should follow this example — a panel that does not
+     touch the viewport edge still gets --radius-panel and its hairline. */
+  border: 0;
   border-radius: 0;
 }
 
-@media (max-width: 900px) {
-  .robot-simulator-page .rs-field-panel {
-    height: auto;
-    width: 100%;
-    aspect-ratio: 3 / 2;
-  }
-}
+/* The pitch drawing, held clear of the HUD column so the chrome never covers
+   the surface you drag on. The SVG's own viewport is what shrinks, and
+   preserveAspectRatio="meet" then centres the 3:2 pitch inside whatever is
+   left. Screen-to-field hit testing goes through getScreenCTM().inverse()
+   (RobotSimulator.jsx), which reads the real rendered transform, so dragging
+   stays correct at any inset or scale.
 
+   The width is stated explicitly rather than left to `auto` against a `right`
+   inset. An <svg> with a viewBox and no width/height attributes is a replaced
+   element with an intrinsic ratio but no intrinsic size, so `width: auto`
+   resolves from height x ratio — the `right` inset would be dropped as
+   over-constrained and the pitch would render straight under the HUD. */
 .robot-simulator-page svg#field {
-  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: calc(100% - var(--rs-hud-reserve));
   height: 100%;
   display: block;
   touch-action: none;
@@ -829,23 +1005,160 @@
   font-family: var(--font-mono);
   font-size: var(--text-caption);
   fill: var(--turf-line);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--text-micro-tracking);
+}
+
+/* ---------------------------------------------------------- back control */
+
+/* The only in-page route back to the editor: this step renders no header, no
+   site nav and no headline. Icon-only circular glass, deliberately the same
+   object as the stats card's flip control — one corner-button pattern, two
+   placements — so the two read as a set rather than as two inventions.
+   Sits inside the field panel, so it stays anchored to the field in the
+   stacked sub-900px layout where rs-run-layout itself is static. */
+.robot-simulator-page .rs-back {
+  position: absolute;
+  top: var(--space-6);
+  left: var(--space-6);
+  z-index: 4;
+  /* Full 44px target even though the glyph inside is 16px. */
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--color-separator);
+  background: var(--glass-hud);
+  backdrop-filter: var(--blur-hud);
+  -webkit-backdrop-filter: var(--blur-hud);
+  color: var(--color-secondary-label);
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.robot-simulator-page .rs-back:hover {
+  color: var(--color-accent);
+  background: var(--glass-chrome-hover);
+  border-color: var(--border-accent-strong);
+  box-shadow: var(--glow-accent);
+}
+
+.robot-simulator-page .rs-back:active {
+  transform: scale(0.94);
+}
+
+.robot-simulator-page .rs-back:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.robot-simulator-page .rs-back svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .robot-simulator-page .rs-back {
+    background: var(--glass-hud-fallback);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page .rs-back {
+    transition: none;
+  }
+  .robot-simulator-page .rs-back:active {
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------ HUD reticle */
+
+/* Four corner brackets framing the pitch area — the bespoke-instrument cue,
+   and purely decorative, so it never takes a pointer event meant for the
+   ball. Brackets rather than a grid on purpose: this canvas already carries
+   its own markings (touch lines, centre circle, penalty spots), and a grid
+   laid over a football pitch would compete with them for the same reading.
+   Corner marks frame the view instead of drawing on it. Inset by the same
+   HUD reserve as the pitch, so the frame tracks the drawing, not the
+   viewport. */
+.robot-simulator-page .rs-reticle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: var(--rs-hud-reserve);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.robot-simulator-page .rs-reticle-corner {
+  position: absolute;
+  width: var(--space-8);
+  height: var(--space-8);
+  /* Faint by design — it should be felt at the edge of vision and never
+     read as a mark on the pitch. */
+  border-color: color-mix(in srgb, var(--color-separator) 65%, transparent);
+  border-style: solid;
+  border-width: 0;
+}
+
+.robot-simulator-page .rs-reticle-corner--tl {
+  top: var(--space-4);
+  left: var(--space-4);
+  border-top-width: 1px;
+  border-left-width: 1px;
+}
+.robot-simulator-page .rs-reticle-corner--tr {
+  top: var(--space-4);
+  right: var(--space-4);
+  border-top-width: 1px;
+  border-right-width: 1px;
+}
+.robot-simulator-page .rs-reticle-corner--bl {
+  bottom: var(--space-4);
+  left: var(--space-4);
+  border-bottom-width: 1px;
+  border-left-width: 1px;
+}
+.robot-simulator-page .rs-reticle-corner--br {
+  bottom: var(--space-4);
+  right: var(--space-4);
+  border-bottom-width: 1px;
+  border-right-width: 1px;
 }
 
 /* Overlaid on the field rather than given its own row: a flush, full-height
    field has no spare row left below it for a legend to live in. Pinned to
    the top so it can never compete with the physics drawer, which only ever
-   occupies the bottom 40% (see rs-physics-drawer). */
+   occupies the bottom centre (see rs-physics-drawer), and held clear of the
+   HUD column on the right. Glass, because it is chrome sitting on the live
+   field — the same reason the stats card and the drawer are. */
 .robot-simulator-page .rs-legend {
   position: absolute;
-  top: var(--space-4);
-  left: var(--space-4);
-  right: var(--space-4);
-  z-index: 1;
+  top: var(--space-6);
+  /* Starts after the back control, which owns the top-left corner: its inset
+     plus its own 44px target plus a gap. Derived from those tokens rather
+     than a measured number, so moving the button moves the legend with it. */
+  left: calc(var(--space-6) + var(--tap-target-min) + var(--space-4));
+  right: calc(var(--rs-hud-reserve) + var(--space-4));
+  z-index: 2;
   display: flex;
   gap: var(--space-4);
   flex-wrap: wrap;
   align-items: center;
+  /* Matches the back control's height so the two sit on one optical line
+     across the top of the field rather than one riding higher than the
+     other. A floor, not a fixed height — it still grows if the note wraps. */
+  min-height: var(--tap-target-min);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
   font-size: var(--text-caption);
   color: var(--color-tertiary-label);
 }
@@ -868,96 +1181,250 @@
   color: var(--color-tertiary-label);
 }
 
-/* ----------------------------------------------------- glass (2 uses only) */
-/* Narrow, named carve-out from "no shadows/gradients on chrome": the stats
-   card and the physics drawer sit ON TOP of the field rather than beside it,
-   so they need to visually separate from a busy background in a way a flat
-   panel fill can't. Nothing else on the page may use this — see CLAUDE.md. */
-.robot-simulator-page .rs-glass {
-  background: color-mix(in srgb, var(--color-elevated-background) 65%, transparent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+/* ------------------------------------------------------------------ glass */
+/* Every surface on the run step now sits ON TOP of the live field rather than
+   beside it, so all of them are glass — the console, the legend, the stats
+   card and the physics drawer. That is the whole point of the HUD layout: a
+   flat panel fill cannot separate from a moving background the way a
+   translucent, blurred one can. This is still scoped to this step. On the
+   landing step, where panels sit on a static canvas, .rs-panel stays opaque.
+
+   Two levels, differing only in how much of the field they let through:
+   rs-hud is the floating chrome (console, legend), rs-glass the surfaces
+   stacked inside or on it (stats card, drawer). */
+.robot-simulator-page .rs-hud {
+  background: var(--glass-hud);
+  backdrop-filter: var(--blur-hud);
+  -webkit-backdrop-filter: var(--blur-hud);
   border: 1px solid var(--color-separator);
 }
 
+.robot-simulator-page .rs-glass {
+  background: var(--glass-panel);
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
+  border: 1px solid var(--color-separator);
+}
+
+/* Without backdrop-filter a translucent fill just reveals the field through
+   the text. Fall back to a near-opaque surface — the same token, only far
+   less transparent — so legibility never depends on the effect landing. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .robot-simulator-page .rs-hud {
+    background: var(--glass-hud-fallback);
+  }
   .robot-simulator-page .rs-glass {
-    background: color-mix(in srgb, var(--color-elevated-background) 94%, transparent);
+    background: var(--glass-panel-fallback);
   }
 }
 
 /* ------------------------------------------------------- physics drawer */
 
+/* A compact card floating on the field, not a docked full-width tray. It is
+   centred on the pitch area — the half of the viewport the HUD does not
+   reserve — because the pitch's own landmarks are symmetric about that axis
+   (halfway line, centre circle) and both goal labels sit at the top, so the
+   bottom centre is the one region it can occupy without crowding either goal
+   or merging with the console into a lopsided right-hand mass. */
 .robot-simulator-page .rs-physics-drawer {
   --rs-drawer: 0;
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  /* At most 40% of rs-field-panel's height — never more. rs-field-panel's own
-     overflow: hidden is the hard backstop that keeps this from ever painting
-     past the field's edges regardless of content or transform. */
-  height: 40%;
-  /* Not the field-panel's no-radius rule — this is a distinct surface (glass,
-     not turf) stacked on top of it, not the flush edge-to-edge field itself. */
-  border-radius: var(--radius-panel) var(--radius-panel) 0 0;
-  border-bottom: none;
-  padding: var(--space-4) var(--space-6);
+  bottom: var(--space-6);
+  /* Centre of the pitch area, not of the viewport: the HUD reserve is taken
+     off the right before halving. Same single source of truth every other
+     piece of field chrome insets by. */
+  left: calc((100% - var(--rs-hud-reserve)) / 2);
+  /* Wide enough for a slider and its label, never wider than the pitch area
+     minus a clear margin on both sides — it must not reach the field's
+     edges. Container dimensions, the allowed carve-out. */
+  width: min(420px, calc(100% - var(--rs-hud-reserve) - var(--space-12)));
+  /* Scrolls internally past this rather than growing toward the top edge;
+     see the scrollbar rules further down. */
+  max-height: min(56%, 460px);
+  /* Rounded on all four corners now — it is a nested floating panel, not a
+     tray docked to an edge. Same radius as the stats card. */
+  border-radius: var(--radius-panel);
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-4);
   overflow-y: auto;
   z-index: 2;
-  transform: translateY(calc((1 - var(--rs-drawer)) * 100%));
+  /* Reveal is scale + fade + a slight rise, replacing the old full-width
+     slide — a small card sliding its own height reads as a jump, where
+     growing into place reads as it settling. translateX(-50%) is part of the
+     same transform because an element has only one: it is the centring, not
+     the animation, and must survive every frame of it. Origin at the bottom
+     centre so it grows up out of where it is docked. */
+  transform-origin: bottom center;
+  transform: translateX(-50%)
+    translateY(calc((1 - var(--rs-drawer)) * var(--space-6)))
+    scale(calc(0.94 + 0.06 * var(--rs-drawer)));
   opacity: clamp(0, calc(var(--rs-drawer) / 0.35), 1);
 }
 
-.robot-simulator-page .rs-physics-drawer-label {
-  font-size: var(--text-caption);
-  font-weight: 600;
-  color: var(--color-tertiary-label);
+/* Closed, it is a full-size fully transparent box sitting over the pitch —
+   unlike the old drawer, which slid outside the field's clipped bounds. It
+   has to stop existing for the pointer and for assistive tech, or it would
+   swallow every drag meant for the ball underneath it. RobotSimulator.jsx
+   toggles this from the scrub's frame callback. */
+.robot-simulator-page .rs-physics-drawer.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
 }
+
 
 .robot-simulator-page .rs-slider {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
 .robot-simulator-page .rs-slider-label {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-4);
   font-size: var(--text-caption);
   color: var(--color-secondary-label);
 }
 
+/* The live value — exactly what --font-mono is reserved for. Tabular figures
+   so the number does not shift the row as it is dragged. */
 .robot-simulator-page .rs-slider-label em {
   font-style: normal;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-label);
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
+/* Native range chrome is unstyleable and looks nothing like the rest of this
+   app, so the whole control is rebuilt from tokens: a 2px etched track on the
+   separator value — the same hairline the progress bar uses — and an accent
+   thumb that glows on hover, matching every other interactive element.
+   Deliberately no filled lower portion: WebKit cannot draw one without a
+   gradient, so styling it in Firefox alone would make the two browsers
+   disagree about what the control looks like. */
 .robot-simulator-page .rs-slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
-  accent-color: var(--color-accent);
+  /* Full 44px hit area; the visible track is 2px inside it. Visual size and
+     hit size are allowed to differ (CLAUDE.md → Layout). */
+  height: var(--tap-target-min);
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.robot-simulator-page .rs-slider input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-separator);
+}
+
+.robot-simulator-page .rs-slider input[type="range"]::-moz-range-track {
+  height: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-separator);
+}
+
+.robot-simulator-page .rs-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: var(--space-4);
+  height: var(--space-4);
+  /* Centres a 16px thumb on a 2px track: (2 - 16) / 2. A sub-pixel-ish
+     centring nudge, not spacing. */
+  margin-top: -7px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-accent);
+  transition: box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.robot-simulator-page .rs-slider input[type="range"]::-moz-range-thumb {
+  width: var(--space-4);
+  height: var(--space-4);
+  border: 0;
+  border-radius: 50%;
+  background: var(--color-accent);
+  transition: box-shadow var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.robot-simulator-page .rs-slider input[type="range"]:hover::-webkit-slider-thumb {
+  box-shadow: var(--glow-accent);
+}
+.robot-simulator-page .rs-slider input[type="range"]:hover::-moz-range-thumb {
+  box-shadow: var(--glow-accent);
+}
+
+.robot-simulator-page .rs-slider input[type="range"]:active::-webkit-slider-thumb {
+  transform: scale(1.15);
+  box-shadow: var(--glow-accent);
+}
+.robot-simulator-page .rs-slider input[type="range"]:active::-moz-range-thumb {
+  transform: scale(1.15);
+  box-shadow: var(--glow-accent);
+}
+
+.robot-simulator-page .rs-slider input[type="range"]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
 }
 
 .robot-simulator-page .rs-slider input[type="number"] {
   font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   font-size: var(--text-caption);
-  padding: var(--space-1) var(--space-2);
+  /* Symmetric, and tall enough to be a real target. */
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-control);
   border: 1px solid var(--color-separator);
-  background: var(--color-elevated-background);
+  background: color-mix(in srgb, var(--color-background) 55%, transparent);
   color: var(--color-label);
   width: 100%;
+  transition: border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-slider input[type="number"]:hover {
+  border-color: var(--border-accent-subtle);
+}
+
+.robot-simulator-page .rs-slider input[type="number"]:focus {
+  outline: none;
+  border-color: var(--border-accent-strong);
+  box-shadow: var(--glow-accent);
 }
 
 .robot-simulator-page .rs-slider-note {
   font-size: var(--text-caption);
   color: var(--color-tertiary-label);
   line-height: var(--line-height-base);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page .rs-slider input[type="range"]::-webkit-slider-thumb {
+    transition: none;
+  }
+  .robot-simulator-page .rs-slider input[type="range"]::-moz-range-thumb {
+    transition: none;
+  }
+  .robot-simulator-page .rs-slider input[type="range"]:active::-webkit-slider-thumb {
+    transform: none;
+  }
+  .robot-simulator-page .rs-slider input[type="range"]:active::-moz-range-thumb {
+    transform: none;
+  }
+  .robot-simulator-page .rs-slider input[type="number"] {
+    transition: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -968,30 +1435,28 @@
 
 /* --------------------------------------------------------- right column */
 
+/* The HUD. No longer a column in a row beside the field — a glass panel
+   floating ON it, inset from the viewport on all four sides so the field
+   reads as running underneath and past it rather than stopping at a seam.
+   Its width is the --rs-hud-width declared on rs-run-layout, the same value
+   the pitch, legend, drawer and reticle inset themselves by, so the chrome
+   and the drawing it must not cover are derived from one number. */
 .robot-simulator-page .rs-run-console {
+  position: absolute;
+  top: var(--space-6);
+  right: var(--space-6);
+  bottom: var(--space-6);
+  width: var(--rs-hud-width);
+  z-index: 3;
   display: flex;
   flex-direction: column;
-  /* Separates the playback row from the stats card. The same token as the
-     outer padding below, so the rhythm reads as one consistent unit rather
-     than two different spacings competing. */
+  /* Separates the playback row from the stats card. Same token as the
+     padding, so the rhythm reads as one consistent unit rather than two
+     different spacings competing. */
   gap: var(--space-6);
-  height: 100vh;
-  /* Without a grow factor a flex item only takes its content width — this is
-     what actually makes the console fill the row's remaining space rather
-     than floating at whatever width its content happens to need. min-width:
-     0 (not the default auto, which floors a flex item at its content size)
-     is what lets the browser actually shrink this column instead of letting
-     it overflow the row when rs-field-panel's height-driven width leaves it
-     less room than its content would otherwise demand. */
-  flex: 1 1 auto;
-  min-width: 0;
-  /* Equal on all four sides — this is what keeps the playback row off the
-     viewport's top edge and everything else off the field's edge, per
-     CLAUDE.md's "nothing sits flush" rule. One token, not four separate
-     values: --space-8 rather than --space-6, since this box is now carrying
-     the breathing room the removed rs-run-layout padding used to leave
-     implicit — it reads better generous than tight on a box this size. */
-  padding: var(--space-8);
+  /* Equal on all four sides, per CLAUDE.md's symmetric-padding rule. */
+  padding: var(--space-6);
+  border-radius: var(--radius-panel);
   box-sizing: border-box;
   overflow-y: auto;
 }
@@ -1003,20 +1468,28 @@
   flex-wrap: wrap;
 }
 
+/* In a HUD column this no longer has a wide row to be pushed to the end of —
+   `margin-left: auto` would just strand it against whatever wrapped above.
+   Give it the full row instead, so it reads as the panel's caption. */
 .robot-simulator-page .rs-role-label {
-  font-size: var(--text-caption);
-  color: var(--color-tertiary-label);
-  margin-left: auto;
+  flex-basis: 100%;
 }
 
 /* ------------------------------------------------------------ stats card */
 
+/* A surface stacked inside the HUD, not on the field. The HUD has already
+   blurred everything behind it, so a second backdrop-filter here would spend
+   another compositor layer blurring an already-blurred backdrop for no
+   visible gain — a translucent tint is all it takes to read as raised
+   against the HUD's own surface. */
 .robot-simulator-page .rs-stats-card {
   position: relative;
   flex: 1 1 auto;
   min-height: 280px;
   border-radius: var(--radius-panel);
   overflow: hidden;
+  background: color-mix(in srgb, var(--color-elevated-background) 55%, transparent);
+  border: 1px solid var(--color-separator);
 }
 
 .robot-simulator-page .rs-stats-toggle {
@@ -1035,12 +1508,16 @@
   color: var(--color-secondary-label);
   cursor: pointer;
   transition: color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out),
     border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
     transform var(--duration-fast) var(--ease-out);
 }
 .robot-simulator-page .rs-stats-toggle:hover {
   color: var(--color-accent);
-  border-color: var(--color-accent);
+  border-color: var(--border-accent-strong);
+  background: var(--glass-chrome-hover);
+  box-shadow: var(--glow-accent);
 }
 .robot-simulator-page .rs-stats-toggle:active {
   transform: scale(0.94);
@@ -1081,11 +1558,20 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .robot-simulator-page .rs-stats-face {
+  .robot-simulator-page .rs-stats-face,
+  .robot-simulator-page .rs-stats-toggle {
     transition: none;
+  }
+  .robot-simulator-page .rs-stats-toggle:active {
+    transform: none;
   }
 }
 
+/* Glass, like the rest of the run step's chrome — a tinted translucent fill
+   under a low-alpha hairline, both mixed from the decision's own color so the
+   pill says which state it is by hue alone. It takes the decision palette
+   rather than the accent precisely because it is not interactive: it is a
+   readout, and the one always-visible headline of the stats card. */
 .robot-simulator-page .rs-decision-pill {
   display: inline-flex;
   align-self: flex-start;
@@ -1096,6 +1582,13 @@
   font-weight: 600;
   line-height: var(--line-height-base);
   border: 1px solid transparent;
+  backdrop-filter: var(--chrome-blur);
+  -webkit-backdrop-filter: var(--chrome-blur);
+  /* The decision changes mid-run, so the color change has to be a transition
+     rather than a swap, same rule as any hover state. */
+  transition: color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
 }
 .robot-simulator-page .rs-decision-pill--chase {
   color: var(--decision-chase);
@@ -1115,7 +1608,13 @@
 .robot-simulator-page .rs-decision-pill--idle {
   color: var(--color-tertiary-label);
   border-color: var(--color-separator);
-  background: var(--color-elevated-background-hover);
+  background: color-mix(in srgb, var(--color-elevated-background-hover) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page .rs-decision-pill {
+    transition: none;
+  }
 }
 
 .robot-simulator-page .rs-stat-row {

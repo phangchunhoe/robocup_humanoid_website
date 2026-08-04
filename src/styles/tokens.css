@@ -1,31 +1,40 @@
 /*
  * Design tokens — the single source of truth for this project's UI.
- * See CLAUDE.md. Apple-style design language, dark mode.
+ * See CLAUDE.md. Dark mode, technical/HUD design language.
  *
  * Tokens are declared on :root so they are available everywhere, but the dark
  * canvas itself is deliberately NOT applied to <body> — other pages in this
  * app still carry their own older light styling and a global takeover would
  * break them. Each migrated page applies the canvas to its own container.
+ *
+ * The webfont faces themselves are imported once in src/main.jsx, from the
+ * npm-vendored @fontsource packages, ahead of this file.
  */
 
 :root {
   /* ---------------------------------------------------------- typography */
-  /* One family. Hierarchy comes from weight and size, never from mixing
-     families. On non-Apple platforms this falls through to system-ui, which
-     is the intended behaviour — it is a system font stack. */
-  --font-sans: -apple-system, "SF Pro Display", "SF Pro Text", system-ui, sans-serif;
-  --font-mono: "SF Mono", ui-monospace, monospace;
+  /* Two families, each with one job. Space Grotesk is the voice of the app;
+     JetBrains Mono is reserved for technical values — paths, coordinates,
+     live readouts — and never used for headings, buttons, nav, or prose.
+     Both are self-hosted (latin subset), so there is no third-party request
+     and no FOUT from a render-blocking external stylesheet. The trailing
+     system stack is the fallback while the face loads, and on the rare
+     client that blocks webfonts outright. */
+  --font-sans: "Space Grotesk", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", monospace;
 
-  /* Type scale. Larger sizes get progressively tighter tracking, matching
-     the optical correction Apple applies to product-page headlines. */
+  /* Type scale. Larger sizes get progressively tighter tracking — Space
+     Grotesk is a geometric face whose default fit already runs tight at
+     display sizes, so it needs less negative tracking than a humanist UI
+     face would; these values are tuned to it rather than carried over. */
   /* The headline is sized to hold the product name on a single line at every
      width — it steps down rather than wrapping. */
   --text-headline: clamp(1.75rem, 1.1rem + 3vw, 3rem);
-  --text-headline-tracking: -0.03em;
+  --text-headline-tracking: -0.02em;
   --text-headline-weight: 600;
 
   --text-title: 1.5rem;
-  --text-title-tracking: -0.015em;
+  --text-title-tracking: -0.01em;
   --text-title-weight: 600;
 
   --text-body: 1.0625rem;
@@ -39,6 +48,14 @@
   --text-caption: 0.8125rem;
   --text-caption-tracking: 0;
   --text-caption-weight: 400;
+
+  /* The HUD step: instrument labels and live readouts. Small and tracked
+     wide — the opposite of the headline — so a short uppercase-ish technical
+     label reads as an instrument marking rather than as shrunken body copy.
+     Pair it with --font-mono for anything that updates during a run. */
+  --text-micro: 0.6875rem;
+  --text-micro-tracking: 0.08em;
+  --text-micro-weight: 500;
 
   --line-height-tight: 1.1;
   --line-height-base: 1.5;
@@ -62,17 +79,63 @@
   --color-secondary-label: #9ba3af;
   --color-tertiary-label: #7d8590;
 
-  /* The single accent — peach, with terracotta as its hover/pressed state.
-     One flavor, two steps; not two accents. On-accent is the canvas charcoal,
-     which clears 4.5:1 on both, so hover is purely a background change. */
-  --color-accent: #e8a87c;
-  --color-accent-hover: #c67b54;
-  --color-on-accent: #0b0f14;
+  /* The single accent — emerald, with a deeper emerald as its hover/pressed
+     state. One flavor, two steps; not two accents. Emerald on the panel
+     ground clears 6.7:1, and the on-accent ink clears 7.6:1 on the base and
+     5.2:1 on the hover step, so hover is purely a background change. */
+  --color-accent: #10b981;
+  --color-accent-hover: #059669;
+  --color-on-accent: #090d11;
 
-  /* Status semantics only — never used for interactive chrome. Muted on
-     purpose, so they annotate rather than compete with the accent. */
+  /* Status semantics only — never used for interactive chrome. Success is a
+     desaturated sage at ~132°, well clear of the accent's saturated ~160°:
+     the hues are neighbours but the saturation is not, which is exactly the
+     signal the palette relies on (saturated = interactive). */
   --color-success: #7fbf8c;
   --color-error: #d9776f;
+
+  /* --------------------------------------------------------------- glass */
+  /* Translucent chrome fills. These are still the accent and the elevated
+     surface — the same two tokens used everywhere else — just given
+     translucency instead of opacity, so a control stacked over moving
+     content separates from it without a flat fill fighting the background. */
+  --glass-chrome: color-mix(in srgb, var(--color-accent) 8%, transparent);
+  --glass-chrome-hover: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  --glass-hud: color-mix(in srgb, var(--color-elevated-background) 70%, transparent);
+  --glass-panel: color-mix(in srgb, var(--color-elevated-background) 65%, transparent);
+  /* Opaque stand-ins for @supports not (backdrop-filter: …). */
+  --glass-hud-fallback: color-mix(in srgb, var(--color-elevated-background) 95%, transparent);
+  --glass-panel-fallback: color-mix(in srgb, var(--color-elevated-background) 94%, transparent);
+
+  /* A low-alpha accent hairline. Reads as lit rather than drawn, which a
+     flat --color-separator hairline cannot do on top of a glass fill. */
+  --border-accent-subtle: color-mix(in srgb, var(--color-accent) 30%, transparent);
+  --border-accent-strong: color-mix(in srgb, var(--color-accent) 55%, transparent);
+
+  --blur-chrome: blur(12px);
+  --blur-hud: blur(16px);
+  --blur-panel: blur(20px);
+
+  /* Whether glass chrome actually blurs is a property of where it sits, not
+     of what it is — so it is inherited, not baked into the control. Off by
+     default: over a flat opaque panel there is nothing behind to blur, and
+     backdrop-filter would still cost a compositor layer per control for a
+     visually identical result. A container that genuinely stacks chrome over
+     moving content (the run step's HUD, over the live field) sets this to
+     var(--blur-chrome) and every glass control inside it switches on. */
+  --chrome-blur: none;
+
+  /* -------------------------------------------------------------- shadow */
+  /* The only permitted shadow beneath hero/product-style imagery sitting on
+     a surface. Never on panels, buttons, inputs, or popovers. */
+  --shadow-hero: 0 30px 60px -20px rgba(0, 0, 0, 0.8);
+
+  /* Accent glow — the second named shadow exception, scoped to the
+     hover/active state of interactive elements and to the progress bar's
+     lead edge. It is light, not depth: it never implies elevation, and it is
+     never present at rest. See CLAUDE.md → Surfaces. */
+  --glow-accent: 0 0 12px color-mix(in srgb, var(--color-accent) 20%, transparent);
+  --glow-accent-lead: 0 0 8px color-mix(in srgb, var(--color-accent) 45%, transparent);
 
   /* --------------------------------------------------------------- space */
   /* 8pt grid with 4pt subdivisions. */
@@ -97,11 +160,6 @@
   --radius-pill: 980px;
   --radius-panel: 18px;
   --radius-control: 12px;
-
-  /* -------------------------------------------------------------- shadow */
-  /* The ONLY permitted shadow, and only beneath hero/product-style imagery
-     sitting on a surface. Never on panels, buttons, inputs, or popovers. */
-  --shadow-hero: 0 30px 60px -20px rgba(0, 0, 0, 0.8);
 
   /* -------------------------------------------------------------- motion */
   /* --duration-slow is the entrance duration. It is deliberately longer than

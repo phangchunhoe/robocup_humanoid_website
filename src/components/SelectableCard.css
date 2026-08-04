@@ -7,11 +7,15 @@
   min-width: 0;
 }
 
+/* An instrument marking, matching the page's other panel labels: micro step,
+   tracked wide, uppercase. */
 .cards-legend {
   padding: 0;
   margin-bottom: var(--space-3);
-  font-size: var(--text-caption);
-  font-weight: 600;
+  font-size: var(--text-micro);
+  font-weight: var(--text-micro-weight);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
   color: var(--color-tertiary-label);
 }
 
@@ -36,6 +40,7 @@
   cursor: pointer;
   transition: border-color var(--duration-base) var(--ease-out),
     background-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out),
     transform var(--duration-fast) var(--ease-out);
 }
 
@@ -47,9 +52,21 @@
   transform: scale(0.98);
 }
 
-/* Selection = accent border + accent check. */
+/* Selection reads the same as an active segment: accent-tinted glass fill, a
+   low-alpha accent hairline, and the glow — one treatment for "this is the
+   chosen one" wherever it appears. Blur resolves only where --chrome-blur is
+   switched on; on the landing panel there is nothing behind it to blur. */
 .card.is-selected {
-  border-color: var(--color-accent);
+  background: var(--glass-chrome);
+  backdrop-filter: var(--chrome-blur);
+  -webkit-backdrop-filter: var(--chrome-blur);
+  border-color: var(--border-accent-subtle);
+  box-shadow: var(--glow-accent);
+}
+
+.card.is-selected:hover {
+  background: var(--glass-chrome-hover);
+  border-color: var(--border-accent-strong);
 }
 
 /* The real input drives state and keyboard nav; it is visually hidden but

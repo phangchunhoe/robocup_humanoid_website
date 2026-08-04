@@ -515,6 +515,10 @@ export default function RobotSimulator() {
               onFolderInputChange={handleFolderInputChange}
             />
           ) : (
+            /* onBack returns to the editor. That tears the engine down through
+               the step-keyed effect's cleanup, so the rAF loop cannot outlive
+               the view; `running` is cleared alongside it so Play/Stop is not
+               left claiming a simulation that no longer exists. */
             <SimStep
               svgRef={svgRef}
               readoutRef={readoutRef}
@@ -530,6 +534,10 @@ export default function RobotSimulator() {
               overrun={overrun}
               runtimeError={runtimeError}
               roleMeta={roleMeta}
+              onBack={() => {
+                setRunning(false);
+                setStep("edit");
+              }}
             />
           )}
         </div>
@@ -563,9 +571,9 @@ function EditorStep(props) {
   // required file that has content, plus a final unit for a clean parse.
   const filesLoaded = TABS.filter((t) => (sources[t.id] || "").trim().length > 0).length;
   const progressValue = canRun ? TABS.length + 1 : filesLoaded;
-  const progressHint = canRun
-    ? "Ready to run"
-    : `${filesLoaded} of ${TABS.length} files loaded`;
+  // A live instrument readout, set in --font-mono by ProgressBar — terse and
+  // fixed-shape so the row does not reflow as the count climbs.
+  const progressHint = canRun ? "READY" : `${filesLoaded}/${TABS.length} FILES`;
 
   const handleKeyDown = (evt) => {
     if (evt.key !== "Tab") return;
@@ -593,10 +601,13 @@ function EditorStep(props) {
           hint={progressHint}
         />
 
+        {/* The two panels are numbered so the page reads as an ordered
+            workflow rather than as two unrelated boxes: pick a role, then
+            give it source. */}
         <section className="rs-panel rs-role-section">
           <SelectableCard
             name="role"
-            legend="Role"
+            legend="Step 1 · Role"
             options={roles.map((r) => ({ id: r.id, label: r.label }))}
             value={role}
             onChange={setRole}
@@ -608,12 +619,16 @@ function EditorStep(props) {
 
         <section className="rs-panel rs-source-section">
           <div className="rs-source-header">
-            <span className="rs-panel-label">Source</span>
+            <span className="rs-panel-label">Step 2 · Source</span>
+            {/* These name WHERE the source comes from, not what to press —
+                the action lives on the one button inside each panel. The
+                previous "Open folder" segment sat directly above a "Choose
+                folder" button and the pair read as the same control twice. */}
             <SegmentedControl
-              ariaLabel="Source input method"
+              ariaLabel="Where the source comes from"
               segments={[
-                { id: "folder", label: "Open folder", panelId: "rs-panel-folder" },
-                { id: "paste", label: "Paste source", panelId: "rs-panel-paste" },
+                { id: "folder", label: "Local folder", panelId: "rs-panel-folder" },
+                { id: "paste", label: "Pasted text", panelId: "rs-panel-paste" },
               ]}
               value={inputMode}
               onChange={setInputMode}
@@ -630,13 +645,23 @@ function EditorStep(props) {
                 aria-labelledby="segment-folder"
               >
                 <div className="rs-folder-action-row">
+                  {/* One action, and its label says what pressing it does
+                      right now — the segment above names the source, this
+                      names the verb. Once a scan has landed it becomes a
+                      re-pick rather than repeating the original invitation,
+                      so the two controls never read as the same button
+                      twice. */}
                   <button
                     type="button"
                     className="btn btn-primary"
                     disabled={folderBusy}
                     onClick={() => folderInputRef.current && folderInputRef.current.click()}
                   >
-                    {folderBusy ? "Scanning…" : "Choose folder"}
+                    {folderBusy
+                      ? "Scanning…"
+                      : folderScan
+                        ? "Choose a different folder…"
+                        : "Choose folder…"}
                   </button>
                   <InfoHint
                     label="About opening a folder"
@@ -1047,6 +1072,23 @@ function FlipIcon() {
   );
 }
 
+/* Same 16px grid and 1.3 stroke as FlipIcon, so the two corner controls read
+   as one set. The button carries the accessible name; this is decoration. */
+function BackIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path
+        d="M9.5 3.5L5 8l4.5 4.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function ChevronIcon() {
   return (
     <svg className="rs-diag-chevron" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
@@ -1070,7 +1112,7 @@ const DRAWER_REVEAL_PX = 240;
 function SimStep(props) {
   const {
     svgRef, readoutRef, detailRef, notesRef, logRef, running, onTogglePlay, onReset, onSpeed,
-    physics, setPhysics, overrun, runtimeError, roleMeta,
+    physics, setPhysics, overrun, runtimeError, roleMeta, onBack,
   } = props;
 
   const [speedId, setSpeedId] = useState("1");
@@ -1084,6 +1126,19 @@ function SimStep(props) {
     if (!runtimeError && !overrun) setLogAlertOpen(false);
   }, [runtimeError, overrun]);
 
+  // Entering this step has to start from the top of the page. The drawer's
+  // reveal is scroll-driven from zero, but the editor step this replaces is
+  // tall — hero, three panels, the diagnostics strip — so the user has very
+  // likely scrolled some way down it before pressing Run, and React does not
+  // reset scroll on a state change the way a route change would. Without
+  // this the scrub initialises `shown` from a stale window.scrollY that is
+  // already past DRAWER_REVEAL_PX and the drawer is fully open on the first
+  // paint. Declared BEFORE useScrollScrub on purpose: effects fire in hook
+  // order, so scrollY is already 0 by the time the scrub reads it.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
+
   // rs-run-layout is position: fixed (see RobotSimulator.css), so it never
   // moves regardless of scroll — plain window.scrollY is all the drawer
   // needs, same as it would for any other fixed element.
@@ -1092,25 +1147,59 @@ function SimStep(props) {
     return Math.min(1, Math.max(0, window.scrollY / DRAWER_REVEAL_PX));
   };
   const onDrawerFrame = (progress) => {
-    if (drawerRef.current) drawerRef.current.style.setProperty("--rs-drawer", progress.toFixed(4));
+    const el = drawerRef.current;
+    if (!el) return;
+    el.style.setProperty("--rs-drawer", progress.toFixed(4));
+    // The drawer no longer slides out of the field's clipped bounds — it
+    // fades and scales in place — so at rest it is a full-size, fully
+    // transparent box sitting over the pitch. Without this it would swallow
+    // every drag meant for the ball beneath it. Hidden rather than merely
+    // transparent also takes it out of the accessibility tree while closed.
+    el.classList.toggle("is-hidden", progress < 0.01);
   };
   useScrollScrub(drawerRef, getDrawerTarget, onDrawerFrame);
 
   return (
     <>
       <div className="rs-run-layout">
-        {/* This IS the field surface now — turf background, hairline border,
-            zero radius, sized directly by height:100vh + aspect-ratio in CSS.
-            There is no separate wrap div: the previous field-wrap/field-panel
-            split was two boxes that could (and did) disagree on width; one
-            box that's both the sizing root and the visual surface can't. */}
+        {/* This IS the field surface — turf background, filling the whole
+            viewport, with every piece of chrome positioned against it. There
+            is no separate wrap div: the previous field-wrap/field-panel split
+            was two boxes that could (and did) disagree on width; one box
+            that's both the sizing root and the visual surface can't. */}
         <section className="rs-field-panel">
           <svg ref={svgRef} id="field" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} />
+
+          {/* The only in-page way back to the editor — this step has no
+              header and no site nav, so without it the sole route back is
+              browser-back. Lives inside the field panel rather than the run
+              layout so it stays anchored to the field in the stacked
+              sub-900px layout too, where the layout itself is static. */}
+          <button
+            type="button"
+            className="rs-back"
+            onClick={onBack}
+            aria-label="Back to editor"
+          >
+            <BackIcon />
+          </button>
+
+          {/* Corner brackets framing the pitch — the instrument cue, and
+              purely decorative, so it is hidden from assistive tech and
+              never intercepts a drag meant for the ball. Brackets rather
+              than a grid: the pitch already carries its own markings and a
+              grid would compete with them. */}
+          <div className="rs-reticle" aria-hidden="true">
+            <span className="rs-reticle-corner rs-reticle-corner--tl" />
+            <span className="rs-reticle-corner rs-reticle-corner--tr" />
+            <span className="rs-reticle-corner rs-reticle-corner--bl" />
+            <span className="rs-reticle-corner rs-reticle-corner--br" />
+          </div>
 
           {/* Overlaid on the field rather than occupying its own row below —
               a hard-edged, full-height field has no spare row left for it,
               and top-left keeps it clear of the physics drawer's bottom 40%. */}
-          <div className="rs-legend">
+          <div className="rs-legend rs-hud">
             <span><i className="rs-legend-swatch rs-legend-swatch--chase" /> chase</span>
             <span><i className="rs-legend-swatch rs-legend-swatch--adjust" /> adjust</span>
             <span><i className="rs-legend-swatch rs-legend-swatch--kick" /> kick</span>
@@ -1121,7 +1210,9 @@ function SimStep(props) {
             </span>
           </div>
 
-          <div ref={drawerRef} className="rs-physics-drawer rs-glass">
+          {/* is-hidden from the first paint, not just from the first scrub
+              frame — the class is what makes it inert while closed. */}
+          <div ref={drawerRef} className="rs-physics-drawer rs-glass is-hidden">
             <span className="rs-physics-drawer-label">Physics</span>
             {SLIDERS.map((s) => (
               <label key={s.key} className="rs-slider">
@@ -1159,7 +1250,7 @@ function SimStep(props) {
           </div>
         </section>
 
-        <aside className="rs-run-console">
+        <aside className="rs-run-console rs-hud">
           <div className="rs-playback-row">
             <button
               type="button"
@@ -1183,7 +1274,11 @@ function SimStep(props) {
             <span className="rs-role-label">{roleMeta.label}</span>
           </div>
 
-          <div className="rs-stats-card rs-glass">
+          {/* Not .rs-glass: this sits inside the HUD, which has already
+              blurred the field behind it — a second backdrop-filter would
+              blur an already-blurred backdrop. Its own translucent tint is
+              enough to read as raised against the HUD's surface. */}
+          <div className="rs-stats-card">
             <button
               type="button"
               className="rs-stats-toggle"
