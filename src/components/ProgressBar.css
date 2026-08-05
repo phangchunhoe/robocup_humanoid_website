@@ -81,7 +81,21 @@
   position: relative;
   height: 2px;
   background: var(--color-separator);
+  /* Clips the lead tick, which is parked fully off the track's left edge at
+     ratio 0 (see .progress-lead) — without this it would show outside the
+     track. Released for the ball variant below. */
   overflow: hidden;
+}
+
+/* The ball tip is a 20px glyph centered on a 2px track, so it stands 9px
+   proud above and below it — a clipping track would leave nothing but a 2px
+   sliver of it visible. It has no off-track parking position to hide (its
+   own resting place at ratio 0 IS the visible tip), so nothing here needs
+   clipping and the track releases it. The surrounding air is already there:
+   the row above is a --space-4 gap away and the panel's --space-6 bottom
+   padding sits below, both wider than the overhang. */
+.progress-track.has-ball {
+  overflow: visible;
 }
 
 /* Fill and lead edge are driven from ONE number — --progress-ratio, set once
@@ -130,10 +144,88 @@
   opacity: 0;
 }
 
+/* The ball-tip variant (ballTip prop): same full-track wrapper + transform
+   trick as .progress-lead above, so it inherits the identical one-source-of-
+   truth positioning — this is a stand-in for the lead tick, not a second
+   mark alongside it. Unlike the lead tick it has no idle state: even at
+   ratio 0 the ball sits meaningfully at the not-yet-started tip. */
+.progress-ball {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform: translateX(calc(var(--progress-ratio, 0) * 100%));
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+/* The glyph itself is fixed-size and centered on the wrapper's translated
+   left edge — translate(-50%, -50%) here resolves against the glyph's own
+   20px box, not the track, which is what centers it exactly on the tip
+   rather than merely aligning its corner to it. */
+.progress-ball-face {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  /* One step up from the 16px inline-glyph convention: this one carries a
+     panel pattern rather than a single silhouette, and at 16px the panels
+     between the seams close up into a solid mark. */
+  width: var(--space-5);
+  height: var(--space-5);
+  transform: translate(-50%, -50%);
+  /* The artwork rides as a background layer rather than as an <img>, and
+     that is load-bearing: a replaced element's content box stops at the
+     border, so an image could only ever sit *inside* the ring, leaving its
+     own pale edge showing between the two. As a background it is painted
+     across the whole border box (background-origin), so the ring lands on
+     top of the artwork's outer edge and eats into it — one ring, nothing
+     light protruding past it. --color-ball-face fills in behind, since the
+     artwork is black-on-transparent and its panels are only panels because
+     of what sits underneath them. */
+  background: var(--color-ball-face) url("../images/icons/football.png")
+    border-box no-repeat;
+  background-size: 100% 100%;
+  /* Round, and the pill token is the max the system carries. */
+  border-radius: var(--radius-pill);
+  /* The artwork's own rim renders under a pixel wide at this size and washes
+     out against the panel, so the silhouette is drawn here instead — over
+     the artwork's rim, not beside it, so the two read as one ring. Border-box
+     keeps the whole mark at --space-5 rather than growing it past the
+     clearance the track above and below is sized for. Set here rather than
+     inherited from the page's reset, so the component stays correct wherever
+     it is reused. */
+  box-sizing: border-box;
+  border: 2px solid #000000;
+  /* Same falloff as the lead tick it replaces — drop-shadow accepts the
+     same offset/blur/color triple as the box-shadow token it's built from,
+     so this is a reuse, not a new glow. Unlike a box-shadow it follows the
+     clipped circle rather than boxing it. */
+  filter: drop-shadow(var(--glow-accent-lead));
+  animation: progress-ball-in var(--duration-slow) var(--ease-out) both;
+}
+
+/* One-time entrance pop, matching the page's cinematic load rather than
+   replaying on every ratio change — the keyframes restate the resting
+   translate(-50%, -50%) throughout so centering never breaks mid-animation. */
+@keyframes progress-ball-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .progress-fill,
   .progress-lead,
+  .progress-ball,
   .progress-readout {
     transition: none;
+  }
+
+  .progress-ball-face {
+    animation: none;
+    transform: translate(-50%, -50%);
   }
 }

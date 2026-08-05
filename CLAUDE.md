@@ -174,8 +174,9 @@ rival accents.
   text legible, it does not belong.
 - **No *depth* shadows on UI chrome** — not on panels, cards, buttons,
   inputs, or popovers. Separate surfaces with `--color-elevated-background`
-  and `--color-separator` hairlines instead. There are exactly two named
-  exceptions, below, and neither of them implies elevation.
+  and `--color-separator` hairlines instead. There are exactly three named
+  exceptions, below; only the third is genuinely depth, and it is the one
+  case where depth is the point.
 - **Exception 1 — `--shadow-hero`.** A single soft drop-shadow beneath
   hero/product-style *imagery* sitting on a surface. Nothing else may use it.
 - **Exception 2 — `--glow-accent`.** An accent-colored glow
@@ -192,6 +193,15 @@ rival accents.
 
   It is not a general licence for shadows. A panel, a card, a popover or a
   static surface still gets a hairline and nothing else.
+- **Exception 3 — `--shadow-glass`** (`0 4px 6px -1px rgba(0,0,0,0.2)`). The
+  only *depth* shadow in the system, and the narrow reason it is allowed:
+  it sits beneath a glass fill that physically **slides** over its own
+  track — `RoleToggle`'s selected pane — so the moving element reads as a
+  pane travelling above the surface rather than as a background being
+  repainted underneath the labels. Tight and tucked-under (6px blur, -1px
+  spread) so it never reads as the pane floating off the control. Scoped to
+  that one element. A *static* surface — panel, card, button, popover —
+  still gets a hairline and nothing else, glass or not.
 - **No blur/translucency on chrome, except where chrome is genuinely stacked
   over moving content.** That is the whole test, and on this route only the
   simulate step meets it — there, the field is live and everything sits on
@@ -210,6 +220,32 @@ rival accents.
   (backdrop-filter: …)` so legibility never depends on the effect landing.
   The landing step's panels sit on a static canvas, so they stay opaque
   `.rs-panel`s. If it isn't over moving content, it doesn't get glass.
+- **Named exception — `RoleToggle`'s selected pane is glass on a static
+  canvas.** It is the one control that gets the treatment without sitting
+  over moving content, because *it* is the thing that moves: the pane slides
+  across its own track, and a translucent fill is what lets the unselected
+  label stay legible underneath as it passes. Its fill is
+  **`--glass-neutral`** — the neutral counterpart to `--glass-chrome`,
+  carrying no accent at all — under a `--border-neutral-subtle` hairline,
+  with `--shadow-glass` and `--blur-control` (8px). Both neutral tokens are
+  `color-mix`ed from `--color-label` rather than a raw white, so the app
+  still has exactly one white.
+
+  Two deviations from the surrounding rules are deliberate and worth naming
+  rather than letting a future reader "fix" them:
+  - **It writes `backdrop-filter: var(--blur-control)` directly, not
+    `var(--chrome-blur)`.** The rule below says blur is inherited from
+    context because a literal blur over an opaque panel is invisible; that
+    is still true here, and this control accepts the cost anyway so its
+    material is the same wherever it is reused. If a second static-canvas
+    glass control appears, generalise this rather than copying it.
+  - **The selected state carries no accent.** *Open question* — this is the
+    one control on the route where selection is signalled by material and
+    ink weight rather than by hue, which is in tension with "saturation
+    means interactive". Candidates if it proves too subtle: an accent
+    hairline on the pane (`--border-accent-strong`), accent ink on the
+    active label, or a short accent underline. Resolve this and delete this
+    paragraph either way.
 - **Glass controls declare blur through `--chrome-blur`, not directly.**
   Whether a translucent button actually blurs is a property of *where it
   sits*, not of what it is — so it is inherited. `--chrome-blur` is `none` at
@@ -257,8 +293,8 @@ rival accents.
 There is no component library. Build from tokens, following Apple's patterns:
 
 - **Segmented control** — pill-shaped track, single glass active segment.
-  This is the pattern for switching views (e.g. Local folder / Pasted text),
-  *not* a tab bar with underlines. The active segment takes the glass chrome
+  This is the pattern for switching views (e.g. the simulate step's playback
+  speed, `0.5× / 1× / 2×`), *not* a tab bar with underlines. The active segment takes the glass chrome
   treatment: `--glass-chrome` fill, `--border-accent-subtle` hairline, the
   label in `--color-accent`, and `--glow-accent`. Every segment carries a
   `1px solid transparent` border at rest so the active one's hairline costs
@@ -274,17 +310,118 @@ There is no component library. Build from tokens, following Apple's patterns:
   - **Secondary** is **glass**: `--glass-chrome` fill, `--border-accent-subtle`
     hairline, `--color-accent` label, going to `--glass-chrome-hover` +
     `--border-accent-strong` + `--glow-accent` on hover.
+  - A button may carry one leading icon when it needs a visual anchor rather
+    than being pure text — the landing step's `Choose folder…` is the
+    reference (`.rs-btn-icon` in `RobotSimulator.css`). It is always
+    **outline/stroke only, never filled** (same convention as the info `(i)`
+    icons), `currentColor` so it inherits the button's own ink, and sized
+    deliberately larger than the 16px corner-icon convention — 24px
+    (`--space-6`) — since on a button it *is* the anchor rather than a small
+    inline glyph. `.btn` carries `gap: var(--space-2)` for the icon/label
+    pair; this costs nothing on the many text-only buttons that don't use it.
 - **Selected state** — a selected `SelectableCard` reads the same as an active
   segment: glass fill, accent hairline, glow. One treatment for "this is the
   chosen one", wherever it appears.
+- **Sliding-pane toggle** (`RoleToggle`) — a **named variant** of the
+  segmented control above, for exactly one case: a two-way choice that
+  benefits from a persistent, always-visible selected state animating
+  *between* positions rather than an instant swap — the striker/goalkeeper
+  role toggle. Same tap targets as `SegmentedControl`, but four real
+  differences:
+  - **It is squared off, not a capsule.** Track, segments and sliding pane
+    all take `--radius-subtle` (8px, the tightest step on the shape scale)
+    rather than `--radius-pill`. This is the only control on the route that
+    does; a plain `SegmentedControl` is still a pill.
+  - **It centres itself** in its container (`width: fit-content` +
+    `margin-inline: auto` on the track). Its `<legend>` deliberately does
+    *not* follow — that is the numbered-workflow marking (`Step 1 · Role`)
+    and has to stay left-aligned with `Step 2 · Source` in the same card.
+  - **The selected state is neutral glass, not the accent** — see the
+    named glass exception under Surfaces, and the open question recorded
+    there.
+  - **The pane's motion is spring-driven** (framer-motion, `SPRING_UI`)
+    rather than `--duration-base`/`--ease-out`. See Motion → Spring-based
+    controls for why this gets a second motion system and
+    `SegmentedControl` doesn't.
+
+  Two implementation traps, both consequences of the pane now carrying a
+  hairline of its own where the old accent capsule had none:
+  - The pane is sized from `getBoundingClientRect` and **must be
+    `box-sizing: border-box`**, or its 1px border is added *outside* the
+    segment width JS measured and it overhangs by 2px in both axes.
+  - `getBoundingClientRect` returns the track's **border** box, but the
+    pane is absolutely positioned and resolves against the track's
+    **padding** box. Subtract `track.clientLeft` in `measure()` or the pane
+    lands one hairline right of the segment it covers.
+
+  Don't reach for this over the plain `SegmentedControl` by default — it
+  earns the extra weight (a JS dependency, measured-DOM positioning)
+  specifically where the sliding motion is the point, not for every two-way
+  switch on the page.
+- **Cursor-following hover highlight** — a soft radial tint that tracks the
+  pointer inside a control, currently on `RoleToggle`'s segments only. Two
+  rules make it cheap and make it read right:
+  - **The position is written to custom properties on the element, not to
+    React state.** `onMouseMove` sets `--mouse-x`/`--mouse-y` via
+    `style.setProperty`; a `radial-gradient(circle at var(--mouse-x)
+    var(--mouse-y), var(--glow-cursor), transparent 60%)` on a `::before`
+    reads them. A `setState` per mousemove would re-render the whole control
+    on every frame of a pointer sweep.
+  - **Only the opacity transitions; the position tracks live.** Fade the
+    highlight in over `--duration-base`/`--ease-out` on `:hover`, but never
+    transition the gradient itself — a lagging highlight reads as the light
+    being *dragged* rather than as the surface catching it (and background
+    position does not interpolate anyway). This is the one place the
+    instant-state-swap ban does not apply to a moving value.
+
+  The `::before` takes `z-index: -1` so it lights the control from behind
+  its own label without washing the text out; that requires the host element
+  to establish a stacking context (`position` + `z-index`) or the highlight
+  escapes behind the parent. Under `prefers-reduced-motion` it is removed
+  outright (`display: none`) rather than merely un-faded — a highlight that
+  follows a pointer is motion — leaving the plain hover ink change as the
+  affordance.
 - **Numbered workflow** — where a page is a sequence, say so in the panel
   markings: `Step 1 · Role`, then `Step 2 · Source`. And **name modes with
-  nouns, actions with verbs**: the segmented control says where source comes
-  from (`Local folder` / `Pasted text`), the one button inside says what
-  pressing it does (`Choose folder…`, becoming `Choose a different folder…`
-  once a scan has landed). An earlier version had an `Open folder` segment
-  sitting directly above a `Choose folder` button, and the pair read as the
-  same control rendered twice.
+  nouns, actions with verbs**: the one button inside the source section says
+  what pressing it does (`Choose folder…`, becoming `Choose a different
+  folder…` once a scan has landed). An earlier version had an `Open folder`
+  segment sitting directly above a `Choose folder` button, and the pair read
+  as the same control twice — that segment (`Local folder` / `Pasted text`)
+  is gone now; local folder is the only source method, so there is nothing
+  left to switch between.
+- **Merged step card** — where two numbered steps are small and always used
+  together, they can share one `.rs-panel` rather than stack as two. The
+  robot-simulator landing step's `.rs-setup-card` is the reference: role
+  (`Step 1 · Role`) and source (`Step 2 · Source`) live in one card, still
+  carrying their own numbered markings internally. Don't generalize this to
+  steps that are independently skippable or reorderable — it fits here
+  specifically because picking a role and giving it source are always done
+  as one motion.
+- **Stage-swapped card content** — a card whose content is fully replaced
+  (not layered, not disclosed) once a later stage begins, rather than
+  showing the form and the results at once. `.rs-setup-card` does this
+  twice over: it holds the role/source form during the `setup` stage, then
+  swaps to the checks summary (`DiagnosticsSummary`) during `checks`,
+  driven by one `stage` state value in `RobotSimulator.jsx`. Pair it with a
+  single primary action button whose **label is the verb for the current
+  stage** — `Load & Check` in `setup`, `Start Simulation` in `checks` —
+  rather than a static label; provide an explicit way back (`Edit setup`)
+  since the earlier stage's controls are no longer on screen to change
+  directly.
+- **Pinned card, internal scroll** — a card that must stay in view while the
+  rest of its column scrolls past it (so its own contents scroll internally
+  once they outgrow the viewport, rather than carrying the card away) uses
+  `position: sticky` with its own `overflow-y: auto` and a `max-height`
+  derived from the viewport — `.rs-setup-card` is the reference. This only
+  works if **no ancestor up to the true scrolling root carries a non-visible
+  `overflow` or a persistent non-`none` `transform`** — either one silently
+  breaks `position: sticky` by giving it the wrong containing block/scroll
+  reference. Both traps exist elsewhere on this exact page — see the two
+  sizing/motion traps called out under Migration status below — and are
+  exactly why the run step's physics drawer uses `position: fixed` instead;
+  a sticky card should default to fixed too unless the ancestor chain has
+  been specifically audited clean.
 - **Progress / status indicator** (`ProgressBar`) — a technical HUD readout,
   not a generic progress bar. A 2px etched hairline track on
   `--color-separator`; an accent fill; a short bright **lead edge** riding the
@@ -296,6 +433,41 @@ There is no component library. Build from tokens, following Apple's patterns:
   cannot drift apart, and both move on a compositor transform rather than on
   `width`/`left`. The lead edge hides itself at 0 and at 100% — a tick pinned
   at either end reads as a rendering artifact rather than a position.
+  The `ballTip` prop is a named variant, not a second component: it swaps
+  the lead tick for a small soccer-ball mark, using the identical
+  full-track-plus-transform positioning trick, so it is still one source of
+  truth for the position. That mark is **the one raster asset on this
+  route** — `src/images/icons/football.png`, black-on-transparent artwork,
+  resolved through the bundler at its full 512px resolution and scaled down
+  by the browser at paint time. It sits above the inline limit, so it is
+  emitted as a hashed file and costs one cached request; that is the
+  deliberate trade for keeping a single asset on disk rather than a source
+  plus a derivative that can drift. Because the artwork carries no ground of
+  its own, the panels are
+  whatever sits behind them: a `--color-ball-face` beige fill clipped to a
+  circle by `--radius-pill`, under a 2px ring that redraws the silhouette
+  (the artwork's own rim renders under a pixel wide at this size and washes
+  out). **It is a background layer on a `<span>`, not an `<img>`, and that
+  is load-bearing:** a replaced element's content box stops at its border,
+  so an image could only ever sit inside that ring with its own pale edge
+  showing between the two. As a background painted across the whole border
+  box (`background-origin: border-box`), the ring lands on top of the
+  artwork's edge and eats into it, so the two read as one ring. Any future
+  raster mark that needs a ring around it has the same constraint.
+  That token is the ball's *material*, not chrome — the one warm value
+  allowed outside the neutral ramp, and scoped to this mark alone. An
+  earlier version drew the ball as inline SVG from `--color-label` /
+  `--color-background` to match the run step's own ball; that is gone, and
+  the two balls are now allowed to differ. Unlike the tick it has
+  no idle state — the ball is meaningful even at ratio 0, marking the
+  not-yet-started tip — and it gets a one-time entrance pop
+  (`--duration-slow`/`--ease-out`, scale 0.4 → 1) on load rather than
+  replaying on every ratio change. Its glow reuses `--glow-accent-lead` via
+  `filter: drop-shadow(...)`, which accepts the same offset/blur/color
+  triple the token already carries — a reuse, not a new glow. The
+  robot-simulator landing step uses this variant for its one progress bar,
+  now keyed to 3 workflow stops (Setup / Checks / Simulation) rather than a
+  per-file count — see Migration status.
 - **Corner icon button** — a circular, icon-only glass control pinned to a
   corner: `--tap-target-min` square hit area with a 16px glyph inside, glass
   fill, hairline border, and accent + `--glow-accent` on hover. Two instances,
@@ -504,6 +676,62 @@ attention-seeking.
 Duration tokens: `--duration-fast` (150ms), `--duration-base` (300ms),
 `--duration-slow` (1000ms). Easing: `--ease-out`, `--ease-in-out`.
 
+### Spring-based controls — a second, named motion system
+
+Everything above is one motion system: CSS `transition`/`animation` on
+`--duration-*`/`--ease-*`, plus the rAF/exponential-approach scrub in
+`useScrollScrub.js` for the two scroll-driven elements. `framer-motion` (a
+real dependency, see `package.json`) is a **second, separate** motion
+system, and it is scoped narrowly rather than left to spread — a page
+should not have to guess which of two systems a given piece of motion
+belongs to.
+
+**Where it's used, and where it stops:** exactly two controls on the
+robot-simulator landing step, both because the reference-quality feel comes
+specifically from spring *physics* (a value that can overshoot slightly and
+settle, driven by stiffness/damping/mass) rather than from a fixed-duration
+curve, which `--ease-out` cannot produce:
+
+- **`RoleToggle`** (`src/components/RoleToggle.jsx`) — the striker/
+  goalkeeper toggle's sliding selected-state pill. The pill's `x`/`width`/
+  `height` are measured off the real button DOM (`getBoundingClientRect`)
+  on every selection change and on resize, not hardcoded per-option pixel
+  values — these are organic text labels, not a fixed step count, so a
+  hardcoded width would drift from the actual rendered text the moment a
+  label changed.
+- **The two-stage primary button** (`RobotSimulator.jsx`, `.rs-stage-btn`)
+  — `motion.button` with the `layout` prop animates the button's own box as
+  its label's natural width changes between `Load & Check` and `Start
+  Simulation`, and `AnimatePresence` cross-fades the label content
+  (`--duration-fast`-scale, plain opacity, not spring) including a
+  `CircleCheck` (`lucide-react`) that mounts in once checks have actually
+  passed. `layout`, again rather than a hardcoded width, for the same
+  reason as the toggle.
+
+**The spring config is one shared, named constant** —
+`SPRING_UI` in `src/lib/motionSpring.js` — imported by both, not
+re-tuned independently per control:
+
+```js
+export const SPRING_UI = { type: "spring", stiffness: 500, damping: 40, mass: 0.8 };
+```
+
+Tuned heavier on damping than framer-motion's own default so it settles
+rather than visibly overshooting/wobbling — a bouncy spring next to the
+rest of the page's strictly ease-out, no-bounce motion language would read
+as a different app. Both consumers fall back to `{ duration: 0 }` under
+`prefers-reduced-motion: reduce` (read via framer-motion's own
+`useReducedMotion()`, the same media query the CSS side answers) rather
+than trying to express "no motion" as a spring with zero stiffness.
+
+**Don't reach for this a third time without reconsidering.** Two named,
+scoped uses is a deliberate, audited exception, the same shape as
+`--shadow-hero` (one use) or `--glow-accent` (two named uses); it is not a
+general license to animate other page motion with springs instead of the
+token-driven CSS system above. If a future control also needs true spring
+physics, extend this section explicitly rather than letting a third
+untracked spring config appear inline somewhere.
+
 ## File conventions
 
 - `src/styles/tokens.css` — the single source of truth for the design system.
@@ -519,8 +747,11 @@ Duration tokens: `--duration-fast` (150ms), `--duration-base` (300ms),
 **Migrated.** The entire `#/robot-simulator` route is on the token set now,
 both steps:
 
-- The **landing/edit step** — hero, hero field artwork, progress bar, role
-  selector, source panel, *and* the inline parse-diagnostics summary.
+- The **landing/edit step** — hero, hero field artwork, the ball-tip progress
+  bar, and the merged role/source/checks card. Local-folder is the only
+  source method now; the pasted-text mode and its per-file code editor were
+  removed outright, not collapsed, along with the segmented control that
+  used to switch between the two.
 - The **simulate step** — field, the floating HUD console, playback controls,
   the stats card, the reticle, and the physics drawer. There is no
   constants/assumptions reference any more; it was removed outright (not
@@ -535,6 +766,60 @@ and card-stack patterns below, as much as for the tokens.
 Its landing layout is a single column at ~58% with the hero field occupying
 the rest; below 900px the field is dropped and the column takes the full
 width back, rather than shrinking it into a smear behind the text.
+
+**The landing step is now explicitly two-staged: `setup` then `checks`**,
+tracked by one `stage` value in `RobotSimulator.jsx`, independent of the
+`step` value that switches between the landing and run pages. `setup` shows
+the role toggle and the folder picker; `checks` swaps the same card over to
+the parse-diagnostics summary and adds an `Edit setup` way back. The single
+primary button's label is the verb for whichever stage is active — `Load &
+Check`, then `Start Simulation` — rather than a static `Run simulation`.
+The progress bar tracks this as 3 stops (Setup / Checks / Simulation) rather
+than a per-file count; "Simulation" is only ever reached by leaving this
+step for the run page, so 2/3 is as far as the bar visibly climbs while
+still here. See Components → Merged step card / Stage-swapped card content /
+Pinned card, internal scroll for the reusable shapes this introduced.
+
+Two sizing/motion traps specific to this step, both about `.rs-setup-card`'s
+`position: sticky`:
+
+- **The hero's off-screen entrance clip moved off `.robot-simulator-page`
+  and onto a small dedicated `.rs-hero-clip` wrapper** (`position: fixed;
+  inset: 0; overflow: clip`), and `.robot-simulator-page` itself no longer
+  declares any `overflow`. It used to carry `overflow-x: clip` for exactly
+  the same reason the run step documents further down — the CSS Overflow
+  spec forces the *other* axis to compute to `auto` the moment one axis is
+  non-`visible`, which silently makes that box (not the real viewport) the
+  reference for any `position: sticky` descendant. `.rs-setup-card` needed a
+  working sticky, so the clip had to move somewhere that isn't an ancestor
+  of it. `overflow: clip` on the new wrapper still reaches its
+  `position: fixed` child for painting purposes — clipping applies to a
+  box's rendered subtree regardless of a descendant's own positioning
+  scheme; only the fixed descendant's *containing block* (where its
+  coordinates resolve from) skips past non-transformed ancestors, which
+  clipping doesn't change.
+- **`.rs-init-col`'s entrance dropped its translateY lift and animates
+  opacity only** (`rs-enter-fade`, not the shared `rs-enter` keyframes
+  `.rs-hero` still uses). `fill-mode: both` holds an animation's last
+  keyframe value forever once it completes, and `transform: translateY(0)`
+  is still a non-`none` transform even at rest — which becomes the
+  containing block for anything positioned beneath it, exactly like a
+  transformed ancestor breaks `position: fixed`. `.rs-setup-card` lives
+  inside `.rs-init-col`, so that lingering transform would have quietly
+  broken its sticky positioning. `.rs-init-col` still gets its stacking
+  context from `position: relative` + `z-index: 1` (for the same
+  popover-escaping reason `.rs-hero` needs one), so dropping the transform
+  costs nothing there.
+
+**`framer-motion` and `lucide-react` are real dependencies now, used in
+exactly two places.** The role/goalkeeper toggle (`RoleToggle`, replacing
+the old `SelectableCard` two-up layout for this one case — `SelectableCard`
+itself is untouched and still available for other selection UI, it just has
+no current call site) and the two-stage button's expand/collapse both use
+framer-motion spring physics, ported from a reference progress-indicator
+component and adapted to this app's own state and token set rather than
+copied. See Motion → Spring-based controls above for the shared
+`SPRING_UI` config and why it's scoped to exactly these two controls.
 
 **The simulate step is a HUD, not a split layout.** It has no header, no back
 control, and no site nav — navigation back to the editor is the top-left

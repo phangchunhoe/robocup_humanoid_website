@@ -74,7 +74,7 @@
 .robot-simulator-page .rs-stats-face:hover,
 .robot-simulator-page .rs-log-stream:hover,
 .robot-simulator-page .rs-log-alert-detail:hover,
-.robot-simulator-page .code-editor textarea:hover {
+.robot-simulator-page .rs-setup-card:hover {
   scrollbar-color: var(--color-secondary-label) transparent;
 }
 
@@ -124,13 +124,16 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
      space-12 default vertically, so the headline sits higher without the
      page reading cramped — still 8pt-grid, still equal top and bottom. */
   padding: var(--space-10) var(--space-6);
-  /* Containing block for the hero image, which is positioned against the
-     viewport edge rather than the shell. */
   position: relative;
-  /* The image bleeds past the right edge; clip it rather than letting it
-     scroll the page sideways. `clip` on one axis only — `hidden` would make
-     this a scroll container and trap the popovers. */
-  overflow-x: clip;
+  /* Deliberately no overflow declared here. It used to carry overflow-x:
+     clip for the hero's off-screen entrance slide, but ANY non-visible
+     overflow value on this box forces the other axis to compute to auto
+     too (CSS Overflow spec) — which silently makes this box, not the real
+     viewport, the reference for any position: sticky descendant (the exact
+     trap documented on .rs-run-layout below for the same reason). The setup
+     card needs a working sticky, so the hero's clip moved to its own small
+     .rs-hero-clip wrapper instead — see below — and this box stays fully
+     overflow: visible. */
 }
 
 .robot-simulator-page .rs-shell {
@@ -139,6 +142,27 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 /* ------------------------------------------------------- hero + hero field */
+
+/* Exactly the viewport, and the sole reason this page still clips anything
+   horizontally: the hero's entrance starts translateX(100%) off the right
+   edge (see rs-hero-media-in below), and without a clip boundary that
+   overshoot would add horizontal scroll to the page. Scoping the clip to
+   this small fixed wrapper — rather than to .robot-simulator-page itself,
+   which is what an earlier version did — keeps it from also turning the
+   whole page into a scroll container that would silently break position:
+   sticky on .rs-setup-card further down (see the comment on
+   .robot-simulator-page above). overflow: clip still reaches .rs-hero-field
+   inside it even though that child is itself position: fixed — clipping
+   applies to a box's painted subtree regardless of its descendants'
+   positioning scheme, it is only the *containing block* (where fixed
+   coordinates resolve from) that position: fixed skips past. */
+.robot-simulator-page .rs-hero-clip {
+  position: fixed;
+  inset: 0;
+  overflow: clip;
+  pointer-events: none;
+  z-index: 0;
+}
 
 .robot-simulator-page .rs-hero {
   padding: var(--space-12) 0;
@@ -300,7 +324,7 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
    The field is decorative, so it goes rather than being shrunk into a smear
    behind the text, and the column takes the full width back. */
 @media (max-width: 900px) {
-  .robot-simulator-page .rs-hero-field {
+  .robot-simulator-page .rs-hero-clip {
     display: none;
   }
 
@@ -329,6 +353,23 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   background: var(--color-elevated-background);
   border: 1px solid var(--color-separator);
   min-width: 0;
+}
+
+/* The merged role/source/checks card stays in view while the rest of the
+   column scrolls past it, so its own content — the file list, then the
+   checks summary — scrolls internally instead of carrying the card away
+   with it. `top` is the gap it holds from the viewport once stuck; `max-
+   height` plus its own overflow is what makes the scrolling internal
+   rather than pushing the card taller than the viewport. This only works
+   because .robot-simulator-page no longer declares any overflow of its own
+   — see the comment there — otherwise this box would silently stick
+   relative to that ancestor instead of the viewport, the same trap
+   RobotSimulator.css documents for .rs-physics-drawer. */
+.robot-simulator-page .rs-setup-card {
+  position: sticky;
+  top: var(--space-6);
+  max-height: calc(100vh - var(--space-6) * 2);
+  overflow-y: auto;
 }
 
 /* Instrument marking, not a heading — the micro step, tracked wide and set
@@ -361,21 +402,25 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   margin: 0;
 }
 
-.robot-simulator-page .rs-source-header {
+/* Role, source, and (once checks have run) the results summary all live in
+   this one card now — see .rs-setup-card below for why it also stays
+   pinned while the page scrolls. */
+.robot-simulator-page .rs-checks-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.robot-simulator-page .rs-checks-summary {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  align-items: flex-start;
+  gap: var(--space-4);
 }
 
-.robot-simulator-page .rs-source-panel {
-  width: 100%;
-  /* Keyed on the active segment, so this replays as a cross-fade. */
-  animation: rs-cross-fade var(--duration-base) var(--ease-out) both;
-}
-
-/* One gap owns the rhythm inside a source panel, so nothing — a button least
-   of all — ever ends up flush against the element above it. */
+/* One gap owns the rhythm inside the source section, so nothing — a button
+   least of all — ever ends up flush against the element above it. */
 .robot-simulator-page .rs-source-body {
   display: flex;
   flex-direction: column;
@@ -383,8 +428,7 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 .robot-simulator-page .rs-folder-action-row,
-.robot-simulator-page .rs-run-row,
-.robot-simulator-page .rs-file-switch-row {
+.robot-simulator-page .rs-run-row {
   display: flex;
   align-items: center;
   gap: var(--space-4);
@@ -395,13 +439,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
-}
-
-/* A lone button in a column keeps clear air above it even when its parent
-   sets no gap. */
-.robot-simulator-page .rs-source-body > .btn {
-  align-self: flex-start;
-  margin-top: var(--space-2);
 }
 
 /* ---------------------------------------------------------- file status */
@@ -433,12 +470,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   color: var(--color-secondary-label);
 }
 
-.robot-simulator-page .rs-file-meta {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 /* -------------------------------------------------------------- buttons */
 /* Pill-shaped. Exactly two variants — primary (filled accent) and secondary
    (glass). Primary deliberately keeps its solid fill rather than joining the
@@ -449,6 +480,7 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--space-2);
   min-height: var(--tap-target-min);
   padding: 0 var(--space-6);
   border: 1px solid transparent;
@@ -494,6 +526,42 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 .robot-simulator-page .btn-primary {
   background: var(--color-accent);
   color: var(--color-on-accent);
+}
+
+/* The Choose folder button's icon: outline-only (stroke, no fill) and
+   noticeably larger than the 16px corner-control glyphs elsewhere on this
+   page, so it reads as the button's own visual anchor rather than a small
+   inline decoration. currentColor, so it inherits --color-on-accent on the
+   primary fill it sits on. */
+.robot-simulator-page .rs-btn-icon {
+  width: var(--space-6);
+  height: var(--space-6);
+  flex: none;
+}
+
+/* The two-stage primary button: framer-motion's `layout` prop (see
+   RobotSimulator.jsx) animates the button's own box as its label's natural
+   width changes, so `overflow: hidden` here is what keeps the outgoing
+   label from visibly poking past the button's edge mid-transition rather
+   than being clipped by it. */
+.robot-simulator-page .rs-stage-btn {
+  overflow: hidden;
+}
+
+.robot-simulator-page .rs-stage-btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+/* Sized like an ordinary inline icon-with-text (16px), unlike the Choose
+   folder button's deliberately oversized anchor icon above — this one is a
+   supporting checkmark next to a label, not the control's own anchor. */
+.robot-simulator-page .rs-stage-btn-icon {
+  width: var(--space-4);
+  height: var(--space-4);
+  flex: none;
 }
 
 /* The deeper emerald on hover and press — the accent's other state, not a new
@@ -544,12 +612,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 /* ---------------------------------------------------------- diagnostics */
-
-/* No longer a full-height side panel — a compact strip under the actions,
-   summarising in a few lines and expanding inline on demand. */
-.robot-simulator-page .rs-diagnostics {
-  gap: var(--space-4);
-}
 
 /* The collapsed summary: the essentials only, one short line each, status
    carried by color alone. */
@@ -651,55 +713,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   margin: 0;
 }
 
-/* --------------------------------------------------------- code editor */
-/* A gutter + textarea pair has no Apple-native analogue, so it is custom —
-   but assembled from the token set like everything else. */
-
-.robot-simulator-page .code-editor {
-  display: flex;
-  width: 100%;
-  border-radius: var(--radius-control);
-  background: var(--color-background);
-  border: 1px solid var(--color-separator);
-  overflow: hidden;
-  min-height: 320px;
-  max-height: 48vh;
-}
-
-.robot-simulator-page .code-editor .gutter {
-  margin: 0;
-  padding: var(--space-4) var(--space-3);
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-  line-height: 1.6;
-  color: var(--color-tertiary-label);
-  text-align: right;
-  border-right: 1px solid var(--color-separator);
-  overflow: hidden;
-  user-select: none;
-  min-width: 3.4em;
-}
-
-.robot-simulator-page .code-editor textarea {
-  flex: 1;
-  border: 0;
-  outline: none;
-  resize: none;
-  padding: var(--space-4);
-  font-family: var(--font-mono);
-  font-size: var(--text-caption);
-  line-height: 1.6;
-  color: var(--color-label);
-  background: transparent;
-  white-space: pre;
-  overflow: auto;
-  tab-size: 2;
-}
-
-.robot-simulator-page .code-editor textarea::placeholder {
-  color: var(--color-tertiary-label);
-}
-
 /* --------------------------------------------------------------- motion */
 /* Entrance runs once on load, staggered. No scroll-triggered animation. */
 
@@ -711,6 +724,25 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Opacity-only twin of rs-enter, for .rs-init-col specifically. fill-mode
+   both holds whichever keyframe values it last animated forever (that is
+   the point — see the stacking-context comment below), and translateY(0) is
+   still a non-none transform even at rest. An ordinary descendant never
+   notices, but .rs-setup-card inside this column is position: sticky, and a
+   permanently-transformed ancestor becomes the containing block for
+   anything positioned beneath it — exactly the kind of silent breakage
+   .robot-simulator-page's overflow rule was already rewritten to avoid
+   above. Dropping the lift here (fade only) sidesteps it; .rs-hero keeps
+   the full fade+lift since nothing sticky lives under it. */
+@keyframes rs-enter-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }
 
@@ -736,22 +768,29 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   }
 }
 
-.robot-simulator-page .rs-hero,
-.robot-simulator-page .rs-init-col {
+.robot-simulator-page .rs-hero {
   animation: rs-enter var(--duration-slow) var(--ease-out) both;
+}
+
+.robot-simulator-page .rs-init-col {
+  animation: rs-enter-fade var(--duration-slow) var(--ease-out) both;
 }
 
 .robot-simulator-page .rs-hero-field {
   animation: rs-hero-media-in var(--duration-slow) var(--ease-out) both;
 }
 
-/* The entrance leaves a transform applied (fill-mode `both`), and a non-none
-   transform makes each of these blocks its own stacking context — permanently,
-   not just while it animates. A popover inside one is therefore sealed in, and
-   would be painted under any block that comes later in the DOM however high
-   its own z-index went. Order them explicitly, earliest on top, so popovers
-   escape downward and rightward into their neighbours — and so the field
-   stays behind all of them. */
+/* Both of these are their own stacking context, permanently, so a popover
+   inside one is otherwise sealed in and would be painted under any block
+   that comes later in the DOM however high its own z-index went. .rs-hero's
+   entrance leaves a non-none transform behind (fill-mode `both`), which is
+   sufficient on its own; .rs-init-col gets there via position + z-index
+   instead, deliberately, since its own entrance is opacity-only now (see
+   rs-enter-fade above) — a lingering transform on this one specifically
+   would double as a containing block for .rs-setup-card's position: sticky
+   descendant and quietly break it. Order them explicitly, earliest on top,
+   so popovers escape downward and rightward into their neighbours — and so
+   the field stays behind all of them. */
 .robot-simulator-page .rs-hero,
 .robot-simulator-page .rs-init-col {
   position: relative;
@@ -780,7 +819,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 @media (prefers-reduced-motion: reduce) {
   .robot-simulator-page .rs-hero,
   .robot-simulator-page .rs-init-col,
-  .robot-simulator-page .rs-source-panel,
   .robot-simulator-page .btn {
     animation: none;
     transition: none;

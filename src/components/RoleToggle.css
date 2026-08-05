@@ -1,0 +1,147 @@
+/* Sliding-pill segmented toggle. Tokens only — see CLAUDE.md. The pill's
+   motion is spring-driven (framer-motion, SPRING_UI in src/lib/motionSpring.js)
+   rather than the page's usual --duration-base/--ease-out transition; see
+   CLAUDE.md -> Motion -> Spring-based controls for why this one control pair
+   gets a second motion system. */
+
+.role-toggle {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+/* Same instrument-marking treatment as every other panel/section label. It
+   stays left-aligned even though the track below it is centred — this is the
+   numbered-workflow marking ("Step 1 · Role") and has to line up with
+   "Step 2 · Source" further down the same card. */
+.role-toggle-legend {
+  padding: 0;
+  margin-bottom: var(--space-3);
+  font-size: var(--text-micro);
+  font-weight: var(--text-micro-weight);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+  color: var(--color-tertiary-label);
+}
+
+/* Centred in its container, and squared off rather than capsule-shaped —
+   --radius-subtle, the tightest step on the shape scale. `width: fit-content`
+   plus auto inline margins rather than inline-flex + text-align, so the
+   centring is the track's own property and does not depend on the parent's
+   text alignment. */
+.role-toggle-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  width: fit-content;
+  margin-inline: auto;
+  padding: var(--space-1);
+  border-radius: var(--radius-subtle);
+  background: var(--color-elevated-background);
+  border: 1px solid var(--color-separator);
+}
+
+/* Neutral glass, not the accent fill this carried before: a translucent white
+   pane with its own hairline and a tight drop, sliding above the track. Sits
+   under the label text (z-index) and is sized and positioned entirely from
+   the measured DOM rect in RoleToggle.jsx — which is why box-sizing matters
+   here: JS writes the segment's border-box width/height straight onto this
+   element, so the 1px border has to be inside that number rather than added
+   to it, or the pill overhangs its segment by 2px in both axes. */
+.role-toggle-pill {
+  position: absolute;
+  top: var(--space-1);
+  left: 0;
+  box-sizing: border-box;
+  border-radius: var(--radius-subtle);
+  background-color: var(--glass-neutral);
+  border: 1px solid var(--border-neutral-subtle);
+  backdrop-filter: var(--blur-control);
+  box-shadow: var(--shadow-glass);
+  z-index: 1;
+  pointer-events: none;
+}
+
+.role-toggle-segment {
+  position: relative;
+  z-index: 2;
+  min-width: 96px;
+  min-height: var(--tap-target-min);
+  padding: 0 var(--space-5);
+  border: 0;
+  border-radius: var(--radius-subtle);
+  background: transparent;
+  color: var(--color-secondary-label);
+  font-family: var(--font-sans);
+  font-size: var(--text-callout);
+  font-weight: 500;
+  letter-spacing: var(--text-callout-tracking);
+  cursor: pointer;
+  white-space: nowrap;
+  /* Only the ink crossfades here — the pill itself is what moves, driven by
+     the spring transition above, so this stays on the page's ordinary
+     --duration-base timing rather than fighting the spring for the same
+     property. */
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+/* The cursor-following highlight. The gradient's centre is two custom
+   properties written on this element from onMouseMove in RoleToggle.jsx, so
+   the light tracks the pointer with no per-frame React render; only the
+   *opacity* transitions, over the page's ordinary hover duration. Deliberately
+   not a transition on the gradient itself — a lagging highlight reads as the
+   light being dragged rather than as the surface catching it, and background
+   position is not smoothly interpolable anyway.
+
+   z-index: -1 keeps it behind the label but still inside this button's own
+   stacking context (position + z-index above), so it lights the segment
+   without washing out the text. */
+.role-toggle-segment::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: radial-gradient(
+    circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    var(--glow-cursor),
+    transparent 60%
+  );
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.role-toggle-segment:hover::before {
+  opacity: 1;
+}
+
+.role-toggle-segment:hover:not(.is-active) {
+  color: var(--color-label);
+}
+
+/* Neutral glass carries no accent, so the selected segment is read by its
+   material and by full-strength ink rather than by hue. */
+.role-toggle-segment.is-active {
+  color: var(--color-label);
+}
+
+.role-toggle-segment:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* A highlight that tracks the pointer is motion, so it goes entirely rather
+   than merely losing its fade — the plain hover ink change above is left as
+   the affordance. */
+@media (prefers-reduced-motion: reduce) {
+  .role-toggle-segment {
+    transition: none;
+  }
+
+  .role-toggle-segment::before {
+    display: none;
+  }
+}

@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { CircleCheck } from "lucide-react";
 import Header from "../components/Header.jsx";
 import SegmentedControl from "../components/SegmentedControl.jsx";
 import StatusIndicator from "../components/StatusIndicator.jsx";
 import InfoHint from "../components/InfoHint.jsx";
-import SelectableCard from "../components/SelectableCard.jsx";
+import RoleToggle from "../components/RoleToggle.jsx";
 import ProgressBar from "../components/ProgressBar.jsx";
 import Notice from "../components/Notice.jsx";
+import { SPRING_UI } from "../lib/motionSpring.js";
 import { TABS, INTRO, CONFIG_NOTE, expectedRelPath } from "../content/simulatorPasteGuide.js";
 import { buildProgram } from "../lib/sim/runtime.js";
 import { createWorld, stepWorld, DEFAULT_PHYSICS } from "../lib/sim/physics.js";
@@ -19,21 +22,12 @@ import HeroField from "./HeroField.jsx";
 import { useScrollScrub } from "../lib/useScrollScrub.js";
 import "./RobotSimulator.css";
 
-// One status per required file, folding "is this required" and "did it load"
-// into a single state — every file this app asks for is required, so a
-// separate "required" marker would just repeat itself three times.
-function fileStatus(tabId, folderScan, sources) {
-  const scanResult = folderScan && folderScan.results.find((r) => r.tabId === tabId);
-  if (scanResult) {
-    return scanResult.found
-      ? { tone: "success", label: "Found" }
-      : { tone: "error", label: "Missing" };
-  }
-  const hasContent = (sources[tabId] || "").trim().length > 0;
-  return hasContent ? { tone: "success", label: "Loaded" } : { tone: "muted", label: "Required" };
-}
-
 const STORAGE_KEY = "robot-simulator-source-v1";
+
+// The progress bar's 3 stops: pick a role/folder, validate what was found,
+// hand off to the simulation. "Simulation" is only ever reached by leaving
+// this step, so the bar's own visible max while still on this page is 2/3.
+const PROGRESS_STOPS = ["Setup", "Checks", "Simulation"];
 
 const ROLES = [
   { id: "striker", label: "Striker", xml: "subtree_striker_play.xml" },
@@ -91,8 +85,11 @@ export default function RobotSimulator() {
   const stored = useMemo(loadStored, []);
 
   const [step, setStep] = useState("edit");
+  // The edit step's own two-stage flow: pick role/source, then review what
+  // was found before handing off to the run step. Independent of `step` —
+  // `step` is which page renders, `stage` is where the edit page itself is.
+  const [stage, setStage] = useState("setup");
   const [role, setRole] = useState((stored && stored.role) || "striker");
-  const [activeTab, setActiveTab] = useState("cpp");
   const [sources, setSources] = useState(
     (stored && stored.sources) || { cpp: "", xml: "", header: "" }
   );
@@ -241,7 +238,7 @@ export default function RobotSimulator() {
     [role, sources]
   );
 
-  // Re-parse when the paste settles.
+  // Re-parse once the folder scan settles.
   useEffect(() => {
     if (!sources.cpp.trim() && !sources.xml.trim()) {
       setReport(null);
@@ -328,6 +325,16 @@ export default function RobotSimulator() {
       worldRef.current.physics = { ...physics, stanceBias: CONFIG_DEFAULTS.stance_bias };
     }
   }, [physics]);
+
+  // Stage 1 -> 2: force an immediate re-parse (rather than waiting on the
+  // debounce) so the checks the user is about to read reflect exactly what
+  // was just loaded, then swap the setup card over to the summary.
+  const handleLoadAndCheck = () => {
+    parseNow(role, sources);
+    setStage("checks");
+  };
+
+  const handleEditSetup = () => setStage("setup");
 
   const handleRun = () => {
     const result = parseNow(role, sources);
@@ -475,8 +482,15 @@ export default function RobotSimulator() {
         {/* Atmospheric hero element — decorative, so it is hidden from
             assistive tech, and it belongs to the landing step only. It sits
             outside the shell because it is anchored to the viewport edge, not
-            to the content column. */}
-        {step === "edit" ? <HeroField /> : null}
+            to the content column. Wrapped in its own fixed, viewport-sized
+            clip box rather than clipping on .robot-simulator-page itself —
+            see the comment on .rs-hero-clip in RobotSimulator.css for why
+            that distinction matters here. */}
+        {step === "edit" ? (
+          <div className="rs-hero-clip" aria-hidden="true">
+            <HeroField />
+          </div>
+        ) : null}
 
         <div className="rs-shell">
           {step === "edit" ? (
@@ -498,14 +512,13 @@ export default function RobotSimulator() {
               }}
               roles={ROLES}
               roleMeta={roleMeta}
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              sources={sources}
-              setSources={setSources}
+              stage={stage}
               report={report}
               buildError={buildError}
               required={required}
               canRun={canRun}
+              onLoadAndCheck={handleLoadAndCheck}
+              onEditSetup={handleEditSetup}
               onRun={handleRun}
               selfTest={selfTest}
               onSelfTest={() => setSelfTest(runSelfTest())}
@@ -548,45 +561,41 @@ export default function RobotSimulator() {
 
 /* ------------------------------------------------------------------ step 1 */
 
+// Outline-only, and deliberately larger than the corner icons elsewhere on
+// this page (24px vs. their 16px) — this is the button's one visual anchor,
+// not an inline glyph, so it needs to read as a deliberate choice rather
+// than shrink to match a smaller convention that does not apply here.
+function FolderIcon() {
+  return (
+    <svg className="rs-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6c.4 0 .77.16 1.06.44L11.6 6.8c.28.28.66.44 1.06.44h6.84A1.5 1.5 0 0 1 21 8.75v9.75A1.5 1.5 0 0 1 19.5 20h-15A1.5 1.5 0 0 1 3 18.5v-12Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function EditorStep(props) {
   const {
-    role, setRole, roles, roleMeta, activeTab, setActiveTab, sources, setSources,
-    report, buildError, required, canRun, onRun, selfTest, onSelfTest,
-    folderInputRef, folderBusy, folderScan, onFolderInputChange,
+    role, setRole, roles, roleMeta, stage,
+    report, buildError, required, canRun, onLoadAndCheck, onEditSetup, onRun,
+    selfTest, onSelfTest, folderInputRef, folderBusy, folderScan, onFolderInputChange,
   } = props;
 
-  // Jumps to "paste" automatically once a folder scan lands, since that's
-  // where the loaded files become visible.
-  const [inputMode, setInputMode] = useState("folder");
-  useEffect(() => {
-    if (folderScan) setInputMode("paste");
-  }, [folderScan]);
-
-  const tab = TABS.find((t) => t.id === activeTab) || TABS[0];
-  const value = sources[tab.id] || "";
-  const lineCount = value ? value.split("\n").length : 1;
-  const activeStatus = fileStatus(tab.id, folderScan, sources);
-
-  // Progress reflects how close the page is to being runnable: one unit per
-  // required file that has content, plus a final unit for a clean parse.
-  const filesLoaded = TABS.filter((t) => (sources[t.id] || "").trim().length > 0).length;
-  const progressValue = canRun ? TABS.length + 1 : filesLoaded;
-  // A live instrument readout, set in --font-mono by ProgressBar — terse and
-  // fixed-shape so the row does not reflow as the count climbs.
-  const progressHint = canRun ? "READY" : `${filesLoaded}/${TABS.length} FILES`;
-
-  const handleKeyDown = (evt) => {
-    if (evt.key !== "Tab") return;
-    evt.preventDefault();
-    const el = evt.target;
-    const { selectionStart: s, selectionEnd: e } = el;
-    const next = `${value.slice(0, s)}  ${value.slice(e)}`;
-    setSources({ ...sources, [tab.id]: next });
-    window.requestAnimationFrame(() => {
-      el.selectionStart = s + 2;
-      el.selectionEnd = s + 2;
-    });
-  };
+  // Stop index only, not a file count — "Simulation" is stop 3, but it is
+  // only ever reached by leaving this step, so 2/3 (READY) is as far as the
+  // bar visibly climbs while this page is still on screen.
+  const progressValue = stage === "setup" ? 1 : 2;
+  const progressHint = stage === "setup" ? "SETUP" : canRun ? "READY" : "CHECKING";
+  const reduceMotion = useReducedMotion();
+  // Ready is its own key, not just "checks" — the checkmark appearing is
+  // itself a small transition worth crossfading, not just the setup/checks
+  // switch.
+  const stageBtnKey = stage === "checks" && canRun ? "ready" : stage;
 
   return (
     /* The width constraint lives on the wrapper, the column layout on the
@@ -595,68 +604,47 @@ function EditorStep(props) {
       <div className="rs-init-col">
         <ProgressBar
           surface
+          ballTip
           value={progressValue}
-          max={TABS.length + 1}
-          label="Load source"
+          max={PROGRESS_STOPS.length}
+          label="Progress"
           hint={progressHint}
         />
 
-        {/* The two panels are numbered so the page reads as an ordered
-            workflow rather than as two unrelated boxes: pick a role, then
-            give it source. */}
-        <section className="rs-panel rs-role-section">
-          <SelectableCard
-            name="role"
-            legend="Step 1 · Role"
-            options={roles.map((r) => ({ id: r.id, label: r.label }))}
-            value={role}
-            onChange={setRole}
-          />
-          <span className="rs-role-hint">
-            Expects <code className="rs-mono">{roleMeta.xml}</code>
-          </span>
-        </section>
+        {/* Role and source used to be two stacked panels ("Step 1 · Role",
+            "Step 2 · Source"); merged into one card that also takes over the
+            checks summary once the user has moved past setup, so the page
+            never shows the setup form and the results at the same time. It
+            stays pinned (position: sticky) while the page scrolls past it —
+            see .rs-setup-card and .rs-hero-clip in RobotSimulator.css for
+            why the hero's clip had to move off .robot-simulator-page for
+            that to work at all. */}
+        <section className="rs-panel rs-setup-card">
+          {stage === "setup" ? (
+            <>
+              <RoleToggle
+                legend="Step 1 · Role"
+                options={roles.map((r) => ({ id: r.id, label: r.label }))}
+                value={role}
+                onChange={setRole}
+              />
+              <span className="rs-role-hint">
+                Expects <code className="rs-mono">{roleMeta.xml}</code>
+              </span>
 
-        <section className="rs-panel rs-source-section">
-          <div className="rs-source-header">
-            <span className="rs-panel-label">Step 2 · Source</span>
-            {/* These name WHERE the source comes from, not what to press —
-                the action lives on the one button inside each panel. The
-                previous "Open folder" segment sat directly above a "Choose
-                folder" button and the pair read as the same control twice. */}
-            <SegmentedControl
-              ariaLabel="Where the source comes from"
-              segments={[
-                { id: "folder", label: "Local folder", panelId: "rs-panel-folder" },
-                { id: "paste", label: "Pasted text", panelId: "rs-panel-paste" },
-              ]}
-              value={inputMode}
-              onChange={setInputMode}
-            />
-          </div>
-
-          {/* Keyed so switching modes remounts and replays the cross-fade. */}
-          <div className="rs-source-panel" key={inputMode}>
-            {inputMode === "folder" ? (
-              <div
-                id="rs-panel-folder"
-                className="rs-source-body"
-                role="tabpanel"
-                aria-labelledby="segment-folder"
-              >
+              <span className="rs-panel-label">Step 2 · Source</span>
+              <div className="rs-source-body">
                 <div className="rs-folder-action-row">
-                  {/* One action, and its label says what pressing it does
-                      right now — the segment above names the source, this
-                      names the verb. Once a scan has landed it becomes a
-                      re-pick rather than repeating the original invitation,
-                      so the two controls never read as the same button
-                      twice. */}
+                  {/* Local folder is the only source method now — the
+                      segment that used to switch to a pasted-text mode is
+                      gone, so this is the one action in the section. */}
                   <button
                     type="button"
                     className="btn btn-primary"
                     disabled={folderBusy}
                     onClick={() => folderInputRef.current && folderInputRef.current.click()}
                   >
+                    <FolderIcon />
                     {folderBusy
                       ? "Scanning…"
                       : folderScan
@@ -665,7 +653,7 @@ function EditorStep(props) {
                   </button>
                   <InfoHint
                     label="About opening a folder"
-                    text="Select your Robocup-Humanoid- checkout, or its src/brain folder. The files below are matched by relative path. Manual paste still works per file."
+                    text="Select your Robocup-Humanoid- checkout, or its src/brain folder. The files below are matched by relative path."
                   />
                   <input
                     ref={folderInputRef}
@@ -680,89 +668,87 @@ function EditorStep(props) {
 
                 {folderScan ? (
                   <ul className="rs-file-list">
-                    {folderScan.results.map((r) => {
-                      const t = TABS.find((entry) => entry.id === r.tabId);
-                      return (
-                        <li key={r.tabId} className="rs-file-row">
-                          <code className="rs-mono rs-file-path">{r.path}</code>
-                          <StatusIndicator
-                            tone={r.found ? "success" : "error"}
-                            label={r.found ? "Found" : "Missing"}
-                            animateKey={`${r.tabId}-${r.found}`}
-                          />
-                          {!r.found ? (
-                            <span className="rs-file-note">
-                              {r.error
-                                ? `Could not read it — ${r.error}`
-                                : `Paste it manually under ${t ? t.label : r.tabId}`}
-                            </span>
-                          ) : null}
-                        </li>
-                      );
-                    })}
+                    {folderScan.results.map((r) => (
+                      <li key={r.tabId} className="rs-file-row">
+                        <code className="rs-mono rs-file-path">{r.path}</code>
+                        <StatusIndicator
+                          tone={r.found ? "success" : "error"}
+                          label={r.found ? "Found" : "Missing"}
+                          animateKey={`${r.tabId}-${r.found}`}
+                        />
+                        {!r.found ? (
+                          <span className="rs-file-note">
+                            {r.error
+                              ? `Could not read it — ${r.error}`
+                              : "Not found in the selected folder."}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
                   </ul>
                 ) : (
                   <p className="rs-empty">Nothing loaded yet.</p>
                 )}
               </div>
-            ) : (
-              <div
-                id="rs-panel-paste"
-                className="rs-source-body"
-                role="tabpanel"
-                aria-labelledby="segment-paste"
-              >
-                <div className="rs-file-switch-row">
-                  <SegmentedControl
-                    size="sm"
-                    ariaLabel="Which file to paste"
-                    segments={TABS.map((t) => ({ id: t.id, label: t.label }))}
-                    value={activeTab}
-                    onChange={setActiveTab}
-                  />
-                  <StatusIndicator
-                    tone={activeStatus.tone}
-                    label={activeStatus.label}
-                    animateKey={`${tab.id}-${activeStatus.tone}-${activeStatus.label}`}
-                  />
-                </div>
-
-                <div className="rs-file-meta">
-                  <code className="rs-mono rs-file-path">{tab.file}</code>
-                  <InfoHint text={tab.hint} label={`About ${tab.label}`} />
-                </div>
-
-                <div className="code-editor">
-                  <pre className="gutter" aria-hidden="true">
-                    {Array.from({ length: lineCount }, (_, i) => i + 1).join("\n")}
-                  </pre>
-                  <textarea
-                    spellCheck="false"
-                    value={value}
-                    placeholder={tab.placeholder}
-                    onChange={(evt) => setSources({ ...sources, [tab.id]: evt.target.value })}
-                    onKeyDown={handleKeyDown}
-                  />
-                </div>
-
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setSources({ ...sources, [tab.id]: "" })}
-                  disabled={!value}
-                >
-                  Clear this file
+            </>
+          ) : (
+            <div className="rs-checks-summary">
+              <div className="rs-checks-header">
+                <span className="rs-panel-label">Checks</span>
+                <button type="button" className="btn btn-secondary" onClick={onEditSetup}>
+                  Edit setup
                 </button>
               </div>
-            )}
-          </div>
+              {buildError ? (
+                <Notice tone="error" title="Build failed" glyph={false}>
+                  {buildError}
+                </Notice>
+              ) : null}
+              {!report ? (
+                <p className="rs-hint">
+                  Load <code className="rs-mono">brain_tree.cpp</code> and a behaviour-tree XML
+                  to see what was extracted.
+                </p>
+              ) : (
+                <DiagnosticsSummary report={report} required={required} />
+              )}
+            </div>
+          )}
         </section>
 
         <section className="rs-run-section">
           <div className="rs-run-row">
-            <button type="button" className="btn btn-primary" disabled={!canRun} onClick={onRun}>
-              Run simulation
-            </button>
+            {/* One button, its label naming the verb for whichever stage the
+                page is in — Load & Check runs the first validation pass,
+                Start Simulation only appears once checks have passed. The
+                width change between the two labels (and the checkmark that
+                appears once checks pass) animates via framer-motion's
+                `layout` rather than a hardcoded width — see CLAUDE.md ->
+                Motion -> Spring-based controls. */}
+            <motion.button
+              layout
+              type="button"
+              className="btn btn-primary rs-stage-btn"
+              disabled={stage === "setup" ? !folderScan || folderBusy : !canRun}
+              onClick={stage === "setup" ? onLoadAndCheck : onRun}
+              transition={reduceMotion ? { duration: 0 } : SPRING_UI}
+            >
+              <AnimatePresence mode="wait" initial={false}>
+                <motion.span
+                  key={stageBtnKey}
+                  className="rs-stage-btn-label"
+                  initial={reduceMotion ? false : { opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={reduceMotion ? undefined : { opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  {stageBtnKey === "ready" ? (
+                    <CircleCheck className="rs-stage-btn-icon" aria-hidden="true" />
+                  ) : null}
+                  {stage === "setup" ? "Load & Check" : "Start Simulation"}
+                </motion.span>
+              </AnimatePresence>
+            </motion.button>
             <button type="button" className="btn btn-secondary" onClick={onSelfTest}>
               Interpreter self-check
             </button>
@@ -786,23 +772,6 @@ function EditorStep(props) {
               ) : null}
             </p>
           ) : null}
-        </section>
-
-        <section className="rs-panel rs-diagnostics">
-          <span className="rs-panel-label">Parse diagnostics</span>
-          {buildError ? (
-            <Notice tone="error" title="Build failed" glyph={false}>
-              {buildError}
-            </Notice>
-          ) : null}
-          {!report ? (
-            <p className="rs-hint">
-              Load <code className="rs-mono">brain_tree.cpp</code> and a behaviour-tree XML to
-              see what was extracted.
-            </p>
-          ) : (
-            <DiagnosticsSummary report={report} required={required} />
-          )}
         </section>
       </div>
     </div>

@@ -94,6 +94,15 @@
   --color-success: #7fbf8c;
   --color-error: #d9776f;
 
+  /* The ground behind the football glyph on the progress bar's tip. The
+     artwork is black-on-transparent, so this is what its panels actually
+     read as — it is the ball's own material, not UI chrome, which is why a
+     warm beige is allowed to sit outside the neutral ramp. Desaturated
+     enough that the saturated-means-interactive rule still holds. Nothing
+     else may use it; if a second raster mark needs a ground, that is the
+     point to generalise the name rather than borrow this one. */
+  --color-ball-face: #f6f5ed;
+
   /* --------------------------------------------------------------- glass */
   /* Translucent chrome fills. These are still the accent and the elevated
      surface — the same two tokens used everywhere else — just given
@@ -101,6 +110,11 @@
      content separates from it without a flat fill fighting the background. */
   --glass-chrome: color-mix(in srgb, var(--color-accent) 8%, transparent);
   --glass-chrome-hover: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  /* The neutral counterpart to --glass-chrome: a glass fill carrying no
+     accent at all. Used where a control's selected state is read by material
+     rather than by hue — currently only RoleToggle's sliding pill. Mixed from
+     --color-label rather than a raw white so it stays the app's one white. */
+  --glass-neutral: color-mix(in srgb, var(--color-label) 14%, transparent);
   --glass-hud: color-mix(in srgb, var(--color-elevated-background) 70%, transparent);
   --glass-panel: color-mix(in srgb, var(--color-elevated-background) 65%, transparent);
   /* Opaque stand-ins for @supports not (backdrop-filter: …). */
@@ -112,6 +126,15 @@
   --border-accent-subtle: color-mix(in srgb, var(--color-accent) 30%, transparent);
   --border-accent-strong: color-mix(in srgb, var(--color-accent) 55%, transparent);
 
+  /* The neutral sibling of --border-accent-subtle, for a glass fill that
+     carries no accent. Same "lit rather than drawn" reading, no hue. */
+  --border-neutral-subtle: color-mix(in srgb, var(--color-label) 15%, transparent);
+
+  /* The tint a cursor-following highlight paints at the pointer. Kept low
+     enough to read as the surface catching light, not as a spotlight. */
+  --glow-cursor: color-mix(in srgb, var(--color-label) 12%, transparent);
+
+  --blur-control: blur(8px);
   --blur-chrome: blur(12px);
   --blur-hud: blur(16px);
   --blur-panel: blur(20px);
@@ -137,6 +160,14 @@
   --glow-accent: 0 0 12px color-mix(in srgb, var(--color-accent) 20%, transparent);
   --glow-accent-lead: 0 0 8px color-mix(in srgb, var(--color-accent) 45%, transparent);
 
+  /* The third named shadow exception, and the only one that is genuinely
+     depth: a tight, tucked-under drop beneath a glass fill that is *sliding*
+     over its own track, so the moving element reads as a physical pane
+     travelling above the surface rather than as a repainted background.
+     Scoped to RoleToggle's pill alone. A static panel, card, button or
+     popover still gets a hairline and nothing else. */
+  --shadow-glass: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+
   /* --------------------------------------------------------------- space */
   /* 8pt grid with 4pt subdivisions. */
   --space-1: 4px;
@@ -160,6 +191,9 @@
   --radius-pill: 980px;
   --radius-panel: 18px;
   --radius-control: 12px;
+  /* The tightest step: a deliberate, barely-there rounding for a control
+     that should read as squared-off rather than as a capsule. */
+  --radius-subtle: 8px;
 
   /* -------------------------------------------------------------- motion */
   /* --duration-slow is the entrance duration. It is deliberately longer than
