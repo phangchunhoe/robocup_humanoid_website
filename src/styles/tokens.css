@@ -103,6 +103,31 @@
      point to generalise the name rather than borrow this one. */
   --color-ball-face: #f6f5ed;
 
+  /* --------------------------------------------------------------- field */
+  /* The input/control family: a text field and the controls attached to it.
+     Introduced for the source step's path input group, which is deliberately
+     an IDE-style field rather than a floating pill button — a read-only path
+     readout with a Browse control joined to its right edge.
+
+     These are one step bluer than the charcoal ramp above on purpose: a data
+     entry surface should read as recessed *into* the panel, where the ramp's
+     job is to raise surfaces off the canvas. They are still neutral — the
+     saturated-means-interactive rule holds, and none of them is the accent.
+     A field's interactive signal is its border, which climbs to the accent
+     on focus and to the deeper accent step once its value validates. */
+  --color-field-background: #1a222d;
+  --color-field-border: #2a364f;
+  /* The muted slate a field shows before it has a value. Dimmer than
+     --color-tertiary-label, because an empty field's placeholder must not
+     compete with the real values printed elsewhere on the same panel. */
+  --color-field-placeholder: #64748b;
+
+  /* The attached control (the Browse button): a raised step off the field it
+     joins, so the seam between them reads without a second hairline. */
+  --color-control-fill: #242e3e;
+  --color-control-fill-hover: #334155;
+  --color-control-border: #334155;
+
   /* --------------------------------------------------------------- glass */
   /* Translucent chrome fills. These are still the accent and the elevated
      surface — the same two tokens used everywhere else — just given
@@ -194,6 +219,11 @@
   /* The tightest step: a deliberate, barely-there rounding for a control
      that should read as squared-off rather than as a capsule. */
   --radius-subtle: 8px;
+  /* Tighter still, and the one step below --radius-subtle: the corner of a
+     text field or of a control joined to one. A field is the one place a
+     capsule actively misreads — it has to look like something you can put a
+     value into, and a rounded-off rectangle is what says that. */
+  --radius-field: 6px;
 
   /* -------------------------------------------------------------- motion */
   /* --duration-slow is the entrance duration. It is deliberately longer than

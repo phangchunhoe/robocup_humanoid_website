@@ -171,9 +171,9 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 /* The field is an atmospheric hero element, not content in a column: it sits
    directly on the canvas with no card, border, elevated surface, or shadow.
    It is FIXED rather than absolute — it holds its place against the right of
-   the viewport while the page scrolls under it, because the scroll is what
-   drives the shot (see --rs-kick below). Full viewport height, so the section
-   stays a single idea. */
+   the viewport while the page scrolls under it, so the shot stays in frame
+   for the whole of the workflow that advances it (see --rs-kick below). Full
+   viewport height, so the section stays a single idea. */
 .robot-simulator-page .rs-hero-field {
   position: fixed;
   top: 0;
@@ -182,9 +182,10 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
      column's right edge and the scrim — not a hard boundary — is what ends it. */
   width: min(54vw, 860px);
   height: 100vh;
-  /* Shot progress, 0 -> 1. HeroField.jsx writes it once per frame from scroll
-     position, for the parts of the shot that are pure styling (the ball and
-     the trajectory are positioned from the path itself, in JS). This
+  /* Shot progress, 0 -> 1. HeroField.jsx eases it toward one of two triggered
+     targets — 0.5 once the hero has entered, 1 on Load & Check — and writes it
+     out once per frame, for the parts of the shot that are pure styling (the
+     ball and the trajectory are positioned from the path itself, in JS). This
      declaration is the resting value if nothing ever writes one. */
   --rs-kick: 0;
   /* Purely decorative — never eat a click meant for the form beneath it. */
@@ -393,9 +394,8 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 .robot-simulator-page .rs-hint,
-.robot-simulator-page .rs-role-hint,
-.robot-simulator-page .rs-file-note,
-.robot-simulator-page .rs-empty {
+.robot-simulator-page .rs-source-note,
+.robot-simulator-page .rs-file-note {
   font-size: var(--text-caption);
   line-height: var(--line-height-base);
   color: var(--color-tertiary-label);
@@ -420,14 +420,19 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 /* One gap owns the rhythm inside the source section, so nothing — a button
-   least of all — ever ends up flush against the element above it. */
+   least of all — ever ends up flush against the element above it. It governs
+   exactly one boundary: the path field plus its meta line above, and the
+   scanned-file list (or the onboarding note that stands in for it) below.
+   Those are two separate ideas — "this is what is required" and "this is what
+   was found" — so the step here is wider than the rhythm inside either one,
+   and the found-file list stops reading as a continuation of the "expected
+   file … found" line directly above it. */
 .robot-simulator-page .rs-source-body {
   display: flex;
   flex-direction: column;
-  gap: var(--space-5);
+  gap: var(--space-8);
 }
 
-.robot-simulator-page .rs-folder-action-row,
 .robot-simulator-page .rs-run-row {
   display: flex;
   align-items: center;
@@ -439,6 +444,211 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+}
+
+/* ------------------------------------------------------- path input group */
+/* The source step states a directory the way a desktop tool does: a read-only
+   path field with its Browse control joined to the field's right edge, under
+   one shared border. Deliberately NOT the page's pill button language — a
+   capsule reads as "press me", and the primary thing on this row is the value
+   the field holds, not the action that changes it. It is the one control on
+   this route that takes --radius-field; everything else is still a pill or a
+   panel.
+
+   The two children sit inside the group's own hairline and are clipped to its
+   radius, so neither restates a corner of its own and the seam between them is
+   a single 1px edge rather than two adjacent borders. */
+/* The field and the line that describes it are one unit, so they sit tighter
+   than .rs-source-body's own rhythm — their own gap, never a margin on the
+   meta line. */
+.robot-simulator-page .rs-source-input {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.robot-simulator-page .rs-path-group {
+  display: flex;
+  align-items: stretch;
+  /* Joined, not spaced: the button is part of the field, so there is no gap
+     to own here. This is the one row on the page where "nothing sits flush"
+     does not apply, because flush is the affordance. */
+  gap: 0;
+  min-height: var(--tap-target-min);
+  border: 1px solid var(--color-field-border);
+  border-radius: var(--radius-field);
+  background: var(--color-field-background);
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+/* A field's interactive signal is its border. Focus climbs to the accent;
+   a folder whose expected file actually resolved settles on the accent's
+   deeper step, so "valid" reads as the same emerald one value down rather
+   than as a second status color. */
+.robot-simulator-page .rs-path-group:hover {
+  border-color: var(--color-control-border);
+}
+
+.robot-simulator-page .rs-path-group.is-valid {
+  border-color: var(--color-accent-hover);
+}
+
+/* Last, and deliberately so: these three selectors all weigh the same, so
+   source order is what decides them. Focus is the state the user is causing
+   right now, and it has to win over the resting valid border. */
+.robot-simulator-page .rs-path-group:focus-within {
+  border-color: var(--color-accent);
+  box-shadow: var(--glow-accent);
+}
+
+.robot-simulator-page .rs-path-field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* Grows into whatever the button leaves. min-width: 0 is what lets the
+     path itself ellipsise instead of forcing the group wider than its
+     column — a flex item's default min-width is its content. */
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+}
+
+.robot-simulator-page .rs-field-icon {
+  width: var(--space-4);
+  height: var(--space-4);
+  flex: none;
+  color: var(--color-secondary-label);
+}
+
+/* Mono, because a path is a technical value (CLAUDE.md → Typography). */
+.robot-simulator-page .rs-path-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-path-value.is-placeholder {
+  color: var(--color-field-placeholder);
+}
+
+/* The attached control: a step up in value off the field, separated from it
+   by a single hairline on one edge only. It carries no radius of its own —
+   the group's overflow: hidden rounds its outer corners and leaves the seam
+   square. */
+.robot-simulator-page .rs-browse-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex: none;
+  padding: var(--space-2) var(--space-4);
+  border: 0;
+  border-left: 1px solid var(--color-control-border);
+  border-radius: 0;
+  background: var(--color-control-fill);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--color-label);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out),
+    opacity var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-browse-btn:hover:not(:disabled) {
+  background: var(--color-control-fill-hover);
+}
+
+/* No transform nudge, unlike .btn — this one is inset in a field, and a
+   control that lifts out of its own group tears the seam open. The press
+   state is the deeper fill instead. */
+.robot-simulator-page .rs-browse-btn:active:not(:disabled) {
+  background: var(--color-control-border);
+}
+
+/* Inset, because the group clips its overflow: an outside ring would be cut
+   off along the joined edge. */
+.robot-simulator-page .rs-browse-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+
+.robot-simulator-page .rs-browse-btn:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------- inline meta / status */
+/* The requirement and the live status on one line under the field, replacing
+   the popover that used to hang off the old button. Mono throughout — both
+   halves are technical values, and the filename in each is the same string. */
+.robot-simulator-page .rs-source-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-mono);
+  /* Caption, not the 11px micro step: this line is read as a sentence, not
+     scanned as an instrument marking, and mono at 11px in sentence case is
+     genuinely hard work. It sits at the same size as the field above it and
+     takes its subordination from color instead. */
+  font-size: var(--text-caption);
+  line-height: var(--line-height-base);
+  color: var(--color-secondary-label);
+}
+
+.robot-simulator-page .rs-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.robot-simulator-page .rs-meta-value {
+  font-family: var(--font-mono);
+  color: var(--color-label);
+}
+
+.robot-simulator-page .rs-meta-sep {
+  color: var(--color-separator);
+}
+
+/* Status by color alone plus one dot — no badge chrome, per CLAUDE.md →
+   Components → Status indicators. The dot is the only mark, and it is the
+   same size as the 8pt step so it lines up with the gap beside it. */
+.robot-simulator-page .rs-status-dot {
+  width: var(--space-2);
+  height: var(--space-2);
+  flex: none;
+  border-radius: var(--radius-pill);
+  background: currentColor;
+  transition: background-color var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-meta-status {
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-meta-status.is-idle {
+  color: var(--color-field-placeholder);
+}
+
+.robot-simulator-page .rs-meta-status.is-success {
+  color: var(--color-success);
+}
+
+.robot-simulator-page .rs-meta-status.is-error {
+  color: var(--color-error);
 }
 
 /* ---------------------------------------------------------- file status */
@@ -528,17 +738,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   color: var(--color-on-accent);
 }
 
-/* The Choose folder button's icon: outline-only (stroke, no fill) and
-   noticeably larger than the 16px corner-control glyphs elsewhere on this
-   page, so it reads as the button's own visual anchor rather than a small
-   inline decoration. currentColor, so it inherits --color-on-accent on the
-   primary fill it sits on. */
-.robot-simulator-page .rs-btn-icon {
-  width: var(--space-6);
-  height: var(--space-6);
-  flex: none;
-}
-
 /* The two-stage primary button: framer-motion's `layout` prop (see
    RobotSimulator.jsx) animates the button's own box as its label's natural
    width changes, so `overflow: hidden` here is what keeps the outgoing
@@ -555,9 +754,9 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   white-space: nowrap;
 }
 
-/* Sized like an ordinary inline icon-with-text (16px), unlike the Choose
-   folder button's deliberately oversized anchor icon above — this one is a
-   supporting checkmark next to a label, not the control's own anchor. */
+/* Sized like an ordinary inline icon-with-text (16px), the same step as the
+   path group's field icons — a supporting checkmark next to a label, not the
+   control's own anchor. */
 .robot-simulator-page .rs-stage-btn-icon {
   width: var(--space-4);
   height: var(--space-4);
@@ -826,14 +1025,16 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 
   /* The field simply is where it lands — no slide, no fade. `animation: none`
      alone would leave it at the un-filled `from` state on some engines, so
-     the resting transform is restated explicitly. The shot is not scrubbed
-     either (HeroField.jsx never attaches the listener), so the frame held is
-     the one just before contact: ball at the striker's foot, net still. */
+     the resting transform is restated explicitly. The shot does not travel
+     either: HeroField.jsx jumps straight to each triggered target instead of
+     easing to it, so the ball is simply at the halfway mark on load and
+     simply in the goal after Load & Check. --rs-kick is written inline from
+     JS on both of those, which is why no resting value is declared here — one
+     stated here would be dead, and would misdescribe the ball's position. */
   .robot-simulator-page .rs-hero-field {
     animation: none;
     opacity: 1;
     transform: none;
-    --rs-kick: 0;
   }
 
   .robot-simulator-page .rs-diag-chevron {

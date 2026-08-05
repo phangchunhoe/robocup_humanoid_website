@@ -109,6 +109,33 @@ competes with it.
 | `--color-success` | `#7fbf8c` | Desaturated sage. Success/found status only |
 | `--color-error` | `#d9776f` | Warm-toned red. Error/missing status only |
 
+### The field family — one step bluer, and only for data entry
+
+Five tokens sit deliberately off the charcoal ramp, one notch toward slate.
+They exist for **input surfaces and the controls attached to them**, and
+nothing else may use them:
+
+| Token | Value | Role |
+|---|---|---|
+| `--color-field-background` | `#1a222d` | A text field's own ground |
+| `--color-field-border` | `#2a364f` | A field's resting hairline |
+| `--color-field-placeholder` | `#64748b` | A field with no value yet; also the idle status dot |
+| `--color-control-fill` | `#242e3e` | A control joined to a field (the `Browse…` button) |
+| `--color-control-fill-hover` | `#334155` | That control hovered |
+| `--color-control-border` | `#334155` | The seam between them, and a field's hover border |
+
+The reasoning, since these look like a second neutral ramp and nearly are:
+the charcoal ramp's job is to **raise** a surface off the canvas, and a field
+needs the opposite reading — recessed *into* the panel, something you put a
+value into. A slight cool shift does that where a third value step would
+just read as another panel. They are still neutral, so the
+saturated-means-interactive rule holds: a field's interactive signal is its
+**border** climbing to `--color-accent` on focus and to `--color-accent-hover`
+once its value validates, never a saturated fill.
+
+Don't extend this family for anything that isn't a field. If a new surface
+wants a slate tint for atmosphere, it wants `--color-elevated-background`.
+
 **Separation is by value, saturation is by role.** Canvas, panel, and hover
 surface are three distinct steps up the same neutral ramp — a panel must be
 visibly lighter than the canvas it sits on, so never flatten those steps or
@@ -311,14 +338,61 @@ There is no component library. Build from tokens, following Apple's patterns:
     hairline, `--color-accent` label, going to `--glass-chrome-hover` +
     `--border-accent-strong` + `--glow-accent` on hover.
   - A button may carry one leading icon when it needs a visual anchor rather
-    than being pure text — the landing step's `Choose folder…` is the
-    reference (`.rs-btn-icon` in `RobotSimulator.css`). It is always
-    **outline/stroke only, never filled** (same convention as the info `(i)`
-    icons), `currentColor` so it inherits the button's own ink, and sized
-    deliberately larger than the 16px corner-icon convention — 24px
-    (`--space-6`) — since on a button it *is* the anchor rather than a small
-    inline glyph. `.btn` carries `gap: var(--space-2)` for the icon/label
-    pair; this costs nothing on the many text-only buttons that don't use it.
+    than being pure text. Icons are always **outline/stroke only, never
+    filled** (same convention as the info `(i)` icons) and `currentColor` so
+    they inherit the button's own ink. They sit at the 16px corner-icon step
+    (`--space-4`) — the `Browse…` control in the path input group and the
+    stage button's `CircleCheck` are both this size. `.btn` carries
+    `gap: var(--space-2)` for the icon/label pair; this costs nothing on the
+    many text-only buttons that don't use it.
+
+    > An earlier version had one 24px exception (`.rs-btn-icon`, on a
+    > standalone `Choose folder…` primary button) on the argument that a
+    > lone button's icon *is* its anchor. That button is gone — it is the
+    > path input group now — and the exception went with it. Don't
+    > reintroduce a second icon size without a live case for it.
+- **Path input group** (`.rs-path-group`) — a read-only value field with the
+  control that changes it joined to its right edge under one shared border.
+  This is the pattern for **stating a setting whose value is a path or other
+  technical string**, and it is deliberately not the pill-button language: a
+  capsule reads as *press me*, where the primary thing on this row is the
+  value the field holds. The landing step's source section is the reference.
+  - **It is the one control on this route that takes `--radius-field`** (6px,
+    a step below `--radius-subtle`). Everything else is still a pill or a
+    panel — this is not a general move away from pills.
+  - The group owns the hairline and the radius; both children are clipped to
+    it by `overflow: hidden` and restate neither, so the seam between field
+    and button is a single 1px edge rather than two adjacent borders. The
+    attached button's focus ring is therefore **inset**
+    (`outline-offset: -2px`) — an outside ring would be clipped along the
+    joined edge.
+  - **`gap: 0` is correct here** and is the one place "nothing sits flush"
+    does not apply: flush *is* the affordance that says the button acts on
+    the field. Everything outside the group still spaces from a parent gap.
+  - The group is `min-height: var(--tap-target-min)` so the 44px rule is met
+    by the row while the field keeps its own `--space-2`/`--space-3` padding.
+  - **A field's interactive signal is its border**, not a fill: hover to
+    `--color-control-border`, focus to `--color-accent` + `--glow-accent`,
+    and a resting `.is-valid` to `--color-accent-hover` once the value
+    actually resolves. Those three selectors weigh the same, so focus is
+    ordered last on purpose — see the comment in `RobotSimulator.css`.
+  - The attached button takes **no transform nudge** on press, unlike `.btn`.
+    A control that lifts out of its own group tears the seam open; the
+    deeper fill is the press state instead.
+- **Inline meta line** (`.rs-source-meta`) — the line directly under a path
+  input group carrying its requirement and its live status on one row
+  (`Expected file: subtree_striker_play.xml · ● subtree_striker_play.xml
+  found`). Mono, `--text-caption`, with the status as a `--space-2` dot plus
+  short sentence-case text in `--color-field-placeholder` / `--color-success`
+  / `--color-error` — no badge chrome, exactly the plain status-indicator
+  rule. `aria-live="polite"`, since this line is the only announcement a
+  folder scan produces.
+
+  **This is the replacement for a floating hint popover, and that is the
+  point.** A requirement short enough to fit on one line costs the panel less
+  than the `InfoHint` control that would hide it does. Reach for `InfoHint`
+  only for genuinely long explanatory prose (the page intro, the config
+  note) — never for a single expected filename.
 - **Selected state** — a selected `SelectableCard` reads the same as an active
   segment: glass fill, accent hairline, glow. One treatment for "this is the
   chosen one", wherever it appears.
@@ -382,14 +456,17 @@ There is no component library. Build from tokens, following Apple's patterns:
   follows a pointer is motion — leaving the plain hover ink change as the
   affordance.
 - **Numbered workflow** — where a page is a sequence, say so in the panel
-  markings: `Step 1 · Role`, then `Step 2 · Source`. And **name modes with
-  nouns, actions with verbs**: the one button inside the source section says
-  what pressing it does (`Choose folder…`, becoming `Choose a different
-  folder…` once a scan has landed). An earlier version had an `Open folder`
-  segment sitting directly above a `Choose folder` button, and the pair read
-  as the same control twice — that segment (`Local folder` / `Pasted text`)
-  is gone now; local folder is the only source method, so there is nothing
-  left to switch between.
+  markings: `Step 1 · Role`, then `Step 2 · Source Directory`. And **name
+  modes with nouns, actions with verbs**: the one control inside the source
+  section says what pressing it does (`Browse…`, becoming `Scanning…` while
+  a scan is in flight). It no longer restates the loaded/not-loaded
+  distinction in its own label — the path field beside it holds the value, so
+  a button that also said `Choose a different folder…` would be saying it
+  twice. An earlier version had an `Open folder` segment sitting directly
+  above a `Choose folder` button, and that pair read as the same control
+  twice — that segment (`Local folder` / `Pasted text`) is gone now; local
+  folder is the only source method, so there is nothing left to switch
+  between.
 - **Merged step card** — where two numbered steps are small and always used
   together, they can share one `.rs-panel` rather than stack as two. The
   robot-simulator landing step's `.rs-setup-card` is the reference: role
@@ -534,28 +611,41 @@ There is no component library. Build from tokens, following Apple's patterns:
     trace and never as something clickable. The pitch markings, the striker
     and the ball stay fully neutral — a hero is not interactive, and
     saturation on this page still means *this responds to a pointer*.
-  - **A scroll-scrubbed hero holds its place.** It is `position: fixed` against
+  - **An animated hero holds its place.** It is `position: fixed` against
     the right of the viewport, so the page scrolls under it rather than past
-    it, and scroll position drives one custom property (`--rs-kick`, 0 → 1) that
-    the artwork reads. Keep the scrub to one property, written once per frame
-    from `requestAnimationFrame`. Geometry that two elements share — a
-    trajectory and the ball riding it — is authored once in the markup and
-    measured with `getTotalLength()`/`getPointAtLength()`, never restated in
-    CSS where the two copies can drift apart.
-  - **The scrub is eased, not pinned.** Scroll sets a *target*; the artwork
-    eases toward it and arrives a beat later. Pinning it frame-exactly to the
-    wheel is the same instant state swap that is banned on hover — it reads as
-    mechanical where the rest of the page reads as physical. Use an exponential
-    approach (each frame closes a fraction of the remaining gap): it eases out
-    for free, cannot overshoot, and behaves identically at any refresh rate.
+    it and the artwork stays in frame for the whole of the workflow that
+    advances it. Its motion is carried by one custom property (`--rs-kick`,
+    0 → 1) that the artwork reads — one property, written once per frame from
+    `requestAnimationFrame`. Geometry that two elements share — a trajectory
+    and the ball riding it — is authored once in the markup and measured with
+    `getTotalLength()`/`getPointAtLength()`, never restated in CSS where the
+    two copies can drift apart.
+  - **The hero's motion is triggered, not scrolled.** `--rs-kick` advances on
+    exactly two events, and nothing else moves it: the ball travels to the
+    **halfway** mark once the hero's own entrance animation has landed
+    (`animationend` on `.rs-hero-field`, so it is the tail of the existing
+    load sequence rather than a number invented in JS), and the rest of the
+    way into the goal on **Load & Check**. An earlier version scrubbed this
+    from scroll position; that is gone, and this page's hero no longer
+    listens to scroll at all. Two triggers, **one** target value — the `kick`
+    prop on `HeroField` — not a second parallel position.
+  - **The travel is eased, not switched.** A trigger sets a *target*; the
+    artwork eases toward it and arrives a beat later. Jumping to it is the
+    same instant state swap that is banned on hover — it reads as mechanical
+    where the rest of the page reads as physical. Use an exponential approach
+    (each frame closes a fraction of the remaining gap): it eases out for
+    free, cannot overshoot, and behaves identically at any refresh rate.
     Take the time constant from the duration tokens rather than inventing a
     number in JS — `--duration-base`, read once with `getComputedStyle`. Clamp
-    the frame delta, since a backgrounded tab hands back one enormous one. This
-    is `src/lib/useScrollScrub.js`, not a one-off in `HeroField.jsx` — the
-    simulate step's physics drawer is the second call site; extend the shared
-    hook for a third rather than re-deriving this loop again.
-  - Under `prefers-reduced-motion`, a scrub is motion too: hold a still frame
-    (the moment before contact) instead of following the scroll.
+    the frame delta, since a backgrounded tab hands back one enormous one.
+    This lives in `src/lib/easedApproach.js`, not a one-off in
+    `HeroField.jsx` — `useScrollScrub` (the simulate step's physics drawer)
+    is built on the same engine, and only *what sets the target* differs
+    between the two. Extend that file for a third rather than re-deriving
+    this loop again.
+  - Under `prefers-reduced-motion`, this travel is motion too: jump straight
+    to each triggered target instead of easing to it (ball simply at the
+    halfway mark on load, simply in the goal after Load & Check).
   - A raster hero instead **bleeds off the viewport edge** — anchored top-right,
     running past the right edge, clipped by `overflow-x: clip` on the page
     container. Use `clip`, not `hidden`: `hidden` makes the page a scroll
@@ -630,20 +720,23 @@ attention-seeking.
 - **Scroll-scrubbed elements are the one exception**, and only on a view that
   already scrolls. A scrub is *scrubbed*, not triggered: it tracks scroll
   position continuously in both directions, has no threshold, and never
-  animates on its own. Exactly one such element per *view* — the landing/edit
-  step's hero shot and the simulate step's physics drawer are each the only
-  scrub in their own view, and the two views are mutually exclusive (this
-  route never mounts both at once), so this still holds one-at-a-time even
-  though both live under `#/robot-simulator`. A scrub is decorative or purely
+  animates on its own. Exactly one such element per *view*, and there is
+  currently exactly one on this route: the simulate step's physics drawer.
+  (The landing step's hero shot used to be the second — it is trigger-driven
+  now, on page entrance and Load & Check; see Components → Hero artwork. That
+  step no longer responds to scroll at all.) A scrub is decorative or purely
   supplementary chrome, never the only way to reach required content, and
   scrolling back up must return it exactly to where it started.
-- **A scrub eases toward scroll, it does not track it frame-exact.** Scroll
-  sets a target; the value approaches it (exponential approach — each frame
-  closes a fraction of the remaining gap) rather than snapping straight to
-  it, so it trails the wheel by a beat the same way a hover state transitions
-  instead of swapping instantly. Take the time constant from `--duration-base`
-  via `getComputedStyle`, read once, not a number invented in JS. Both current
-  scrubs share one implementation, `src/lib/useScrollScrub.js` — extend that
+- **An eased value approaches its target, it does not track it frame-exact.**
+  Whatever sets the target — scroll for the drawer, a state change for the
+  hero — the value approaches it (exponential approach: each frame closes a
+  fraction of the remaining gap) rather than snapping straight to it, so it
+  trails its input by a beat the same way a hover state transitions instead
+  of swapping instantly. Take the time constant from `--duration-base` via
+  `getComputedStyle`, read once, not a number invented in JS. **One
+  implementation**, `src/lib/easedApproach.js`: `createApproach` is the loop,
+  `useEasedApproach` drives it from React state (the hero) and
+  `useScrollScrub` drives it from scroll (the drawer). Extend that file
   rather than writing a third copy of the easing loop.
 - **A scrub's origin is scroll position zero, so the view it lives on must
   start there.** React does not reset scroll on a state change the way a
@@ -665,8 +758,9 @@ attention-seeking.
   `.rs-physics-drawer`), and set that class in the initial markup too so the
   first paint is correct rather than only the first scrub frame.
 - Always honor `prefers-reduced-motion: reduce` by disabling animation —
-  including a scrub, which holds a still resting frame instead (the moment
-  before the hero's shot connects; the physics drawer closed). **Known gap:**
+  including a scrub, which holds a still resting frame instead (the physics
+  drawer closed), and the hero's shot, which jumps straight to each triggered
+  target rather than travelling to it. **Known gap:**
   because the drawer holds closed *and* is now correctly inert, reduced-motion
   users have no route to the physics sliders at all. That is not a regression
   in reach — they were previously invisible but still tabbable, which was its
@@ -679,8 +773,10 @@ Duration tokens: `--duration-fast` (150ms), `--duration-base` (300ms),
 ### Spring-based controls — a second, named motion system
 
 Everything above is one motion system: CSS `transition`/`animation` on
-`--duration-*`/`--ease-*`, plus the rAF/exponential-approach scrub in
-`useScrollScrub.js` for the two scroll-driven elements. `framer-motion` (a
+`--duration-*`/`--ease-*`, plus the rAF/exponential-approach engine in
+`easedApproach.js` for the two elements whose motion is driven from JS (the
+scroll-driven physics drawer and the trigger-driven hero shot).
+`framer-motion` (a
 real dependency, see `package.json`) is a **second, separate** motion
 system, and it is scoped narrowly rather than left to spread — a page
 should not have to guess which of two systems a given piece of motion
@@ -900,7 +996,9 @@ block at the top of its section in `RobotSimulator.css` (not the shared
 Components built for this route and available for reuse (`src/components/`):
 `SegmentedControl`, `SelectableCard`, `StatusIndicator`, `Notice`,
 `ProgressBar`, `InfoHint`. The simulate step also introduced
-`src/lib/useScrollScrub.js`, shared with the landing hero field — see Motion.
+`src/lib/easedApproach.js` — the shared rAF/exponential-approach loop, driven
+from scroll by `useScrollScrub.js` for this step's physics drawer and from
+state by `useEasedApproach` for the landing hero's shot. See Motion.
 
 **Not yet migrated**, still on legacy bespoke styling:
 

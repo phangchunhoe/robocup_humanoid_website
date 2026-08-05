@@ -29,6 +29,16 @@ const STORAGE_KEY = "robot-simulator-source-v1";
 // this step, so the bar's own visible max while still on this page is 2/3.
 const PROGRESS_STOPS = ["Setup", "Checks", "Simulation"];
 
+// Where the hero's ball is headed along its trajectory. Two triggers move it
+// and nothing else does: the page entrance carries it to the halfway mark
+// (HeroField holds it at the start of the path until its own slide-in has
+// landed, so the travel is actually watchable), and Load & Check finishes the
+// shot into the goal. Going back via Edit setup deliberately does not rewind
+// it — the shot is the payoff for having loaded a folder, not a readout of
+// which stage the card is showing.
+const HERO_KICK_ENTERED = 0.5;
+const HERO_KICK_CHECKED = 1;
+
 const ROLES = [
   { id: "striker", label: "Striker", xml: "subtree_striker_play.xml" },
   { id: "goal_keeper", label: "Goalkeeper", xml: "subtree_goal_keeper_play.xml" },
@@ -103,6 +113,7 @@ export default function RobotSimulator() {
   const [runtimeError, setRuntimeError] = useState(null);
   const [folderScan, setFolderScan] = useState(null);
   const [folderBusy, setFolderBusy] = useState(false);
+  const [heroKick, setHeroKick] = useState(HERO_KICK_ENTERED);
 
   const svgRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -157,7 +168,12 @@ export default function RobotSimulator() {
       }
     }
     setSources((prev) => ({ ...prev, ...nextSources }));
-    setFolderScan({ results });
+    // The browser never hands out an absolute path — webkitRelativePath is
+    // relative to the directory the user picked, so its first segment is the
+    // only name we have for that directory. That name is what the path field
+    // prints; there is nothing truer available to show.
+    const root = files.length ? files[0].relPath.split("/")[0] : "";
+    setFolderScan({ results, root });
     setFolderBusy(false);
   }, []);
 
@@ -185,7 +201,9 @@ export default function RobotSimulator() {
     const match = findFolderMatch(folderFilesRef.current, relPath);
     const applyResult = (result) => {
       setFolderScan((prev) =>
-        prev ? { results: prev.results.map((r) => (r.tabId === "xml" ? result : r)) } : prev
+        prev
+          ? { ...prev, results: prev.results.map((r) => (r.tabId === "xml" ? result : r)) }
+          : prev
       );
     };
     if (!match) {
@@ -332,6 +350,9 @@ export default function RobotSimulator() {
   const handleLoadAndCheck = () => {
     parseNow(role, sources);
     setStage("checks");
+    // Second and last trigger for the hero shot: the ball finishes its run
+    // into the goal as the card swaps over to the checks summary.
+    setHeroKick(HERO_KICK_CHECKED);
   };
 
   const handleEditSetup = () => setStage("setup");
@@ -488,7 +509,7 @@ export default function RobotSimulator() {
             that distinction matters here. */}
         {step === "edit" ? (
           <div className="rs-hero-clip" aria-hidden="true">
-            <HeroField />
+            <HeroField kick={heroKick} />
           </div>
         ) : null}
 
@@ -561,15 +582,37 @@ export default function RobotSimulator() {
 
 /* ------------------------------------------------------------------ step 1 */
 
-// Outline-only, and deliberately larger than the corner icons elsewhere on
-// this page (24px vs. their 16px) — this is the button's one visual anchor,
-// not an inline glyph, so it needs to read as a deliberate choice rather
-// than shrink to match a smaller convention that does not apply here.
-function FolderIcon() {
+// Outline-only (stroke, no fill), currentColor, and sized by the caller's
+// class — both of these are inline glyphs at the 16px corner-icon step now
+// that the source step is a field rather than a button with an anchor icon.
+// The closed folder marks the field; the open one marks the action that
+// opens it.
+function FolderIcon({ className }) {
   return (
-    <svg className="rs-btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
       <path
         d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6c.4 0 .77.16 1.06.44L11.6 6.8c.28.28.66.44 1.06.44h6.84A1.5 1.5 0 0 1 21 8.75v9.75A1.5 1.5 0 0 1 19.5 20h-15A1.5 1.5 0 0 1 3 18.5v-12Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function FolderOpenIcon({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M3 18.5v-12A1.5 1.5 0 0 1 4.5 5h4.6c.4 0 .77.16 1.06.44L11.6 6.8c.28.28.66.44 1.06.44h4.84A1.5 1.5 0 0 1 19 8.75v1.25"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M3.2 18.9 5.6 11.7A1.5 1.5 0 0 1 7.02 10.7h13.3a1 1 0 0 1 .95 1.32l-2.1 6.3a1.5 1.5 0 0 1-1.43 1.03H4.63A1.5 1.5 0 0 1 3.2 18.9Z"
         fill="none"
         stroke="currentColor"
         strokeWidth="1.6"
@@ -591,6 +634,24 @@ function EditorStep(props) {
   // bar visibly climbs while this page is still on screen.
   const progressValue = stage === "setup" ? 1 : 2;
   const progressHint = stage === "setup" ? "SETUP" : canRun ? "READY" : "CHECKING";
+
+  // The path field's value, and the one status line under it. A directory
+  // picked in a browser has no absolute path (see scanFolder), so the value
+  // is the picked directory's own name with a trailing slash — enough to say
+  // *which* folder is loaded, which is all this readout claims to do.
+  const folderPath = folderScan && folderScan.root ? `${folderScan.root}/` : "";
+  // The status tracks the role's XML specifically: it is the one file that
+  // changes with the role, so it is the one the expected-file line names.
+  const xmlResult = folderScan
+    ? folderScan.results.find((r) => r.tabId === "xml")
+    : null;
+  const sourceStatus = folderBusy
+    ? { tone: "idle", text: "Scanning folder…" }
+    : !folderScan
+      ? { tone: "idle", text: "No path loaded" }
+      : xmlResult && xmlResult.found
+        ? { tone: "success", text: `${roleMeta.xml} found` }
+        : { tone: "error", text: `${roleMeta.xml} missing` };
   const reduceMotion = useReducedMotion();
   // Ready is its own key, not just "checks" — the checkmark appearing is
   // itself a small transition worth crossfading, not just the setup/checks
@@ -628,42 +689,75 @@ function EditorStep(props) {
                 value={role}
                 onChange={setRole}
               />
-              <span className="rs-role-hint">
-                Expects <code className="rs-mono">{roleMeta.xml}</code>
-              </span>
-
-              <span className="rs-panel-label">Step 2 · Source</span>
+              <span className="rs-panel-label">Step 2 · Source Directory</span>
               <div className="rs-source-body">
-                <div className="rs-folder-action-row">
-                  {/* Local folder is the only source method now — the
-                      segment that used to switch to a pasted-text mode is
-                      gone, so this is the one action in the section. */}
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    disabled={folderBusy}
-                    onClick={() => folderInputRef.current && folderInputRef.current.click()}
+                {/* Local folder is the only source method now, so this is not
+                    a floating "choose…" button any more — it is a path field
+                    with its Browse control joined to its right edge, the way
+                    a desktop tool states a directory setting: the value is
+                    the primary thing on the row, and the button that changes
+                    it is attached to it rather than standing on its own. The
+                    field is genuinely read-only — the browser's directory
+                    picker is the only way to hand a folder to a page, so a
+                    typed path could never be honoured. */}
+                {/* The field and its meta line are one unit and sit tighter
+                    together than .rs-source-body's own rhythm allows, so
+                    they get their own gap here rather than a margin on the
+                    meta line. */}
+                <div className="rs-source-input">
+                  <div
+                    className={`rs-path-group${
+                      sourceStatus.tone === "success" ? " is-valid" : ""
+                    }`}
                   >
-                    <FolderIcon />
-                    {folderBusy
-                      ? "Scanning…"
-                      : folderScan
-                        ? "Choose a different folder…"
-                        : "Choose folder…"}
-                  </button>
-                  <InfoHint
-                    label="About opening a folder"
-                    text="Select your Robocup-Humanoid- checkout, or its src/brain folder. The files below are matched by relative path."
-                  />
-                  <input
-                    ref={folderInputRef}
-                    type="file"
-                    webkitdirectory=""
-                    directory=""
-                    multiple
-                    hidden
-                    onChange={onFolderInputChange}
-                  />
+                    <div className="rs-path-field">
+                      <FolderIcon className="rs-field-icon" />
+                      <span
+                        className={`rs-path-value${folderScan ? "" : " is-placeholder"}`}
+                        title={folderPath || undefined}
+                      >
+                        {folderPath || "No folder selected…"}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="rs-browse-btn"
+                      disabled={folderBusy}
+                      onClick={() => folderInputRef.current && folderInputRef.current.click()}
+                    >
+                      <FolderOpenIcon className="rs-field-icon" />
+                      {folderBusy ? "Scanning…" : "Browse…"}
+                    </button>
+                    <input
+                      ref={folderInputRef}
+                      type="file"
+                      webkitdirectory=""
+                      directory=""
+                      multiple
+                      hidden
+                      onChange={onFolderInputChange}
+                    />
+                  </div>
+
+                  {/* What used to be a floating InfoHint popover next to the
+                      button. The requirement is one short line, and a line
+                      that short costs less on the panel than the control that
+                      would hide it does — so it is printed inline, under the
+                      field it constrains, with the live status on the same
+                      row. aria-live, because the status half of this row is
+                      the only announcement a scan produces. */}
+                  <p className="rs-source-meta" aria-live="polite">
+                    <span className="rs-meta-item">
+                      Expected file: <code className="rs-mono rs-meta-value">{roleMeta.xml}</code>
+                    </span>
+                    <span className="rs-meta-sep" aria-hidden="true">
+                      •
+                    </span>
+                    <span className={`rs-meta-item rs-meta-status is-${sourceStatus.tone}`}>
+                      <span className="rs-status-dot" aria-hidden="true" />
+                      {sourceStatus.text}
+                    </span>
+                  </p>
                 </div>
 
                 {folderScan ? (
@@ -687,7 +781,15 @@ function EditorStep(props) {
                     ))}
                   </ul>
                 ) : (
-                  <p className="rs-empty">Nothing loaded yet.</p>
+                  /* Which folder to point at — the other half of the old
+                     popover. Only while nothing is loaded: it is onboarding
+                     guidance, and once a scan has landed the file list below
+                     answers the same question with real paths. */
+                  <p className="rs-source-note">
+                    Select your <code className="rs-mono">Robocup-Humanoid-</code> checkout, or
+                    its <code className="rs-mono">src/brain</code> folder. Files are matched by
+                    relative path.
+                  </p>
                 )}
               </div>
             </>

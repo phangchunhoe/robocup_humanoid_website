@@ -14,7 +14,7 @@
 /* Same instrument-marking treatment as every other panel/section label. It
    stays left-aligned even though the track below it is centred — this is the
    numbered-workflow marking ("Step 1 · Role") and has to line up with
-   "Step 2 · Source" further down the same card. */
+   "Step 2 · Source Directory" further down the same card. */
 .role-toggle-legend {
   padding: 0;
   margin-bottom: var(--space-3);

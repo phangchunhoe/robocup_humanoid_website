@@ -4,8 +4,8 @@
  * Decorative atmosphere, not content — it is aria-hidden and never takes a
  * pointer event. It replaces the product-image hero, so it follows the same
  * rules (sits on the canvas, no card/border/shadow, enters last) with one
- * addition: it is fixed to the right of the viewport and the shot is scrubbed
- * by page scroll, so the ball travels into the goal as the page moves under it.
+ * addition: it is fixed to the right of the viewport, and the shot advances
+ * with the page's own workflow rather than with the scrollbar.
  *
  * Geometry is drawn at the simulator's own scale — 60 px/m, +x toward the
  * opponent goal — but the viewBox shows only the attacking third, from just
@@ -15,17 +15,21 @@
  *
  * The ball is placed by measuring the trajectory path itself rather than by
  * repeating its curve in CSS, so the two can never disagree about where the
- * ball is. Scroll does not place it directly — useScrollScrub (src/lib) eases
- * a target toward the ball, so the shot trails the wheel instead of being
- * pinned to it. That eased value is also published as --rs-kick (0 -> 1) on
- * the container, for the parts of the shot that are pure styling; see
+ * ball is. The `kick` prop is the only thing that says where along that path
+ * the ball is headed (0 -> 1): the page sends it to the halfway mark once the
+ * hero has finished entering, and the rest of the way on Load & Check. It is
+ * a target, not a position — useEasedApproach (src/lib/easedApproach.js) eases
+ * the ball toward it on the same exponential curve the simulate step's physics
+ * drawer uses, so a state change reads as the ball being struck rather than
+ * teleporting. That eased value is also published as --rs-kick on the
+ * container, for the parts of the shot that are pure styling; see
  * RobotSimulator.css.
  */
 
-import { useRef } from "react";
-import { useScrollScrub } from "../lib/useScrollScrub.js";
+import { useEffect, useRef, useState } from "react";
+import { useEasedApproach, prefersReducedMotion } from "../lib/easedApproach.js";
 
-export default function HeroField() {
+export default function HeroField({ kick = 0 }) {
   const rootRef = useRef(null);
   const pathRef = useRef(null);
   const ballRef = useRef(null);
@@ -34,12 +38,27 @@ export default function HeroField() {
   // lazy read: the first frame after it comes back picks the real value up.
   const lengthRef = useRef(0);
 
-  const getTarget = () => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return 0;
-    const range = document.documentElement.scrollHeight - window.innerHeight;
-    if (range <= 0) return 0;
-    return Math.min(1, Math.max(0, window.scrollY / range));
-  };
+  // The shot holds at the start of its path until the hero has finished
+  // sliding in from off the right edge (--duration-slow, 320ms behind the
+  // form — see the entrance section of RobotSimulator.css). Without this the
+  // ball would run its whole first leg while the field is still mostly
+  // off-screen, and the page would land with it already at the halfway mark.
+  // Reduced motion has no entrance to wait for, so it starts armed.
+  //
+  // This is a gate, not a second position: `kick` is still the one target.
+  const [entered, setEntered] = useState(() => prefersReducedMotion());
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (entered || !root) return undefined;
+    const done = () => setEntered(true);
+    // The field carries exactly one animation (rs-hero-media-in), so any
+    // animationend here is that entrance finishing. Below 900px it is
+    // display:none and never runs — nothing is on screen to wait for, and
+    // the animation restarts if the viewport ever widens back past it.
+    root.addEventListener("animationend", done, { once: true });
+    return () => root.removeEventListener("animationend", done);
+  }, [entered]);
 
   const onFrame = (progress) => {
     const root = rootRef.current;
@@ -60,7 +79,7 @@ export default function HeroField() {
     root.style.setProperty("--rs-kick", progress.toFixed(4));
   };
 
-  useScrollScrub(rootRef, getTarget, onFrame);
+  useEasedApproach(rootRef, entered ? kick : 0, onFrame);
 
   return (
     <div className="rs-hero-field" ref={rootRef} aria-hidden="true">

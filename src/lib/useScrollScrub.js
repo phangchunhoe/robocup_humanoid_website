@@ -1,14 +1,16 @@
-// Shared scroll-scrub engine: eases a progress value toward a scroll-derived
-// target using an exponential approach, rather than pinning it frame-exact to
-// the wheel. See CLAUDE.md's Motion section — a scrub reads as physical only
-// if it trails the input by a beat, the same way hover/press states
-// transition instead of swapping instantly.
+// Scroll-scrub: eases a progress value toward a scroll-derived target rather
+// than pinning it frame-exact to the wheel. See CLAUDE.md's Motion section —
+// a scrub reads as physical only if it trails the input by a beat, the same
+// way hover/press states transition instead of swapping instantly.
 //
-// Two call sites share this: the landing page's hero shot (HeroField.jsx)
-// and the simulator's physics drawer (RobotSimulator.jsx). Keep both on this
-// one implementation rather than letting the algorithm drift between them.
+// One call site: the simulator's physics drawer (RobotSimulator.jsx). The
+// landing hero's shot used to share this; it is trigger-driven now (page
+// entrance, then Load & Check) and takes the same easing through
+// useEasedApproach instead. Both still run on the one engine in
+// easedApproach.js — only what sets the target differs.
 
 import { useEffect, useRef } from "react";
+import { createApproach, readTau } from "./easedApproach.js";
 
 /**
  * @param {React.RefObject<Element>} tauRef - element to read --duration-base
@@ -34,50 +36,21 @@ export function useScrollScrub(tauRef, getTarget, onFrame, enabled = true) {
     const tauEl = tauRef.current;
     if (!enabled || !tauEl) return undefined;
 
-    const tauRaw = window.getComputedStyle(tauEl).getPropertyValue("--duration-base");
-    const parsed = parseFloat(tauRaw);
-    const tau = Number.isFinite(parsed) && parsed > 0
-      ? (tauRaw.trim().endsWith("ms") ? parsed : parsed * 1000)
-      : 300;
-
-    let shown = getTargetRef.current();
-    let target = shown;
-    let frame = 0;
-    let previous = 0;
-
-    const tick = (now) => {
-      // Exponential approach: the step is a fraction of the remaining gap, so
-      // it eases out on its own, never overshoots, and behaves the same at any
-      // refresh rate. Clamped because a backgrounded tab hands back one huge
-      // delta, which would otherwise snap the value across its whole range.
-      const elapsed = previous ? Math.min(now - previous, 100) : 0;
-      previous = now;
-      shown += (target - shown) * (1 - Math.exp(-elapsed / tau));
-      // It approaches without ever arriving; cut it off below a sub-pixel gap
-      // so the loop can actually stop.
-      if (Math.abs(target - shown) < 0.0005) shown = target;
-      onFrameRef.current(shown);
-      if (shown === target) {
-        frame = 0;
-        previous = 0;
-      } else {
-        frame = window.requestAnimationFrame(tick);
-      }
-    };
+    const approach = createApproach({
+      tau: readTau(tauEl),
+      initial: getTargetRef.current(),
+      onFrame: (value) => onFrameRef.current(value),
+    });
 
     // Scroll fires far more often than the display refreshes, so it only ever
-    // moves the target — tick() is what writes out a value, once a frame and
-    // only while there is a gap left to close.
-    const schedule = () => {
-      target = getTargetRef.current();
-      if (!frame) frame = window.requestAnimationFrame(tick);
-    };
+    // moves the target — the engine's own loop writes a value out, once a
+    // frame and only while there is a gap left to close.
+    const schedule = () => approach.setTarget(getTargetRef.current());
 
-    onFrameRef.current(shown);
     window.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     return () => {
-      if (frame) window.cancelAnimationFrame(frame);
+      approach.stop();
       window.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
     };
