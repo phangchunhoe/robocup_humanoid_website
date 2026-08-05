@@ -8,6 +8,19 @@
 const PLUMBING = new Set(["ID", "name", "_while", "_skipIf", "_onSuccess", "_onFailure", "_post", "_autoremap"]);
 
 /**
+ * BehaviorTree.CPP's own XML reader (TinyXML2) tolerates a bare "&&" inside guard
+ * expressions like `_while="a && b"`, even though strict XML requires "&" to start a
+ * real entity reference. That makes it valid input on the robot but not to DOMParser,
+ * which is used below only to surface *other* syntax errors. Escape stray ampersands
+ * before handing the text to DOMParser so this known-benign pattern stops being
+ * reported as a parse error; a real entity reference (&amp; &lt; &gt; &apos; &quot; or
+ * &#123;) passes through untouched, and any other malformed XML still gets flagged.
+ */
+function escapeStrayAmpersands(text) {
+  return text.replace(/&(?!amp;|lt;|gt;|apos;|quot;|#\d+;|#x[0-9a-fA-F]+;)/g, "&amp;");
+}
+
+/**
  * Decision values named in a `_while` guard, e.g. _while="decision == 'cross'" -> ["cross"].
  * Used to tell sibling instances of the same node apart.
  */
@@ -46,7 +59,7 @@ export function parseBehaviorXml(xmlText) {
   let error = null;
   if (typeof DOMParser !== "undefined") {
     try {
-      const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+      const doc = new DOMParser().parseFromString(escapeStrayAmpersands(xmlText), "application/xml");
       const bad = doc.querySelector && doc.querySelector("parsererror");
       if (bad) error = (bad.textContent || "malformed XML").trim().split("\n")[0];
     } catch (err) {

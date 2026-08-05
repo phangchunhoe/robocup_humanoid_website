@@ -394,7 +394,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 .robot-simulator-page .rs-hint,
-.robot-simulator-page .rs-source-note,
 .robot-simulator-page .rs-file-note {
   font-size: var(--text-caption);
   line-height: var(--line-height-base);
@@ -588,9 +587,9 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 /* ---------------------------------------------------- inline meta / status */
-/* The requirement and the live status on one line under the field, replacing
-   the popover that used to hang off the old button. Mono throughout — both
-   halves are technical values, and the filename in each is the same string. */
+/* The scan's roll-up status on one line under the field, replacing the
+   popover that used to hang off the old button — the file list right below
+   names every file individually, so this line only has to say clean or not. */
 .robot-simulator-page .rs-source-meta {
   display: flex;
   align-items: center;
@@ -605,22 +604,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   font-size: var(--text-caption);
   line-height: var(--line-height-base);
   color: var(--color-secondary-label);
-}
-
-.robot-simulator-page .rs-meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.robot-simulator-page .rs-meta-value {
-  font-family: var(--font-mono);
-  color: var(--color-label);
-}
-
-.robot-simulator-page .rs-meta-sep {
-  color: var(--color-separator);
 }
 
 /* Status by color alone plus one dot — no badge chrome, per CLAUDE.md →
@@ -793,6 +776,14 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 .robot-simulator-page .btn-secondary:active:not(:disabled) {
   color: var(--color-accent-hover);
   border-color: var(--border-accent-strong);
+}
+
+/* The checks summary's way back is a wayfinding control, not an action
+   competing for the pill language every other button on this route uses —
+   squared off to --radius-subtle, the same shape step RoleToggle takes for
+   the same reason, so it reads as "return" rather than "press me". */
+.robot-simulator-page .rs-checks-back-btn {
+  border-radius: var(--radius-subtle);
 }
 
 /* ------------------------------------------------------------- selftest */
@@ -1186,6 +1177,21 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   .robot-simulator-page .rs-run-spacer {
     display: none;
   }
+
+  /* The 3x2 slider grid only has the width to work above this breakpoint —
+     stacked back to one column here, so the drawer reverts to the taller,
+     narrower shape that fits the sub-900px field. Unlike the desktop drawer,
+     this one scrolls internally past a cap: the field itself is short here
+     (aspect-ratio 3/2, no longer the full viewport), so there usually isn't
+     room to draw seven stacked rows out in full the way there is on desktop. */
+  .robot-simulator-page .rs-physics-drawer {
+    width: min(420px, calc(100% - var(--space-12)));
+    max-height: min(56%, 460px);
+    overflow-y: auto;
+  }
+  .robot-simulator-page .rs-slider-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* -------------------------------------------------------- field + legend */
@@ -1378,7 +1384,18 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
    the top so it can never compete with the physics drawer, which only ever
    occupies the bottom centre (see rs-physics-drawer), and held clear of the
    HUD column on the right. Glass, because it is chrome sitting on the live
-   field — the same reason the stats card and the drawer are. */
+   field — the same reason the stats card and the drawer are.
+
+   Collapsed to a single icon at rest — the corner-icon-button footprint,
+   `--tap-target-min` square — and expands to the full key on hover/focus.
+   `border-radius` stays `--radius-pill` in both states rather than switching
+   to `50%`: a pill radius that large still resolves to a full circle on a
+   square box, so the shape is one token, collapsed or expanded. Driven by
+   `max-width` rather than `width`: with the content's own natural width
+   uncapped, the box can only ever grow to `min(max-width, content width)`,
+   so animating the cap between the icon's width and the panel's ceiling
+   grows the pill smoothly and settles exactly at the content's real size
+   without ever needing to know that size up front. */
 .robot-simulator-page .rs-legend {
   position: absolute;
   top: var(--space-6);
@@ -1386,20 +1403,81 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
      plus its own 44px target plus a gap. Derived from those tokens rather
      than a measured number, so moving the button moves the legend with it. */
   left: calc(var(--space-6) + var(--tap-target-min) + var(--space-4));
-  right: calc(var(--rs-hud-reserve) + var(--space-4));
   z-index: 2;
   display: flex;
-  gap: var(--space-4);
-  flex-wrap: wrap;
   align-items: center;
   /* Matches the back control's height so the two sit on one optical line
      across the top of the field rather than one riding higher than the
-     other. A floor, not a fixed height — it still grows if the note wraps. */
-  min-height: var(--tap-target-min);
-  padding: var(--space-2) var(--space-4);
+     other, in both the collapsed and expanded states. */
+  height: var(--tap-target-min);
+  max-width: var(--tap-target-min);
+  overflow: hidden;
   border-radius: var(--radius-pill);
   font-size: var(--text-caption);
   color: var(--color-tertiary-label);
+  cursor: default;
+  transition: max-width var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+/* Same hover language as the corner icon buttons: accent border plus glow.
+   :focus-within has no interactive descendant to trigger it (the content is
+   plain text), so the container itself is the tabbable element — see the
+   tabIndex in RobotSimulator.jsx — and :focus-visible is what keyboard users
+   land on. */
+.robot-simulator-page .rs-legend:hover,
+.robot-simulator-page .rs-legend:focus-visible {
+  max-width: calc(100% - var(--rs-hud-reserve) - var(--space-8) - var(--tap-target-min));
+  border-color: var(--border-accent-strong);
+  box-shadow: var(--glow-accent);
+}
+
+.robot-simulator-page .rs-legend:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.robot-simulator-page .rs-legend-icon {
+  flex: 0 0 var(--tap-target-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  color: var(--color-secondary-label);
+  transition: color var(--duration-base) var(--ease-out);
+}
+.robot-simulator-page .rs-legend:hover .rs-legend-icon,
+.robot-simulator-page .rs-legend:focus-visible .rs-legend-icon {
+  color: var(--color-accent);
+}
+.robot-simulator-page .rs-legend-icon svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+/* The tags themselves — aria-hidden in the markup, since the container's own
+   aria-label already carries this for assistive tech. Kept mounted rather
+   than conditionally rendered purely so opacity/transform have something to
+   animate on hover/focus. */
+.robot-simulator-page .rs-legend-content {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  padding-right: var(--space-4);
+  opacity: 0;
+  transform: translateX(-4px);
+  transition: opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+}
+.robot-simulator-page .rs-legend:hover .rs-legend-content,
+.robot-simulator-page .rs-legend:focus-visible .rs-legend-content {
+  opacity: 1;
+  transform: translateX(0);
 }
 
 .robot-simulator-page .rs-legend-swatch {
@@ -1415,9 +1493,12 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 .robot-simulator-page .rs-legend-swatch--kick { background: var(--decision-kick); }
 .robot-simulator-page .rs-legend-swatch--idle { background: var(--decision-idle); }
 
-.robot-simulator-page .rs-legend-note {
-  margin-left: auto;
-  color: var(--color-tertiary-label);
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page .rs-legend,
+  .robot-simulator-page .rs-legend-icon,
+  .robot-simulator-page .rs-legend-content {
+    transition: none;
+  }
 }
 
 /* ------------------------------------------------------------------ glass */
@@ -1473,13 +1554,14 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
      off the right before halving. Same single source of truth every other
      piece of field chrome insets by. */
   left: calc((100% - var(--rs-hud-reserve)) / 2);
-  /* Wide enough for a slider and its label, never wider than the pitch area
-     minus a clear margin on both sides — it must not reach the field's
-     edges. Container dimensions, the allowed carve-out. */
-  width: min(420px, calc(100% - var(--rs-hud-reserve) - var(--space-12)));
-  /* Scrolls internally past this rather than growing toward the top edge;
-     see the scrollbar rules further down. */
-  max-height: min(56%, 460px);
+  /* Wide enough to lay its six sliders out 3 across, never wider than the
+     pitch area minus a clear margin on both sides — it must not reach the
+     field's edges. Container dimensions, the allowed carve-out. */
+  width: min(1100px, calc(100% - var(--rs-hud-reserve) - var(--space-12)));
+  /* No height cap here — the field has the room, so the drawer draws out to
+     its full content height instead of scrolling internally. It still can't
+     grow past the field's own edges: rs-field-panel clips with
+     overflow: hidden. */
   /* Rounded on all four corners now — it is a nested floating panel, not a
      tray docked to an edge. Same radius as the stats card. */
   border-radius: var(--radius-panel);
@@ -1487,7 +1569,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
-  overflow-y: auto;
   z-index: 2;
   /* Reveal is scale + fade + a slight rise, replacing the old full-width
      slide — a small card sliding its own height reads as a jump, where
@@ -1512,6 +1593,17 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   pointer-events: none;
 }
 
+
+/* The six physics sliders, 3 across x 2 down rather than stacked in one tall
+   column — trades the drawer's height for width. RNG seed stays outside this
+   grid, as its own full-width row below: it's a number entry, not a slider,
+   and its note is long enough to need the full row's width. */
+.robot-simulator-page .rs-slider-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  column-gap: var(--space-6);
+  row-gap: var(--space-4);
+}
 
 .robot-simulator-page .rs-slider {
   display: flex;

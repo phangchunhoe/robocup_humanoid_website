@@ -108,7 +108,7 @@
   background: var(--color-accent);
   transform-origin: left center;
   transform: scaleX(var(--progress-ratio, 0));
-  transition: transform var(--duration-base) var(--ease-out);
+  transition: transform var(--duration-slowest) var(--ease-out);
 }
 
 /* Full-track width, slid left so its right edge lands exactly on the head of
@@ -120,8 +120,8 @@
   inset: 0;
   pointer-events: none;
   transform: translateX(calc((var(--progress-ratio, 0) - 1) * 100%));
-  transition: transform var(--duration-base) var(--ease-out),
-    opacity var(--duration-base) var(--ease-out);
+  transition: transform var(--duration-slowest) var(--ease-out),
+    opacity var(--duration-slowest) var(--ease-out);
 }
 
 /* The tick itself: a short solid bar, brighter than the fill it leads, with
@@ -154,7 +154,7 @@
   inset: 0;
   pointer-events: none;
   transform: translateX(calc(var(--progress-ratio, 0) * 100%));
-  transition: transform var(--duration-base) var(--ease-out);
+  transition: transform var(--duration-slowest) var(--ease-out);
 }
 
 /* The glyph itself is fixed-size and centered on the wrapper's translated

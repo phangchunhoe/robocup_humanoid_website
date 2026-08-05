@@ -57,6 +57,32 @@ export default function RoleToggle({ options, value, onChange, legend }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, options.length]);
 
+  // Space Grotesk is self-hosted with font-display: swap (see CLAUDE.md ->
+  // Typography), so the segments can render their labels in the fallback
+  // face first and reflow once the real font lands. getBoundingClientRect
+  // above only ever captures whatever is laid out *right now* — if that
+  // measurement happens before the swap, the pill is sized to the fallback
+  // font's metrics and stays stranded there until the next selection change
+  // triggers the effect above. document.fonts.ready re-measures once the
+  // swap has actually landed. measureRef holds the latest closure (bound to
+  // the current `value`) since this effect only runs once, on mount, but
+  // must still call whatever measure is current by the time the promise
+  // resolves.
+  const measureRef = useRef(measure);
+  useEffect(() => {
+    measureRef.current = measure;
+  });
+  useEffect(() => {
+    if (typeof document === "undefined" || !document.fonts) return undefined;
+    let cancelled = false;
+    document.fonts.ready.then(() => {
+      if (!cancelled) measureRef.current();
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // The cursor-following hover highlight. Writing the pointer position to two
   // custom properties on the segment itself keeps this off React's render
   // path — a mousemove-driven setState would re-render the whole toggle on

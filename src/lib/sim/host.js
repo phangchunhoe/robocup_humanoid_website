@@ -289,6 +289,7 @@ export class SimHost {
     if (role) {
       this.role = role;
       this.blackboard.player_role = role;
+      this.data.chaseScore.role = role;
     }
     this.simTime = 0;
     this.command = { vx: 0, vy: 0, vtheta: 0 };
@@ -350,8 +351,14 @@ export class SimHost {
 
       // ChaseScoreBreakdown (brain_data.h:186). Only used for logging in the nodes the
       // simulator runs; the defaults are the struct's own, so the log lines read sanely.
+      // `role` is the one exception: updateCostToKick() (brain.cpp) is what normally
+      // assigns it from player_role each tick, and it isn't part of the paste contract
+      // (only brain_tree.cpp is interpreted), so it never runs here. Since that assignment
+      // is a straight passthrough of player_role, we can mirror it correctly without
+      // running the rest of the (unmodeled) scoring math -- see reset() below, which keeps
+      // this in sync if the role changes without rebuilding the host.
       chaseScore: {
-        role: "striker",
+        role: self.role,
         score: 100.0,
         distanceScore: 1.0,
         timeScore: 1.0,

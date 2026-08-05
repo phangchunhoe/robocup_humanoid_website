@@ -231,6 +231,11 @@
   --duration-fast: 150ms;
   --duration-base: 300ms;
   --duration-slow: 1000ms;
+  /* Slower than the cinematic page-load duration: for a value settling into
+     a new position after a deliberate, infrequent action (the progress
+     bar's fill/lead/ball advancing a step), where lingering a beat reads as
+     weight rather than lag. */
+  --duration-slowest: 1600ms;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 }

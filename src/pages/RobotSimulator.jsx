@@ -22,26 +22,29 @@ import HeroField from "./HeroField.jsx";
 import { useScrollScrub } from "../lib/useScrollScrub.js";
 import "./RobotSimulator.css";
 
-const STORAGE_KEY = "robot-simulator-source-v1";
+// v2: sources.xml became { [roleId]: text } — both roles' behaviour trees are
+// extracted on scan now instead of just the selected role's, so switching
+// role no longer waits on a re-read. Bumped so a v1 cache (a bare string)
+// cannot be read back into the new shape.
+const STORAGE_KEY = "robot-simulator-source-v2";
 
 // The progress bar's 3 stops: pick a role/folder, validate what was found,
 // hand off to the simulation. "Simulation" is only ever reached by leaving
 // this step, so the bar's own visible max while still on this page is 2/3.
 const PROGRESS_STOPS = ["Setup", "Checks", "Simulation"];
 
-// Where the hero's ball is headed along its trajectory. Two triggers move it
-// and nothing else does: the page entrance carries it to the halfway mark
-// (HeroField holds it at the start of the path until its own slide-in has
-// landed, so the travel is actually watchable), and Load & Check finishes the
-// shot into the goal. Going back via Edit setup deliberately does not rewind
-// it — the shot is the payoff for having loaded a folder, not a readout of
+// Where the hero's ball is headed along its trajectory. The page entrance
+// carries it to the halfway mark (HeroField holds it at the start of the
+// path until its own slide-in has landed, so the travel is actually
+// watchable), Load & Check finishes the shot into the goal, and going back
+// via Edit setup retreats it to the halfway mark again — the ball tracks
 // which stage the card is showing.
 const HERO_KICK_ENTERED = 0.5;
 const HERO_KICK_CHECKED = 1;
 
 const ROLES = [
-  { id: "striker", label: "Striker", xml: "subtree_striker_play.xml" },
-  { id: "goal_keeper", label: "Goalkeeper", xml: "subtree_goal_keeper_play.xml" },
+  { id: "striker", label: "Striker" },
+  { id: "goal_keeper", label: "Goalkeeper" },
 ];
 
 const INITIAL_PLACEMENT = {
@@ -100,8 +103,11 @@ export default function RobotSimulator() {
   // `step` is which page renders, `stage` is where the edit page itself is.
   const [stage, setStage] = useState("setup");
   const [role, setRole] = useState((stored && stored.role) || "striker");
+  // xml is keyed by role — both the striker and goalkeeper behaviour trees
+  // are read out of the folder on scan, not just the one the role toggle
+  // currently points at.
   const [sources, setSources] = useState(
-    (stored && stored.sources) || { cpp: "", xml: "", header: "" }
+    (stored && stored.sources) || { cpp: "", xml: { striker: "", goal_keeper: "" }, header: "" }
   );
   const [report, setReport] = useState(null);
   const [buildError, setBuildError] = useState(null);
@@ -117,7 +123,6 @@ export default function RobotSimulator() {
 
   const svgRef = useRef(null);
   const folderInputRef = useRef(null);
-  const folderFilesRef = useRef(null);
   const rendererRef = useRef(null);
   const engineRef = useRef(null);
   const worldRef = useRef(null);
@@ -149,12 +154,19 @@ export default function RobotSimulator() {
 
   // ------------------------------------------------------------- folder open
 
-  const scanFolder = useCallback(async (files, roleId) => {
+  // Both roles' behaviour trees are read out of the folder in one pass —
+  // the XML is the only file that differs per role (subtree_striker_play.xml
+  // vs. subtree_goal_keeper_play.xml), so extracting both up front means the
+  // role toggle can switch instantly afterwards with no re-read, and the
+  // simulation always runs the role selected at that instant rather than
+  // whichever one happened to be loaded last.
+  const scanFolder = useCallback(async (files) => {
     setFolderBusy(true);
     const results = [];
-    const nextSources = {};
+    const nextSources = { xml: {} };
     for (const t of TABS) {
-      const relPath = expectedRelPath(t.id, roleId);
+      if (t.id === "xml") continue;
+      const relPath = expectedRelPath(t.id);
       const match = findFolderMatch(files, relPath);
       if (!match) {
         results.push({ tabId: t.id, path: relPath, found: false });
@@ -167,7 +179,21 @@ export default function RobotSimulator() {
         results.push({ tabId: t.id, path: relPath, found: false, error: String((err && err.message) || err) });
       }
     }
-    setSources((prev) => ({ ...prev, ...nextSources }));
+    for (const r of ROLES) {
+      const relPath = expectedRelPath("xml", r.id);
+      const match = findFolderMatch(files, relPath);
+      if (!match) {
+        results.push({ tabId: "xml", roleId: r.id, path: relPath, found: false });
+        continue;
+      }
+      try {
+        nextSources.xml[r.id] = await match.file.text();
+        results.push({ tabId: "xml", roleId: r.id, path: relPath, found: true, matchedPath: match.relPath });
+      } catch (err) {
+        results.push({ tabId: "xml", roleId: r.id, path: relPath, found: false, error: String((err && err.message) || err) });
+      }
+    }
+    setSources((prev) => ({ ...prev, ...nextSources, xml: { ...prev.xml, ...nextSources.xml } }));
     // The browser never hands out an absolute path — webkitRelativePath is
     // relative to the directory the user picked, so its first segment is the
     // only name we have for that directory. That name is what the path field
@@ -188,38 +214,8 @@ export default function RobotSimulator() {
       file,
     }));
     evt.target.value = "";
-    folderFilesRef.current = files;
-    scanFolder(files, role);
+    scanFolder(files);
   };
-
-  // The XML file is role-specific (subtree_striker_play.xml vs. subtree_goal_keeper_play.xml),
-  // so switching role after a folder is already loaded re-matches just that one tab rather
-  // than re-reading everything and clobbering any manual edits made to the C++ or header tabs.
-  useEffect(() => {
-    if (!folderFilesRef.current) return;
-    const relPath = expectedRelPath("xml", role);
-    const match = findFolderMatch(folderFilesRef.current, relPath);
-    const applyResult = (result) => {
-      setFolderScan((prev) =>
-        prev
-          ? { ...prev, results: prev.results.map((r) => (r.tabId === "xml" ? result : r)) }
-          : prev
-      );
-    };
-    if (!match) {
-      applyResult({ tabId: "xml", path: relPath, found: false });
-      return;
-    }
-    match.file.text().then(
-      (text) => {
-        setSources((prev) => ({ ...prev, xml: text }));
-        applyResult({ tabId: "xml", path: relPath, found: true, matchedPath: match.relPath });
-      },
-      (err) => {
-        applyResult({ tabId: "xml", path: relPath, found: false, error: String((err && err.message) || err) });
-      }
-    );
-  }, [role]);
 
   // Persist the paste so a reload does not lose it.
   useEffect(() => {
@@ -241,7 +237,7 @@ export default function RobotSimulator() {
       try {
         const result = buildProgram({
           cppText: nextSources.cpp,
-          xmlText: nextSources.xml,
+          xmlText: (nextSources.xml && nextSources.xml[nextRole]) || "",
           headerText: nextSources.header,
           role: nextRole,
         });
@@ -256,9 +252,11 @@ export default function RobotSimulator() {
     [role, sources]
   );
 
-  // Re-parse once the folder scan settles.
+  // Re-parse once the folder scan settles, or the role toggle picks a
+  // different one of the two already-cached XML trees.
   useEffect(() => {
-    if (!sources.cpp.trim() && !sources.xml.trim()) {
+    const xmlText = (sources.xml && sources.xml[role]) || "";
+    if (!sources.cpp.trim() && !xmlText.trim()) {
       setReport(null);
       return undefined;
     }
@@ -355,7 +353,13 @@ export default function RobotSimulator() {
     setHeroKick(HERO_KICK_CHECKED);
   };
 
-  const handleEditSetup = () => setStage("setup");
+  // Going back undoes the second trigger: the shot retreats to the halfway
+  // mark it held after the entrance, rather than staying parked in the goal
+  // while the form it was a payoff for is back on screen.
+  const handleEditSetup = () => {
+    setStage("setup");
+    setHeroKick(HERO_KICK_ENTERED);
+  };
 
   const handleRun = () => {
     const result = parseNow(role, sources);
@@ -640,18 +644,16 @@ function EditorStep(props) {
   // is the picked directory's own name with a trailing slash — enough to say
   // *which* folder is loaded, which is all this readout claims to do.
   const folderPath = folderScan && folderScan.root ? `${folderScan.root}/` : "";
-  // The status tracks the role's XML specifically: it is the one file that
-  // changes with the role, so it is the one the expected-file line names.
-  const xmlResult = folderScan
-    ? folderScan.results.find((r) => r.tabId === "xml")
-    : null;
+  // No single "expected file" any more — both roles' XML are extracted on
+  // scan and every result (cpp, header, both XML trees) is listed below, so
+  // this line only has to say whether the scan as a whole came back clean.
   const sourceStatus = folderBusy
     ? { tone: "idle", text: "Scanning folder…" }
     : !folderScan
       ? { tone: "idle", text: "No path loaded" }
-      : xmlResult && xmlResult.found
-        ? { tone: "success", text: `${roleMeta.xml} found` }
-        : { tone: "error", text: `${roleMeta.xml} missing` };
+      : folderScan.results.every((r) => r.found)
+        ? { tone: "success", text: "All files found" }
+        : { tone: "error", text: "Some files missing" };
   const reduceMotion = useReducedMotion();
   // Ready is its own key, not just "checks" — the checkmark appearing is
   // itself a small transition worth crossfading, not just the setup/checks
@@ -739,36 +741,33 @@ function EditorStep(props) {
                     />
                   </div>
 
-                  {/* What used to be a floating InfoHint popover next to the
-                      button. The requirement is one short line, and a line
-                      that short costs less on the panel than the control that
-                      would hide it does — so it is printed inline, under the
-                      field it constrains, with the live status on the same
-                      row. aria-live, because the status half of this row is
-                      the only announcement a scan produces. */}
-                  <p className="rs-source-meta" aria-live="polite">
-                    <span className="rs-meta-item">
-                      Expected file: <code className="rs-mono rs-meta-value">{roleMeta.xml}</code>
-                    </span>
-                    <span className="rs-meta-sep" aria-hidden="true">
-                      •
-                    </span>
-                    <span className={`rs-meta-item rs-meta-status is-${sourceStatus.tone}`}>
-                      <span className="rs-status-dot" aria-hidden="true" />
-                      {sourceStatus.text}
-                    </span>
+                  {/* No named "expected file" any more — the list below
+                      names every file itself, both roles' XML included — so
+                      this line is just the roll-up: clean scan or not.
+                      aria-live, because it is the only announcement a scan
+                      produces. */}
+                  <p className={`rs-source-meta rs-meta-status is-${sourceStatus.tone}`} aria-live="polite">
+                    <span className="rs-status-dot" aria-hidden="true" />
+                    {sourceStatus.text}
                   </p>
                 </div>
 
                 {folderScan ? (
                   <ul className="rs-file-list">
+                    {/* Both roles' XML are extracted on scan (see
+                        scanFolder), and both are listed here — not just the
+                        one the role toggle currently points at — so loading
+                        a folder once shows everything it found. */}
                     {folderScan.results.map((r) => (
-                      <li key={r.tabId} className="rs-file-row">
+                      <li
+                        key={r.roleId ? `${r.tabId}-${r.roleId}` : r.tabId}
+                        className="rs-file-row"
+                      >
                         <code className="rs-mono rs-file-path">{r.path}</code>
                         <StatusIndicator
                           tone={r.found ? "success" : "error"}
                           label={r.found ? "Found" : "Missing"}
-                          animateKey={`${r.tabId}-${r.found}`}
+                          animateKey={`${r.tabId}-${r.roleId || ""}-${r.found}`}
                         />
                         {!r.found ? (
                           <span className="rs-file-note">
@@ -780,25 +779,19 @@ function EditorStep(props) {
                       </li>
                     ))}
                   </ul>
-                ) : (
-                  /* Which folder to point at — the other half of the old
-                     popover. Only while nothing is loaded: it is onboarding
-                     guidance, and once a scan has landed the file list below
-                     answers the same question with real paths. */
-                  <p className="rs-source-note">
-                    Select your <code className="rs-mono">Robocup-Humanoid-</code> checkout, or
-                    its <code className="rs-mono">src/brain</code> folder. Files are matched by
-                    relative path.
-                  </p>
-                )}
+                ) : null}
               </div>
             </>
           ) : (
             <div className="rs-checks-summary">
               <div className="rs-checks-header">
                 <span className="rs-panel-label">Checks</span>
-                <button type="button" className="btn btn-secondary" onClick={onEditSetup}>
-                  Edit setup
+                <button
+                  type="button"
+                  className="btn btn-secondary rs-checks-back-btn"
+                  onClick={onEditSetup}
+                >
+                  Back
                 </button>
               </div>
               {buildError ? (
@@ -1160,6 +1153,31 @@ function BackIcon() {
   );
 }
 
+/* Same 16px grid and 1.3 stroke as BackIcon/FlipIcon — a stack of two layers,
+   read as "key/legend" rather than "info", since this is a fixed set of
+   categorical tags rather than explanatory prose (that's InfoHint's job). */
+function LegendIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <path
+        d="M8 2.5L14 5.75L8 9L2 5.75Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M2.5 8.5L8 11.5L13.5 8.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 function ChevronIcon() {
   return (
     <svg className="rs-diag-chevron" viewBox="0 0 12 12" aria-hidden="true" focusable="false">
@@ -1269,42 +1287,56 @@ function SimStep(props) {
 
           {/* Overlaid on the field rather than occupying its own row below —
               a hard-edged, full-height field has no spare row left for it,
-              and top-left keeps it clear of the physics drawer's bottom 40%. */}
-          <div className="rs-legend rs-hud">
-            <span><i className="rs-legend-swatch rs-legend-swatch--chase" /> chase</span>
-            <span><i className="rs-legend-swatch rs-legend-swatch--adjust" /> adjust</span>
-            <span><i className="rs-legend-swatch rs-legend-swatch--kick" /> kick</span>
-            <span><i className="rs-legend-swatch rs-legend-swatch--idle" /> not simulated</span>
-            <span className="rs-legend-note">
-              Drag the ball, the robot, or the heading handle to set up a scenario. Scroll to
-              reveal physics.
+              and top-left keeps it clear of the physics drawer's bottom 40%.
+              Collapsed to the icon alone at rest so it costs the field almost
+              nothing; hover or keyboard focus (the div is tabbable) expands
+              it to the full key. The container's own aria-label carries the
+              full set of tags regardless of hover state, so the tags
+              themselves are aria-hidden — they're kept mounted only for the
+              opacity/transform reveal, not as a second route to the same
+              information. */}
+          <div
+            className="rs-legend rs-hud"
+            tabIndex={0}
+            aria-label="Decision legend: chase, adjust, kick, not simulated"
+          >
+            <span className="rs-legend-icon" aria-hidden="true">
+              <LegendIcon />
             </span>
+            <div className="rs-legend-content" aria-hidden="true">
+              <span><i className="rs-legend-swatch rs-legend-swatch--chase" /> chase</span>
+              <span><i className="rs-legend-swatch rs-legend-swatch--adjust" /> adjust</span>
+              <span><i className="rs-legend-swatch rs-legend-swatch--kick" /> kick</span>
+              <span><i className="rs-legend-swatch rs-legend-swatch--idle" /> not simulated</span>
+            </div>
           </div>
 
           {/* is-hidden from the first paint, not just from the first scrub
               frame — the class is what makes it inert while closed. */}
           <div ref={drawerRef} className="rs-physics-drawer rs-glass is-hidden">
             <span className="rs-physics-drawer-label">Physics</span>
-            {SLIDERS.map((s) => (
-              <label key={s.key} className="rs-slider">
-                <span className="rs-slider-label">
-                  {s.label}
-                  <em>
-                    {Number(physics[s.key]).toFixed(s.step < 0.05 ? 2 : s.step < 1 ? 2 : 1)}
-                    {s.unit}
-                  </em>
-                </span>
-                <input
-                  type="range"
-                  min={s.min}
-                  max={s.max}
-                  step={s.step}
-                  value={physics[s.key]}
-                  onChange={(e) => setPhysics({ ...physics, [s.key]: Number(e.target.value) })}
-                />
-                <span className="rs-slider-note">{s.note}</span>
-              </label>
-            ))}
+            <div className="rs-slider-grid">
+              {SLIDERS.map((s) => (
+                <label key={s.key} className="rs-slider">
+                  <span className="rs-slider-label">
+                    {s.label}
+                    <em>
+                      {Number(physics[s.key]).toFixed(s.step < 0.05 ? 2 : s.step < 1 ? 2 : 1)}
+                      {s.unit}
+                    </em>
+                  </span>
+                  <input
+                    type="range"
+                    min={s.min}
+                    max={s.max}
+                    step={s.step}
+                    value={physics[s.key]}
+                    onChange={(e) => setPhysics({ ...physics, [s.key]: Number(e.target.value) })}
+                  />
+                  <span className="rs-slider-note">{s.note}</span>
+                </label>
+              ))}
+            </div>
             <label className="rs-slider">
               <span className="rs-slider-label">
                 RNG seed<em>{physics.seed}</em>
