@@ -9,6 +9,7 @@ import ProgressBar from "../components/ProgressBar.jsx";
 import Notice from "../components/Notice.jsx";
 import GlassButton, { GlassButtonFilter } from "../components/GlassButton.jsx";
 import GlassSlider from "../components/GlassSlider.jsx";
+import ViewTabs from "../components/ViewTabs.jsx";
 import { SPRING_UI, SPRING_MAGNETIC, SPRING_CLICK } from "../lib/motionSpring.js";
 import { applyMagneticPull } from "../lib/magneticPull.js";
 import { TABS, INTRO, CONFIG_NOTE, expectedRelPath } from "../content/simulatorPasteGuide.js";
@@ -1121,6 +1122,15 @@ const SPEED_SEGMENTS = [
   { id: "2", label: "2×" },
 ];
 
+// The console's own view switch, below the playback cluster. "single" is the
+// only one with real content right now — see the placeholder swap around
+// .rs-run-console below.
+const CONSOLE_VIEWS = [
+  { id: "single", label: "Single Robot" },
+  { id: "multi", label: "Multi Robot" },
+  { id: "reports", label: "Test Reports" },
+];
+
 // A single stroked cycle icon for the stats-card toggle — flips between the
 // two faces, so it reads as "swap" rather than picking from a menu.
 function FlipIcon() {
@@ -1282,6 +1292,7 @@ function SimStep(props) {
   } = props;
 
   const [speedId, setSpeedId] = useState("1");
+  const [consoleView, setConsoleView] = useState("single");
   const [statsFace, setStatsFace] = useState("telemetry");
   const [logAlertOpen, setLogAlertOpen] = useState(false);
   const drawerRef = useRef(null);
@@ -1540,80 +1551,112 @@ function SimStep(props) {
             />
           </div>
 
-          <aside className="rs-run-console rs-hud">
-            <span className="rs-role-label">{roleMeta.label}</span>
+          {/* The console's own view switch, physically attached to the panel
+              it controls — see CLAUDE.md -> Components -> Boxed tab bar.
+              .rs-console-group is the one deliberate zero-gap pairing here:
+              ViewTabs and the console sit flush, no gap, so the active tab
+              reads as punching through the panel's own top edge rather than
+              floating above it as a separate control. Only "Single Robot"
+              has real content; the other two are placeholders until
+              multi-robot simulation and test reporting exist (see
+              .rs-console-face below — both stay mounted and cross-fade
+              rather than swapping in and out, since the Single Robot face
+              carries the refs the simulation frame loop paints into). */}
+          <div className="rs-console-group">
+            <ViewTabs
+              tabs={CONSOLE_VIEWS}
+              value={consoleView}
+              onChange={setConsoleView}
+              ariaLabel="Console view"
+            />
 
-            {/* Not .rs-glass: this sits inside the HUD, which has already
-                blurred the field behind it — a second backdrop-filter would
-                blur an already-blurred backdrop. Its own translucent tint is
-                enough to read as raised against the HUD's surface. */}
-            <div className="rs-stats-card">
-              <button
-                type="button"
-                className="rs-stats-toggle"
-                onClick={() => setStatsFace((f) => (f === "telemetry" ? "log" : "telemetry"))}
-                aria-label={statsFace === "telemetry" ? "Show brain log" : "Show telemetry"}
-              >
-                <FlipIcon />
-              </button>
+            <aside className="rs-run-console rs-hud">
+            <div className={`rs-console-face${consoleView === "single" ? " is-active" : ""}`}>
+              <span className="rs-role-label">{roleMeta.label}</span>
 
-              {/* Both faces stay mounted at all times — paintReadout/paintNotes/
-                  drainLogs write into readoutRef/detailRef/notesRef/logRef on
-                  every simulation frame, and unmounting either face would break
-                  those refs. The toggle only changes which is on top. */}
-              <div className={`rs-stats-face${statsFace === "telemetry" ? " is-active" : ""}`}>
-                <div ref={readoutRef} className="rs-stats-readout" />
-                <details className="rs-diag-details">
-                  <summary>
-                    More detail
-                    <ChevronIcon />
-                  </summary>
-                  <div className="rs-diag-full">
-                    <table ref={detailRef} className="rs-stats-detail-table" />
-                    <div ref={notesRef} className="rs-run-notes" />
-                  </div>
-                </details>
-              </div>
+              {/* Not .rs-glass: this sits inside the HUD, which has already
+                  blurred the field behind it — a second backdrop-filter would
+                  blur an already-blurred backdrop. Its own translucent tint is
+                  enough to read as raised against the HUD's surface. */}
+              <div className="rs-stats-card">
+                <button
+                  type="button"
+                  className="rs-stats-toggle"
+                  onClick={() => setStatsFace((f) => (f === "telemetry" ? "log" : "telemetry"))}
+                  aria-label={statsFace === "telemetry" ? "Show brain log" : "Show telemetry"}
+                >
+                  <FlipIcon />
+                </button>
 
-              <div className={`rs-stats-face${statsFace === "log" ? " is-active" : ""}`}>
-                <div className="rs-log-stream-wrap">
-                  <pre ref={logRef} className="rs-log-stream" />
-                  {logAlertOpen ? (
-                    <div className="rs-log-alert-detail">
-                      <Notice
-                        tone={runtimeError ? "error" : "muted"}
-                        title={runtimeError ? "Execution stopped" : "Cannot keep real time"}
-                      >
-                        {runtimeError ? (
-                          <>
-                            {runtimeError.message} The robot is halted. Fix the pasted code or the
-                            missing symbol, then Run again.
-                          </>
-                        ) : (
-                          <>
-                            The interpreted tick is taking longer than 10&nbsp;ms. Frames are being
-                            dropped; lower the speed multiplier for an accurate trace.
-                          </>
-                        )}
-                      </Notice>
+                {/* Both faces stay mounted at all times — paintReadout/paintNotes/
+                    drainLogs write into readoutRef/detailRef/notesRef/logRef on
+                    every simulation frame, and unmounting either face would break
+                    those refs. The toggle only changes which is on top. */}
+                <div className={`rs-stats-face${statsFace === "telemetry" ? " is-active" : ""}`}>
+                  <div ref={readoutRef} className="rs-stats-readout" />
+                  <details className="rs-diag-details">
+                    <summary>
+                      More detail
+                      <ChevronIcon />
+                    </summary>
+                    <div className="rs-diag-full">
+                      <table ref={detailRef} className="rs-stats-detail-table" />
+                      <div ref={notesRef} className="rs-run-notes" />
                     </div>
+                  </details>
+                </div>
+
+                <div className={`rs-stats-face${statsFace === "log" ? " is-active" : ""}`}>
+                  <div className="rs-log-stream-wrap">
+                    <pre ref={logRef} className="rs-log-stream" />
+                    {logAlertOpen ? (
+                      <div className="rs-log-alert-detail">
+                        <Notice
+                          tone={runtimeError ? "error" : "muted"}
+                          title={runtimeError ? "Execution stopped" : "Cannot keep real time"}
+                        >
+                          {runtimeError ? (
+                            <>
+                              {runtimeError.message} The robot is halted. Fix the pasted code or the
+                              missing symbol, then Run again.
+                            </>
+                          ) : (
+                            <>
+                              The interpreted tick is taking longer than 10&nbsp;ms. Frames are being
+                              dropped; lower the speed multiplier for an accurate trace.
+                            </>
+                          )}
+                        </Notice>
+                      </div>
+                    ) : null}
+                  </div>
+                  {runtimeError || overrun ? (
+                    <button
+                      type="button"
+                      className="rs-log-alert"
+                      onClick={() => setLogAlertOpen((v) => !v)}
+                    >
+                      <StatusIndicator
+                        tone={runtimeError ? "error" : "muted"}
+                        label={runtimeError ? "Execution stopped — tap for detail" : "Frames dropped — tap for detail"}
+                      />
+                    </button>
                   ) : null}
                 </div>
-                {runtimeError || overrun ? (
-                  <button
-                    type="button"
-                    className="rs-log-alert"
-                    onClick={() => setLogAlertOpen((v) => !v)}
-                  >
-                    <StatusIndicator
-                      tone={runtimeError ? "error" : "muted"}
-                      label={runtimeError ? "Execution stopped — tap for detail" : "Frames dropped — tap for detail"}
-                    />
-                  </button>
-                ) : null}
               </div>
             </div>
-          </aside>
+
+            <div className={`rs-console-face${consoleView !== "single" ? " is-active" : ""}`}>
+              <div className="rs-console-placeholder">
+                <Notice tone="muted" title="Coming soon">
+                  {consoleView === "multi"
+                    ? "Multi-robot simulation isn't built yet — this tab will host coordinated multi-robot runs."
+                    : "Test reports aren't built yet — this tab will hold recorded run history and pass/fail summaries."}
+                </Notice>
+              </div>
+            </div>
+            </aside>
+          </div>
         </div>
       </div>
 

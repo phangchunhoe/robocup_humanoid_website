@@ -2,8 +2,10 @@ import "./SegmentedControl.css";
 
 /**
  * Apple-style segmented control: pill-shaped track, one accent-filled active
- * segment. Used wherever a view or mode is switched (see CLAUDE.md) — this is
- * the project's tab pattern; there is no underlined tab bar.
+ * segment. Used wherever a view or mode is switched (see CLAUDE.md). For a
+ * boxed, top-rounded tab bar instead of a pill — the run console's own view
+ * switch — see `ViewTabs`, which shares this component's keyboard contract
+ * and active-segment glass treatment on a different track shape.
  *
  * Implements the WAI-ARIA tabs keyboard contract (arrow keys move and select,
  * Home/End jump to the ends) so it behaves like a real tablist, not a row of

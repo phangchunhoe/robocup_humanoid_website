@@ -83,27 +83,58 @@
    rules above can reach it. Scoped with :has() to the run step rather than
    declared globally, because a global takeover would hand the unmigrated
    light-themed pages a dark scrollbar (CLAUDE.md → Core discipline). On a
-   browser without :has() the root scrollbar simply stays native. */
-html:has(.rs-run-layout) {
+   browser without :has() the root scrollbar simply stays native.
+
+   Targets html AND body, not html alone: neither element sets an explicit
+   'overflow', and per the CSS Overflow spec a root element left at its
+   default 'visible' overflow hands the *viewport's* scrollbar rendering to
+   BODY instead — the same propagation rule that lets a plain <body> scroll
+   the page at all. scrollbar-width/scrollbar-color follow that same
+   propagation, so styling html alone left the actual viewport scrollbar
+   reading its (unstyled, native-light) values from body. Declaring both
+   means whichever one the browser actually consults, it finds the same
+   dark, thin values.
+
+   KNOWN GAP, confirmed against a real Chrome/Windows build: this still
+   renders the native light scrollbar there. Chrome on Windows draws the
+   root/window scrollbar as an OS-level overlay that does not consult page
+   CSS at all — not scrollbar-color, not ::-webkit-scrollbar-* — regardless
+   of selector. Verified by injecting a raw `html::-webkit-scrollbar
+   { background: red !important }` directly into a live instance of this
+   page: no pixel changed. The identical rule on an ordinary (non-root)
+   overflow: auto element on this same page *does* pick up the dark
+   thumb color correctly — this is specific to the root scroller, not a
+   flaw in the rule shape or a browser-support gap for the properties
+   themselves. The only real fix would be scrolling a plain full-viewport
+   div instead of the window (the drawer's scroll-scrub currently reads
+   window.scrollY on purpose — see Motion → "A scrub's origin is scroll
+   position zero" above), which is a real change to that mechanism, not a
+   style fix — left as-is rather than taking that on speculatively. */
+html:has(.rs-run-layout),
+body:has(.rs-run-layout) {
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--color-secondary-label) 40%, transparent)
     transparent;
 }
 
-html:has(.rs-run-layout)::-webkit-scrollbar {
+html:has(.rs-run-layout)::-webkit-scrollbar,
+body:has(.rs-run-layout)::-webkit-scrollbar {
   width: var(--space-2);
 }
 
-html:has(.rs-run-layout)::-webkit-scrollbar-track {
+html:has(.rs-run-layout)::-webkit-scrollbar-track,
+body:has(.rs-run-layout)::-webkit-scrollbar-track {
   background: transparent;
 }
 
-html:has(.rs-run-layout)::-webkit-scrollbar-thumb {
+html:has(.rs-run-layout)::-webkit-scrollbar-thumb,
+body:has(.rs-run-layout)::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, var(--color-secondary-label) 40%, transparent);
   border-radius: var(--radius-pill);
 }
 
-html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
+html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover,
+body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   background: var(--color-secondary-label);
 }
 
@@ -1933,6 +1964,19 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   gap: var(--space-3);
 }
 
+/* ViewTabs plus the console it controls, grouped as one physically attached
+   unit — the one deliberate zero-gap pairing on this route outside the path
+   input group (CLAUDE.md -> Layout and spacing -> Nothing sits flush). Fills
+   the space .rs-run-console alone used to fill within .rs-console-col; the
+   card itself now sizes within this wrapper instead (see .rs-run-console
+   below for the border/radius side of the same attachment). */
+.robot-simulator-page .rs-console-group {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .robot-simulator-page .rs-playback-primary {
   display: flex;
   gap: var(--space-3);
@@ -1966,27 +2010,77 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 /* The HUD. No longer a column in a row beside the field — a glass panel
    floating ON it, inset from the viewport on all four sides so the field
    reads as running underneath and past it rather than stopping at a seam.
-   Now holds only the role label and the telemetry card — Play, Reset and
-   the speed options moved out to .rs-playback-cluster above, in
-   .rs-console-col, so this keeps the exact material/padding/radius it
-   always had, just without those three controls as children. flex: 1 1 auto
-   fills whatever height .rs-playback-cluster doesn't take in the shared
-   column; min-height: 0 is what lets that computed height actually shrink
-   below content size so overflow-y: auto has somewhere real to scroll. */
+   Holds only the role label and the telemetry card — Play, Reset and the
+   speed options live in .rs-playback-cluster above, and the view tabs live
+   directly above this in .rs-console-group (CLAUDE.md -> Components ->
+   Boxed tab bar). flex: 1 1 auto fills whatever height ViewTabs doesn't
+   take within that group; min-height: 0 is what lets that computed height
+   actually shrink below content size so each .rs-console-face has somewhere
+   real to scroll.
+
+   position: relative + overflow: hidden turns this into the same kind of
+   stacking parent .rs-stats-card already is for its own telemetry/log
+   faces below — layout, padding and scrolling live on .rs-console-face
+   instead, since the two views it stacks (Single Robot's real content vs.
+   the Multi Robot / Test Reports placeholder) need independent scroll
+   regions, not one shared by both.
+
+   No top border and no top corner radius: ViewTabs sits flush above with
+   zero gap (.rs-console-group), and the tab row's own top/side borders plus
+   its shared bottom hairline (ViewTabs.css's .view-tabs::after) already
+   draw the top edge of the whole attached unit. Restating a top border here
+   would double that line, and rounding these corners would round them
+   directly beneath a square tab row, both wrong for a single physically
+   attached surface. */
 .robot-simulator-page .rs-run-console {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  border-top: none;
+  border-radius: 0 0 var(--radius-panel) var(--radius-panel);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+/* One view of the console, stacked absolutely on its sibling and
+   cross-faded between — see CLAUDE.md -> Motion (tab/segment switches) and
+   -> Components -> Stage-swapped card content. The Single Robot face holds
+   readoutRef/detailRef/notesRef/logRef, which paintReadout/paintNotes/
+   drainLogs write into on every simulation frame regardless of which view
+   is on top (see the comment on .rs-stats-face below for the same
+   constraint one level in) — it must stay mounted here rather than being
+   swapped in and out with the tab, or those refs go stale and the readout
+   comes back blank the next time this view is selected. Same geometry as
+   .rs-stats-face, one level up: this is the pattern applied a second time
+   to a second, independent pair of stacked faces. */
+.robot-simulator-page .rs-console-face {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  /* Separates the role label from the stats card. Same token as the
-     padding, so the rhythm reads as one consistent unit rather than two
-     different spacings competing. */
   gap: var(--space-6);
-  /* Equal on all four sides, per CLAUDE.md's symmetric-padding rule. */
   padding: var(--space-6);
-  border-radius: var(--radius-panel);
-  box-sizing: border-box;
   overflow-y: auto;
+  box-sizing: border-box;
+  opacity: 0;
+  transform: scale(0.96) translateY(var(--space-2));
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity var(--duration-base) var(--ease-out),
+    transform var(--duration-base) var(--ease-out);
+}
+
+.robot-simulator-page .rs-console-face.is-active {
+  opacity: 1;
+  transform: none;
+  pointer-events: auto;
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page .rs-console-face {
+    transition: none;
+  }
 }
 
 /* ------------------------------------------------------------ stats card */
@@ -2003,6 +2097,20 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   border-radius: var(--radius-panel);
   overflow: hidden;
   background: color-mix(in srgb, var(--color-elevated-background) 55%, transparent);
+  border: 1px solid var(--color-separator);
+}
+
+/* The Multi Robot / Test Reports placeholder — same footprint the stats
+   card fills in the Single Robot view, so switching tabs doesn't change the
+   console's own height. */
+.robot-simulator-page .rs-console-placeholder {
+  flex: 1 1 auto;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  border-radius: var(--radius-panel);
   border: 1px solid var(--color-separator);
 }
 

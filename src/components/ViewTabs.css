@@ -1,0 +1,86 @@
+/* Bordered top-tab bar — see CLAUDE.md -> Components -> Segmented control /
+   ViewTabs. Each tab is its own outlined, top-rounded box; the row shares one
+   full-width hairline underneath via the track's own ::after rather than
+   each tab restating a bottom border, so the seam reads as one line the
+   active tab sits above rather than three separate borders that happen to
+   line up. Tokens only. */
+
+.view-tabs {
+  position: relative;
+  display: flex;
+  gap: var(--space-1);
+  width: 100%;
+}
+
+.view-tabs::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  background: var(--color-separator);
+}
+
+.view-tabs-tab {
+  position: relative;
+  z-index: 0;
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* 44px minimum tap target, per CLAUDE.md, even though the visual box reads
+     shorter than the pill controls above it. */
+  min-height: var(--tap-target-min);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-separator);
+  border-bottom: none;
+  border-top-left-radius: var(--radius-subtle);
+  border-top-right-radius: var(--radius-subtle);
+  background: var(--color-elevated-background);
+  color: var(--color-secondary-label);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  letter-spacing: var(--text-caption-tracking);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+.view-tabs-tab:hover:not(.is-active) {
+  color: var(--color-label);
+  background: var(--color-elevated-background-hover);
+}
+
+/* The same glass "active segment" chrome SegmentedControl's own .is-active
+   carries — accent-tinted fill, low-alpha accent hairline, accent ink, the
+   hover/active glow exception. Blur only resolves where the inherited
+   --chrome-blur is switched on, same as everywhere else this fill is used. */
+.view-tabs-tab.is-active {
+  z-index: 1;
+  background: var(--glass-chrome);
+  backdrop-filter: var(--chrome-blur);
+  -webkit-backdrop-filter: var(--chrome-blur);
+  border-color: var(--border-accent-subtle);
+  color: var(--color-accent);
+  box-shadow: var(--glow-accent);
+}
+
+.view-tabs-tab.is-active:hover {
+  background: var(--glass-chrome-hover);
+  border-color: var(--border-accent-strong);
+}
+
+.view-tabs-tab:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .view-tabs-tab {
+    transition: none;
+  }
+}

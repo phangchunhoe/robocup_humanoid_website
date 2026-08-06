@@ -408,6 +408,28 @@ There is no component library. Build from tokens, following Apple's patterns:
   > still the right component when one appears" status `SelectableCard`
   > already carries (see Migration status) — it just has no call site on
   > this route anymore.
+- **Boxed tab bar** (`ViewTabs`) — a second, named tab shape for exactly the
+  case a pill segmented control doesn't fit: a small fixed set of top-level
+  views that reads as physical folder tabs rather than a mode switch. Each
+  tab is its own outlined, top-rounded box (`--radius-subtle` on the top two
+  corners only, squared off like `RoleToggle`); the row shares one full-width
+  `--color-separator` hairline underneath via the track's own `::after`
+  rather than each tab restating its own bottom border, so the seam reads as
+  one line the active tab sits above. The active tab takes the identical
+  glass "active segment" chrome `SegmentedControl` uses — `--glass-chrome`
+  fill, `--border-accent-subtle` hairline, `--color-accent` label,
+  `--glow-accent` — so the two controls read as one selection language in two
+  different track shapes, not two unrelated patterns. Same WAI-ARIA tabs
+  keyboard contract as `SegmentedControl` (arrow keys move and select,
+  Home/End jump to the ends), reusing the identical handler shape rather than
+  a second implementation. The run console's own view switch — `Single
+  Robot` / `Multi Robot` / `Test Reports`, floating on the field below the
+  playback cluster — is the reference case; only `Single Robot` has real
+  content, and the other two are a `Notice`-based "Coming soon" placeholder
+  (see Stage-swapped card content) rather than a stubbed-out real view. Reach
+  for `SegmentedControl`/`GlassSlider` for a mode switch that stays *within*
+  one view; reach for `ViewTabs` where the tabs are top-level views in their
+  own right.
 - **Buttons** — pill-shaped. Exactly two variants, and they are deliberately
   *not* the same treatment. No tertiary, no danger variant.
   - **Primary** stays a **solid `--color-accent` fill** with `--color-on-accent`
@@ -870,9 +892,23 @@ There is no component library. Build from tokens, following Apple's patterns:
   only the `::-webkit-scrollbar` pseudo-elements; each browser applies the one
   it knows. The run step's **window** scrollbar belongs to the root element
   and none of those rules reach it, so it takes its own
-  `html:has(.rs-run-layout)` block — scoped with `:has()` rather than declared
-  globally, because a global takeover would hand the unmigrated light-themed
-  pages a dark scrollbar.
+  `html:has(.rs-run-layout), body:has(.rs-run-layout)` block (both targeted —
+  see the comment in `RobotSimulator.css` on why html alone isn't enough) —
+  scoped with `:has()` rather than declared globally, because a global
+  takeover would hand the unmigrated light-themed pages a dark scrollbar.
+  **Known gap, confirmed against a real Chrome/Windows build:** that
+  scrollbar still renders native and light there regardless. Chrome on
+  Windows draws the root/window scrollbar as an OS-level overlay that
+  ignores page CSS entirely — verified by injecting a raw, `!important`,
+  unscoped `::-webkit-scrollbar` rule directly into a live page and finding
+  it changed nothing, while the identical rule on an ordinary (non-root)
+  `overflow: auto` element on the same page picked up the dark thumb
+  correctly. Not a selector or browser-support problem — specific to the
+  root scroller. The only real fix is scrolling a plain full-viewport `div`
+  instead of the window, which the physics drawer's scroll-scrub would need
+  rewiring around (it reads `window.scrollY` on purpose — see Motion → "A
+  scrub's origin is scroll position zero"); left as a known limitation
+  rather than taken on as a style fix.
 - **HUD reticle** — four faint corner brackets framing the canvas
   (`.rs-reticle`), in `--color-separator` at reduced alpha. Brackets, **not a
   grid**: this canvas already carries its own markings (touch lines, centre
@@ -1541,7 +1577,9 @@ Components built for this route and available for reuse (`src/components/`):
 `ProgressBar`, `InfoHint`, `GlassButton` (the canonical liquid-glass button —
 see Components → Glass button — backing the run step's back button, Play and
 Reset), `GlassSlider` (the glass-thumb-in-a-track pattern — see Components →
-Glass slider — backing the run step's playback speed). The simulate step
+Glass slider — backing the run step's playback speed), `ViewTabs` (the boxed
+tab bar — see Components → Boxed tab bar — backing the run console's Single
+Robot / Multi Robot / Test Reports switch). The simulate step
 also introduced `src/lib/easedApproach.js` — the shared rAF/exponential-
 approach loop, with two sibling driver hooks: `useScrollScrub.js` (from
 scroll, this step's physics drawer) and `useEasedApproach` (from React
