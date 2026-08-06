@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { CircleCheck } from "lucide-react";
+import { motion, AnimatePresence, useReducedMotion, useMotionValue, useSpring } from "framer-motion";
+import { CircleCheck, RefreshCw } from "lucide-react";
 import Header from "../components/Header.jsx";
-import SegmentedControl from "../components/SegmentedControl.jsx";
 import StatusIndicator from "../components/StatusIndicator.jsx";
 import InfoHint from "../components/InfoHint.jsx";
 import RoleToggle from "../components/RoleToggle.jsx";
 import ProgressBar from "../components/ProgressBar.jsx";
 import Notice from "../components/Notice.jsx";
-import { SPRING_UI } from "../lib/motionSpring.js";
+import GlassButton, { GlassButtonFilter } from "../components/GlassButton.jsx";
+import GlassSlider from "../components/GlassSlider.jsx";
+import { SPRING_UI, SPRING_MAGNETIC, SPRING_CLICK } from "../lib/motionSpring.js";
+import { applyMagneticPull } from "../lib/magneticPull.js";
 import { TABS, INTRO, CONFIG_NOTE, expectedRelPath } from "../content/simulatorPasteGuide.js";
 import { buildProgram } from "../lib/sim/runtime.js";
 import { createWorld, stepWorld, DEFAULT_PHYSICS } from "../lib/sim/physics.js";
@@ -1153,6 +1155,53 @@ function BackIcon() {
   );
 }
 
+/* The same liquid-glass wobble as GlassButton's shared filter (see
+   src/components/GlassButton.jsx and CLAUDE.md -> Surfaces -> Exception 4),
+   on .rs-legend's expanded key -- a second, distinctly-tuned use of the
+   technique, not a reference to the shared one: .rs-legend expands from a
+   44px circle to a wide bar, closer to the full-panel surface this effect
+   was originally tuned down from, so it gets a lower baseFrequency
+   (larger-scale wobble that doesn't look like noise stretched thin across a
+   wide box) and a slightly larger displacement scale. Only active while the
+   key is expanded -- see .rs-legend:hover/:focus-visible in
+   RobotSimulator.css -- collapsed it stays the plain --glass-hud frost like
+   any other corner icon. */
+function LegendGlassFilter() {
+  return (
+    <svg aria-hidden="true" focusable="false" className="rs-glass-filter-defs">
+      <filter id="rs-legend-glass" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.008 0.025" numOctaves="2" seed="5" result="turbulence" />
+        <feGaussianBlur in="turbulence" stdDeviation="2" result="blurredNoise" />
+        <feDisplacementMap in="SourceGraphic" in2="blurredNoise" scale="22" xChannelSelector="R" yChannelSelector="B" />
+      </filter>
+    </svg>
+  );
+}
+
+/* A third, named use of the same liquid-glass wobble (see CLAUDE.md ->
+   Surfaces -> Exception 4), on the physics drawer -- .rs-back's whole
+   material (--glass-fill-droplet-panel, --blur-hud, this turbulence
+   displacement, --shadow-glass-rim-panel in place of a hairline), not just
+   its fill color, so the drawer reads as the same droplet of glass rather
+   than a coincidentally-similar tint. Its own filter rather than a shared
+   one: the drawer is a large, roughly panel-sized surface carrying real
+   content (slider labels, values) rather than a small icon or a thin bar,
+   so it gets the lowest baseFrequency of the three -- a broad, slow wobble
+   that reads as glass across a big area instead of noise. Always on while
+   the drawer is visible; unlike .rs-legend there's no collapsed state to
+   leave it off for. */
+function DrawerGlassFilter() {
+  return (
+    <svg aria-hidden="true" focusable="false" className="rs-glass-filter-defs">
+      <filter id="rs-drawer-glass" x="-20%" y="-20%" width="140%" height="140%" colorInterpolationFilters="sRGB">
+        <feTurbulence type="fractalNoise" baseFrequency="0.006 0.018" numOctaves="2" seed="11" result="turbulence" />
+        <feGaussianBlur in="turbulence" stdDeviation="2.5" result="blurredNoise" />
+        <feDisplacementMap in="SourceGraphic" in2="blurredNoise" scale="20" xChannelSelector="R" yChannelSelector="B" />
+      </filter>
+    </svg>
+  );
+}
+
 /* Same 16px grid and 1.3 stroke as BackIcon/FlipIcon — a stack of two layers,
    read as "key/legend" rather than "info", since this is a fixed set of
    categorical tags rather than explanatory prose (that's InfoHint's job). */
@@ -1197,6 +1246,34 @@ function ChevronIcon() {
 // to scroll before the physics drawer is fully open. Same carve-out category
 // as this file's other untokenized container dimensions.
 const DRAWER_REVEAL_PX = 240;
+// The same threshold .rs-physics-drawer.is-hidden already used inline,
+// named so the one-time pop entrance (below) can trigger off exactly the
+// same crossing rather than a second, possibly-drifting magic number.
+const DRAWER_REVEAL_THRESHOLD = 0.01;
+
+// Physical interaction constants for the HUD's magnetic-droplet controls —
+// same carve-out as DRAWER_REVEAL_PX above, since these describe pointer
+// geometry rather than layout spacing. REACH extends a control's pull
+// detection zone beyond its own box, so it starts leaning toward the cursor
+// before the pointer is literally over it. PULL caps how far it may drift
+// so the lean reads as elastic, not unbounded, and STRENGTH is how quickly
+// that drift ramps up with distance from center.
+const BACK_BUTTON_REACH_PX = 25;
+const BACK_BUTTON_PULL_PX = 5;
+const BACK_BUTTON_PULL_STRENGTH = 0.12;
+const BACK_BUTTON_HOVER_SCALE = 1.12;
+const BACK_BUTTON_TAP_SCALE = 1.24;
+
+// The legend gets the same magnetic pull, deliberately weaker: it sits next
+// to the back button but expands into a wide bar rather than staying a
+// fixed 44px circle, so a strong pull would drag a much larger surface
+// around and read as loose rather than elastic. Its click bounce is subtler
+// for the same reason — a 1.24x pop that reads as tactile on a small icon
+// would read as a lurch across a fully expanded key.
+const LEGEND_REACH_PX = 24;
+const LEGEND_PULL_PX = 6;
+const LEGEND_PULL_STRENGTH = 0.18;
+const LEGEND_TAP_SCALE = 1.05;
 
 function SimStep(props) {
   const {
@@ -1208,6 +1285,36 @@ function SimStep(props) {
   const [statsFace, setStatsFace] = useState("telemetry");
   const [logAlertOpen, setLogAlertOpen] = useState(false);
   const drawerRef = useRef(null);
+  const reduceMotion = useReducedMotion();
+
+  // The legend's own magnetic-droplet pull. A motion value, not React state
+  // — a mousemove-driven setState would re-render SimStep on every frame of
+  // a pointer sweep, the same reasoning RoleToggle's cursor highlight
+  // documents for writing straight to custom properties instead. useSpring
+  // wraps the raw value so the control eases toward wherever the pointer
+  // last put it rather than tracking it frame-exact. The back button, Play,
+  // Reset and the speed options get the identical treatment through
+  // GlassButton (src/components/GlassButton.jsx) instead, which manages its
+  // own listener per instance — see that file's own comment for why this
+  // one console-wide listener isn't extended to cover them too.
+  const legendRef = useRef(null);
+  const legendPullX = useMotionValue(0);
+  const legendPullY = useMotionValue(0);
+  const legendSpringX = useSpring(legendPullX, SPRING_MAGNETIC);
+  const legendSpringY = useSpring(legendPullY, SPRING_MAGNETIC);
+
+  useEffect(() => {
+    if (reduceMotion) return undefined;
+    const handleMove = (evt) => {
+      applyMagneticPull(
+        legendRef.current, evt,
+        LEGEND_REACH_PX, LEGEND_PULL_PX, LEGEND_PULL_STRENGTH,
+        legendPullX, legendPullY
+      );
+    };
+    window.addEventListener("mousemove", handleMove);
+    return () => window.removeEventListener("mousemove", handleMove);
+  }, [reduceMotion, legendPullX, legendPullY]);
 
   // Closes itself once there is nothing left to report, so it never lingers
   // open on stale content after a Reset clears the error.
@@ -1239,12 +1346,11 @@ function SimStep(props) {
     const el = drawerRef.current;
     if (!el) return;
     el.style.setProperty("--rs-drawer", progress.toFixed(4));
-    // The drawer no longer slides out of the field's clipped bounds — it
-    // fades and scales in place — so at rest it is a full-size, fully
-    // transparent box sitting over the pitch. Without this it would swallow
-    // every drag meant for the ball beneath it. Hidden rather than merely
-    // transparent also takes it out of the accessibility tree while closed.
-    el.classList.toggle("is-hidden", progress < 0.01);
+    // The slide (see .rs-physics-drawer in RobotSimulator.css) already moves
+    // the drawer below rs-field-panel's clipped bounds at rest, but a
+    // transform alone doesn't drop it from the accessibility tree or stop it
+    // catching a stray pointer event — is-hidden does both explicitly.
+    el.classList.toggle("is-hidden", progress < DRAWER_REVEAL_THRESHOLD);
   };
   useScrollScrub(drawerRef, getDrawerTarget, onDrawerFrame);
 
@@ -1259,19 +1365,35 @@ function SimStep(props) {
         <section className="rs-field-panel">
           <svg ref={svgRef} id="field" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} />
 
+          {/* Rendered once — every GlassButton on this step (this back
+              button, and Play/Reset/the speed options in the console below)
+              references the same filter by id, so it only needs to exist
+              once in the document. */}
+          <GlassButtonFilter />
+
           {/* The only in-page way back to the editor — this step has no
               header and no site nav, so without it the sole route back is
               browser-back. Lives inside the field panel rather than the run
               layout so it stays anchored to the field in the stacked
-              sub-900px layout too, where the layout itself is static. */}
-          <button
-            type="button"
+              sub-900px layout too, where the layout itself is static. Built
+              on GlassButton (see CLAUDE.md -> Components -> Glass button)
+              with this control's own tuned reach/pull/scale — the exact
+              values this button used before the extraction — rather than
+              GlassButton's weaker pill-shape defaults, since a 44px circle
+              takes a stronger pull before it reads as loose. */}
+          <GlassButton
+            variant="glass"
             className="rs-back"
             onClick={onBack}
             aria-label="Back to editor"
+            reach={BACK_BUTTON_REACH_PX}
+            pull={BACK_BUTTON_PULL_PX}
+            strength={BACK_BUTTON_PULL_STRENGTH}
+            hoverScale={BACK_BUTTON_HOVER_SCALE}
+            tapScale={BACK_BUTTON_TAP_SCALE}
           >
             <BackIcon />
-          </button>
+          </GlassButton>
 
           {/* Corner brackets framing the pitch — the instrument cue, and
               purely decorative, so it is hidden from assistive tech and
@@ -1295,10 +1417,18 @@ function SimStep(props) {
               themselves are aria-hidden — they're kept mounted only for the
               opacity/transform reveal, not as a second route to the same
               information. */}
-          <div
+          <LegendGlassFilter />
+          <motion.div
+            ref={legendRef}
             className="rs-legend rs-hud"
             tabIndex={0}
             aria-label="Decision legend: chase, adjust, kick, not simulated"
+            style={reduceMotion ? undefined : { x: legendSpringX, y: legendSpringY }}
+            whileTap={
+              reduceMotion
+                ? { scale: 1.02, transition: { duration: 0 } }
+                : { scale: LEGEND_TAP_SCALE, transition: SPRING_CLICK }
+            }
           >
             <span className="rs-legend-icon" aria-hidden="true">
               <LegendIcon />
@@ -1309,12 +1439,28 @@ function SimStep(props) {
               <span><i className="rs-legend-swatch rs-legend-swatch--kick" /> kick</span>
               <span><i className="rs-legend-swatch rs-legend-swatch--idle" /> not simulated</span>
             </div>
-          </div>
+          </motion.div>
 
           {/* is-hidden from the first paint, not just from the first scrub
-              frame — the class is what makes it inert while closed. */}
-          <div ref={drawerRef} className="rs-physics-drawer rs-glass is-hidden">
-            <span className="rs-physics-drawer-label">Physics</span>
+              frame — the class is what makes it inert while closed. No
+              rs-glass here: this gets .rs-back's own material (droplet
+              fill, turbulence filter, rim) rather than the plain nested-
+              panel glass every other rs-glass surface uses — see the
+              .rs-physics-drawer rule in RobotSimulator.css and
+              DrawerGlassFilter above. */}
+          <DrawerGlassFilter />
+          <div ref={drawerRef} className="rs-physics-drawer is-hidden">
+            <div className="rs-physics-drawer-header">
+              <span className="rs-physics-drawer-label">Physics</span>
+              <button
+                type="button"
+                className="rs-drawer-reset"
+                onClick={() => setPhysics({ ...DEFAULT_PHYSICS, stanceBias: CONFIG_DEFAULTS.stance_bias })}
+                aria-label="Reset physics to defaults"
+              >
+                <RefreshCw aria-hidden="true" />
+              </button>
+            </div>
             <div className="rs-slider-grid">
               {SLIDERS.map((s) => (
                 <label key={s.key} className="rs-slider">
@@ -1353,20 +1499,38 @@ function SimStep(props) {
           </div>
         </section>
 
-        <aside className="rs-run-console rs-hud">
-          <div className="rs-playback-row">
-            <button
-              type="button"
-              className={`btn ${running ? "btn-secondary" : "btn-primary"}`}
-              onClick={onTogglePlay}
-            >
-              {running ? "⏸ Stop" : "▶ Play"}
-            </button>
-            <button type="button" className="btn btn-secondary" onClick={onReset}>
-              ⟲ Reset
-            </button>
-            <SegmentedControl
-              segments={SPEED_SEGMENTS}
+        {/* Play, Reset and the speed options used to live inside the console
+            card below, sharing its padding with the telemetry. Pulled out
+            into their own floating cluster so they read as standalone
+            controls sitting on the field, not as rows in the same panel as
+            the readout — see CLAUDE.md -> Components -> Glass button. Both
+            children are positioned exactly where .rs-run-console used to
+            size itself (top/right/bottom/width), so the console keeps its
+            own footprint and this is purely a visual/structural split, not
+            a repositioning. */}
+        <div className="rs-console-col">
+          <div className="rs-playback-cluster">
+            <div className="rs-playback-primary">
+              {/* Always the opaque accent fill, whether the label reads
+                  "Play" or "Stop" — the one dominant action in the cluster,
+                  never the toggling primary/secondary swap this used to be.
+                  See CLAUDE.md -> Components -> Glass button. */}
+              <GlassButton variant="accent" className="rs-play-btn" onClick={onTogglePlay}>
+                {running ? "⏸ Stop" : "▶ Play"}
+              </GlassButton>
+              <GlassButton variant="glass" className="rs-reset-btn" onClick={onReset}>
+                ⟲ Reset
+              </GlassButton>
+            </div>
+
+            {/* A single glass-thumb-in-a-track slider — see CLAUDE.md ->
+                Components -> Glass slider. This replaced three standalone
+                GlassButtons (one per speed) once floating them individually
+                on the field made the "which one is selected" state read as
+                three separate glass surfaces rather than one control with
+                three positions. */}
+            <GlassSlider
+              options={SPEED_SEGMENTS}
               value={speedId}
               onChange={(id) => {
                 setSpeedId(id);
@@ -1374,80 +1538,83 @@ function SimStep(props) {
               }}
               ariaLabel="Playback speed"
             />
-            <span className="rs-role-label">{roleMeta.label}</span>
           </div>
 
-          {/* Not .rs-glass: this sits inside the HUD, which has already
-              blurred the field behind it — a second backdrop-filter would
-              blur an already-blurred backdrop. Its own translucent tint is
-              enough to read as raised against the HUD's surface. */}
-          <div className="rs-stats-card">
-            <button
-              type="button"
-              className="rs-stats-toggle"
-              onClick={() => setStatsFace((f) => (f === "telemetry" ? "log" : "telemetry"))}
-              aria-label={statsFace === "telemetry" ? "Show brain log" : "Show telemetry"}
-            >
-              <FlipIcon />
-            </button>
+          <aside className="rs-run-console rs-hud">
+            <span className="rs-role-label">{roleMeta.label}</span>
 
-            {/* Both faces stay mounted at all times — paintReadout/paintNotes/
-                drainLogs write into readoutRef/detailRef/notesRef/logRef on
-                every simulation frame, and unmounting either face would break
-                those refs. The toggle only changes which is on top. */}
-            <div className={`rs-stats-face${statsFace === "telemetry" ? " is-active" : ""}`}>
-              <div ref={readoutRef} className="rs-stats-readout" />
-              <details className="rs-diag-details">
-                <summary>
-                  More detail
-                  <ChevronIcon />
-                </summary>
-                <div className="rs-diag-full">
-                  <table ref={detailRef} className="rs-stats-detail-table" />
-                  <div ref={notesRef} className="rs-run-notes" />
-                </div>
-              </details>
-            </div>
+            {/* Not .rs-glass: this sits inside the HUD, which has already
+                blurred the field behind it — a second backdrop-filter would
+                blur an already-blurred backdrop. Its own translucent tint is
+                enough to read as raised against the HUD's surface. */}
+            <div className="rs-stats-card">
+              <button
+                type="button"
+                className="rs-stats-toggle"
+                onClick={() => setStatsFace((f) => (f === "telemetry" ? "log" : "telemetry"))}
+                aria-label={statsFace === "telemetry" ? "Show brain log" : "Show telemetry"}
+              >
+                <FlipIcon />
+              </button>
 
-            <div className={`rs-stats-face${statsFace === "log" ? " is-active" : ""}`}>
-              <div className="rs-log-stream-wrap">
-                <pre ref={logRef} className="rs-log-stream" />
-                {logAlertOpen ? (
-                  <div className="rs-log-alert-detail">
-                    <Notice
-                      tone={runtimeError ? "error" : "muted"}
-                      title={runtimeError ? "Execution stopped" : "Cannot keep real time"}
-                    >
-                      {runtimeError ? (
-                        <>
-                          {runtimeError.message} The robot is halted. Fix the pasted code or the
-                          missing symbol, then Run again.
-                        </>
-                      ) : (
-                        <>
-                          The interpreted tick is taking longer than 10&nbsp;ms. Frames are being
-                          dropped; lower the speed multiplier for an accurate trace.
-                        </>
-                      )}
-                    </Notice>
+              {/* Both faces stay mounted at all times — paintReadout/paintNotes/
+                  drainLogs write into readoutRef/detailRef/notesRef/logRef on
+                  every simulation frame, and unmounting either face would break
+                  those refs. The toggle only changes which is on top. */}
+              <div className={`rs-stats-face${statsFace === "telemetry" ? " is-active" : ""}`}>
+                <div ref={readoutRef} className="rs-stats-readout" />
+                <details className="rs-diag-details">
+                  <summary>
+                    More detail
+                    <ChevronIcon />
+                  </summary>
+                  <div className="rs-diag-full">
+                    <table ref={detailRef} className="rs-stats-detail-table" />
+                    <div ref={notesRef} className="rs-run-notes" />
                   </div>
+                </details>
+              </div>
+
+              <div className={`rs-stats-face${statsFace === "log" ? " is-active" : ""}`}>
+                <div className="rs-log-stream-wrap">
+                  <pre ref={logRef} className="rs-log-stream" />
+                  {logAlertOpen ? (
+                    <div className="rs-log-alert-detail">
+                      <Notice
+                        tone={runtimeError ? "error" : "muted"}
+                        title={runtimeError ? "Execution stopped" : "Cannot keep real time"}
+                      >
+                        {runtimeError ? (
+                          <>
+                            {runtimeError.message} The robot is halted. Fix the pasted code or the
+                            missing symbol, then Run again.
+                          </>
+                        ) : (
+                          <>
+                            The interpreted tick is taking longer than 10&nbsp;ms. Frames are being
+                            dropped; lower the speed multiplier for an accurate trace.
+                          </>
+                        )}
+                      </Notice>
+                    </div>
+                  ) : null}
+                </div>
+                {runtimeError || overrun ? (
+                  <button
+                    type="button"
+                    className="rs-log-alert"
+                    onClick={() => setLogAlertOpen((v) => !v)}
+                  >
+                    <StatusIndicator
+                      tone={runtimeError ? "error" : "muted"}
+                      label={runtimeError ? "Execution stopped — tap for detail" : "Frames dropped — tap for detail"}
+                    />
+                  </button>
                 ) : null}
               </div>
-              {runtimeError || overrun ? (
-                <button
-                  type="button"
-                  className="rs-log-alert"
-                  onClick={() => setLogAlertOpen((v) => !v)}
-                >
-                  <StatusIndicator
-                    tone={runtimeError ? "error" : "muted"}
-                    label={runtimeError ? "Execution stopped — tap for detail" : "Frames dropped — tap for detail"}
-                  />
-                </button>
-              ) : null}
             </div>
-          </div>
-        </aside>
+          </aside>
+        </div>
       </div>
 
       {/* rs-run-layout above is position: fixed, so it occupies no space in

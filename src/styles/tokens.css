@@ -142,9 +142,26 @@
   --glass-neutral: color-mix(in srgb, var(--color-label) 14%, transparent);
   --glass-hud: color-mix(in srgb, var(--color-elevated-background) 70%, transparent);
   --glass-panel: color-mix(in srgb, var(--color-elevated-background) 65%, transparent);
+  /* A lighter droplet-specific fill for .rs-back alone. --glass-hud is tuned
+     for the console/legend, where text has to stay legible over a moving
+     field — it needs the extra opacity. An icon-only circular control has
+     no text to protect, and at that same 70% it read as near-solid black
+     instead of a translucent bead of glass sitting on the pitch. */
+  --glass-fill-droplet: color-mix(in srgb, var(--color-elevated-background) 40%, transparent);
+  /* A more transparent variant for .rs-physics-drawer alone. The drawer
+     started on --glass-fill-droplet unchanged, per the "same material as
+     .rs-back" rule below — but at 40% over the drawer's much larger
+     footprint it read as too solid even after --shadow-glass-rim-panel
+     (see that token) fixed the edge. Confirmed against a real running
+     build across several steps: dropping to 20% keeps slider labels and
+     values legible while reading noticeably more like glass. Blur and rim
+     stay the shared tokens; this is the one deliberate divergence from
+     .rs-back's fill. */
+  --glass-fill-droplet-panel: color-mix(in srgb, var(--color-elevated-background) 20%, transparent);
   /* Opaque stand-ins for @supports not (backdrop-filter: …). */
   --glass-hud-fallback: color-mix(in srgb, var(--color-elevated-background) 95%, transparent);
   --glass-panel-fallback: color-mix(in srgb, var(--color-elevated-background) 94%, transparent);
+  --glass-fill-droplet-fallback: color-mix(in srgb, var(--color-elevated-background) 92%, transparent);
 
   /* A low-alpha accent hairline. Reads as lit rather than drawn, which a
      flat --color-separator hairline cannot do on top of a glass fill. */
@@ -192,6 +209,50 @@
      Scoped to RoleToggle's pill alone. A static panel, card, button or
      popover still gets a hairline and nothing else. */
   --shadow-glass: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+
+  /* The fourth named shadow exception, and unlike the other three it is not
+     depth from an offset — it is a rim of inset highlights standing in for
+     specular light catching the edge of a glass surface. Exists because a
+     backdrop-distortion filter (see .rs-back's SVG turbulence filter) only
+     reads as "glass" where there is texture behind it to distort; over a
+     flat ground it is invisible, and this is what makes the material read
+     regardless of what happens to be behind it. Scoped to .rs-back alone —
+     see CLAUDE.md → Components → Corner icon button for why this is a
+     deliberate, named divergence from .rs-stats-toggle rather than a second
+     application of the same object. Ambient/contact layers stay literal
+     black rgba() (matching --shadow-hero/--shadow-glass); the highlight
+     insets are color-mixed from --color-label, not a raw white, so the app
+     still has exactly one white. */
+  --shadow-glass-rim: 0 0 8px rgba(0, 0, 0, 0.03),
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    inset 3px 3px 0.5px -3.5px color-mix(in srgb, var(--color-label) 9%, transparent),
+    inset -3px -3px 0.5px -3.5px color-mix(in srgb, var(--color-label) 85%, transparent),
+    inset 1px 1px 1px -0.5px color-mix(in srgb, var(--color-label) 60%, transparent),
+    inset -1px -1px 1px -0.5px color-mix(in srgb, var(--color-label) 60%, transparent),
+    inset 0 0 6px 6px color-mix(in srgb, var(--color-label) 12%, transparent),
+    inset 0 0 2px 2px color-mix(in srgb, var(--color-label) 6%, transparent),
+    0 0 12px rgba(0, 0, 0, 0.15);
+  /* The same rim, same layer order, same color-mix ratios — spreads and
+     blurs scaled ~2.5x. --shadow-glass-rim was tuned against a 44px control
+     (.rs-back): at that size its few-pixel insets already read as a
+     substantial fraction of the whole shape. Reused unscaled on
+     .rs-physics-drawer (roughly 940x380px), the same edge highlight became
+     visually negligible against a surface that much larger — confirmed by
+     screenshotting it against a real running build, where blurred backdrop
+     content alone doesn't read as "glass" either, since the pitch behind
+     the drawer is mostly uniform dark turf with no bright detail left after
+     a 16px blur to reveal. Scoped to .rs-physics-drawer alone; a third
+     surface reaching for a rim should reconsider which of the two fits
+     rather than picking one by feel. */
+  --shadow-glass-rim-panel: 0 0 20px rgba(0, 0, 0, 0.03),
+    0 4px 14px rgba(0, 0, 0, 0.08),
+    inset 7px 7px 1px -8px color-mix(in srgb, var(--color-label) 9%, transparent),
+    inset -7px -7px 1px -8px color-mix(in srgb, var(--color-label) 85%, transparent),
+    inset 2px 2px 2px -1px color-mix(in srgb, var(--color-label) 60%, transparent),
+    inset -2px -2px 2px -1px color-mix(in srgb, var(--color-label) 60%, transparent),
+    inset 0 0 14px 14px color-mix(in srgb, var(--color-label) 12%, transparent),
+    inset 0 0 5px 5px color-mix(in srgb, var(--color-label) 6%, transparent),
+    0 0 28px rgba(0, 0, 0, 0.15);
 
   /* --------------------------------------------------------------- space */
   /* 8pt grid with 4pt subdivisions. */

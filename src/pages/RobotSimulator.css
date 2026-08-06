@@ -1048,17 +1048,34 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 
 .robot-simulator-page {
   /* Playing surface — kept off the neutral scale on purpose; see above.
-     Deliberately deeper and duller than it used to be (#163826), for two
-     reasons. Green now also means "interactive" — the accent is emerald — so
-     the pitch has to sit far enough down the value/saturation ramp that no
-     one reads the ground as a control. And the console is now glass floating
-     ON this surface rather than a column beside it, which only separates if
-     what is behind it is dark. */
-  --turf: #102a1c;
+     Deliberately deeper and duller than the pre-emerald original (#163826),
+     for two reasons. Green now also means "interactive" — the accent is
+     emerald — so the pitch has to sit far enough down the value/saturation
+     ramp that no one reads the ground as a control. And the console is now
+     glass floating ON this surface rather than a column beside it, which
+     only separates if what is behind it is dark.
+
+     Brightened once since (#102a1c, ~11% lightness, read as too dull) to
+     this value — same ~148° hue, lightness raised to ~17%, saturation
+     nudged down a touch (~45% → ~40%) rather than left alone. Saturation is
+     the axis that reads as "interactive" on this page, not lightness, so
+     the brightening spends its budget on lightness and pays for it with a
+     small saturation cut — the pitch ends up brighter *and* further from
+     the accent's ~84% saturation than before, not a step back toward the
+     ambiguity the original darkening fixed. Still well short of the
+     pre-emerald value on both axes. */
+  --turf: #1a3d2a;
   /* Chalk, so it stays neutral rather than picking up the accent — derived
      from the label token instead of a raw rgba, so there is one white in the
      app and this is a transparency of it. */
   --turf-line: color-mix(in srgb, var(--color-label) 34%, transparent);
+  /* Same reasoning as --turf-line, for the physics drawer's slider tracks:
+     --color-separator (the hairline every other panel on the app uses) is
+     tuned to sit on --color-elevated-background, and reads as invisible
+     against this drawer's much darker, blurred glass. Derived from
+     --color-label rather than a raw white for the same one-white-in-the-app
+     reason --turf-line is. */
+  --slider-track: color-mix(in srgb, var(--color-label) 32%, transparent);
   /* Decision legend — categorical, not status, and never interactive chrome.
      chase/adjust/kick are the only branches this simulator actually runs
      (see "what this simulation does not model" below); everything else
@@ -1142,57 +1159,13 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
    its own aspect ratio and the console becomes an ordinary panel beneath it.
    Everything that inset itself by the HUD reserve gets that reserve zeroed
    here — one override, because they all read the same property. */
-@media (max-width: 900px) {
-  .robot-simulator-page .rs-run-layout {
-    position: static;
-    inset: auto;
-    width: auto;
-    height: auto;
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-6);
-    padding: var(--space-4);
-    --rs-hud-reserve: 0px;
-  }
-
-  .robot-simulator-page .rs-field-panel {
-    position: relative;
-    inset: auto;
-    width: 100%;
-    height: auto;
-    aspect-ratio: 3 / 2;
-    border: 1px solid var(--color-separator);
-    border-radius: var(--radius-panel);
-  }
-
-  /* The SVG needs no override — --rs-hud-reserve is 0px here, so its
-     calc(100% - reserve) width already resolves to the full field box. */
-
-  .robot-simulator-page .rs-run-console {
-    position: relative;
-    inset: auto;
-    width: auto;
-  }
-
-  .robot-simulator-page .rs-run-spacer {
-    display: none;
-  }
-
-  /* The 3x2 slider grid only has the width to work above this breakpoint —
-     stacked back to one column here, so the drawer reverts to the taller,
-     narrower shape that fits the sub-900px field. Unlike the desktop drawer,
-     this one scrolls internally past a cap: the field itself is short here
-     (aspect-ratio 3/2, no longer the full viewport), so there usually isn't
-     room to draw seven stacked rows out in full the way there is on desktop. */
-  .robot-simulator-page .rs-physics-drawer {
-    width: min(420px, calc(100% - var(--space-12)));
-    max-height: min(56%, 460px);
-    overflow-y: auto;
-  }
-  .robot-simulator-page .rs-slider-grid {
-    grid-template-columns: 1fr;
-  }
-}
+/* This block's rules are relocated to the end of the file — see the comment
+   there for why: several of its selectors (.rs-run-layout, .rs-field-panel,
+   .rs-console-col) have same-specificity unconditional counterparts that
+   are declared later in this file, and CSS resolves an exact specificity
+   tie by source order regardless of which side is wrapped in @media, so
+   leaving this block here left every one of those overrides silently dead
+   at any viewport. */
 
 /* -------------------------------------------------------- field + legend */
 
@@ -1256,9 +1229,14 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 /* ---------------------------------------------------------- back control */
 
 /* The only in-page route back to the editor: this step renders no header, no
-   site nav and no headline. Icon-only circular glass, deliberately the same
-   object as the stats card's flip control — one corner-button pattern, two
-   placements — so the two read as a set rather than as two inventions.
+   site nav and no headline. Built on <GlassButton> (src/components/
+   GlassButton.jsx, see CLAUDE.md -> Components -> Glass button) — the base
+   class already supplies the material (droplet fill, turbulence wobble, rim
+   shadow), the hover/focus states and the magnetic-pull/click-bounce motion,
+   so this rule is only the position/shape override that makes a generic
+   pill button read as this route's corner icon control: pinned to the
+   field's top-left, squared into a 44px circle instead of a pill, icon
+   padding instead of text padding.
    Sits inside the field panel, so it stays anchored to the field in the
    stacked sub-900px layout where rs-run-layout itself is static. */
 .robot-simulator-page .rs-back {
@@ -1269,58 +1247,24 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   /* Full 44px target even though the glyph inside is 16px. */
   width: var(--tap-target-min);
   height: var(--tap-target-min);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   padding: 0;
   border-radius: 50%;
-  border: 1px solid var(--color-separator);
-  background: var(--glass-hud);
-  backdrop-filter: var(--blur-hud);
-  -webkit-backdrop-filter: var(--blur-hud);
-  color: var(--color-secondary-label);
-  cursor: pointer;
-  transition: color var(--duration-base) var(--ease-out),
-    background-color var(--duration-base) var(--ease-out),
-    border-color var(--duration-base) var(--ease-out),
-    box-shadow var(--duration-base) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
 }
 
-.robot-simulator-page .rs-back:hover {
-  color: var(--color-accent);
-  background: var(--glass-chrome-hover);
-  border-color: var(--border-accent-strong);
-  box-shadow: var(--glow-accent);
-}
-
-.robot-simulator-page .rs-back:active {
-  transform: scale(0.94);
-}
-
-.robot-simulator-page .rs-back:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+/* Zero-size and inert -- this element paints nothing on its own, every
+   LegendGlassFilter/DrawerGlassFilter reaches it only through their own
+   backdrop-filter: url(...) reference. (.rs-back's own filter now lives in
+   GlassButton.css/.jsx as the shared .glass-btn-filter-defs.) */
+.robot-simulator-page .rs-glass-filter-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
 }
 
 .robot-simulator-page .rs-back svg {
   width: var(--space-4);
   height: var(--space-4);
-}
-
-@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .robot-simulator-page .rs-back {
-    background: var(--glass-hud-fallback);
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .robot-simulator-page .rs-back {
-    transition: none;
-  }
-  .robot-simulator-page .rs-back:active {
-    transform: none;
-  }
 }
 
 /* ------------------------------------------------------------ HUD reticle */
@@ -1416,21 +1360,39 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   font-size: var(--text-caption);
   color: var(--color-tertiary-label);
   cursor: default;
+  /* No transform here — framer-motion (see RobotSimulator.jsx) owns this
+     element's transform outright: the magnetic hover pull's x/y spring and
+     the click bounce. Same reasoning as .rs-back — a CSS transition on
+     transform would fight the per-frame spring update instead of layering
+     with it. */
   transition: max-width var(--duration-base) var(--ease-out),
     border-color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out),
     box-shadow var(--duration-base) var(--ease-out);
 }
 
-/* Same hover language as the corner icon buttons: accent border plus glow.
-   :focus-within has no interactive descendant to trigger it (the content is
-   plain text), so the container itself is the tabbable element — see the
-   tabIndex in RobotSimulator.jsx — and :focus-visible is what keyboard users
-   land on. */
+/* Expanding swaps the plain --glass-hud frost for the same liquid-glass
+   treatment as .rs-back — a second, named use of --shadow-glass-rim and its
+   SVG turbulence filter (LegendGlassFilter in RobotSimulator.jsx, id
+   #rs-legend-glass), not a copy: see CLAUDE.md -> Surfaces -> Exception 4.
+   Collapsed, the icon stays the plain corner-icon-button frost every other
+   HUD chrome uses; the wobble only turns on for the expanded key, which is
+   the one moment this control is actually asking to read as glass rather
+   than as a static instrument label. :focus-within has no interactive
+   descendant to trigger it (the content is plain text), so the container
+   itself is the tabbable element — see the tabIndex in RobotSimulator.jsx —
+   and :focus-visible is what keyboard users land on. */
 .robot-simulator-page .rs-legend:hover,
 .robot-simulator-page .rs-legend:focus-visible {
   max-width: calc(100% - var(--rs-hud-reserve) - var(--space-8) - var(--tap-target-min));
-  border-color: var(--border-accent-strong);
-  box-shadow: var(--glow-accent);
+  border-color: transparent;
+  background: var(--glass-chrome-hover);
+  backdrop-filter: var(--blur-hud) url("#rs-legend-glass");
+  -webkit-backdrop-filter: var(--blur-hud) url("#rs-legend-glass");
+  /* Layered, not swapped: the rim keeps defining the edge now that the
+     hairline border is gone, --glow-accent adds the same hover response
+     every other glass control gets. */
+  box-shadow: var(--shadow-glass-rim), var(--glow-accent);
 }
 
 .robot-simulator-page .rs-legend:focus-visible {
@@ -1557,7 +1519,7 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   /* Wide enough to lay its six sliders out 3 across, never wider than the
      pitch area minus a clear margin on both sides — it must not reach the
      field's edges. Container dimensions, the allowed carve-out. */
-  width: min(1100px, calc(100% - var(--rs-hud-reserve) - var(--space-12)));
+  width: min(1000px, calc(100% - var(--rs-hud-reserve) - var(--space-12)));
   /* No height cap here — the field has the room, so the drawer draws out to
      its full content height instead of scrolling internally. It still can't
      grow past the field's own edges: rs-field-panel clips with
@@ -1570,29 +1532,162 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   flex-direction: column;
   gap: var(--space-4);
   z-index: 2;
-  /* Reveal is scale + fade + a slight rise, replacing the old full-width
-     slide — a small card sliding its own height reads as a jump, where
-     growing into place reads as it settling. translateX(-50%) is part of the
-     same transform because an element has only one: it is the centring, not
-     the animation, and must survive every frame of it. Origin at the bottom
-     centre so it grows up out of where it is docked. */
-  transform-origin: bottom center;
+  /* .rs-back's own material family (see CLAUDE.md -> Surfaces ->
+     Exception 4), not the plain .rs-glass nested-panel fill every other
+     surface inside this HUD uses — the turbulence filter is
+     DrawerGlassFilter in RobotSimulator.jsx (#rs-drawer-glass),
+     border-less in place of a hairline. Blur stays the exact .rs-back
+     token; fill and rim are the two deliberate divergences, both because
+     the drawer's ~940x380px surface is a different scale of thing than
+     .rs-back's 44px circle, confirmed against a real running build rather
+     than assumed:
+       - --glass-fill-droplet-panel, not --glass-fill-droplet — .rs-back's
+         40% read as too solid at this size; see that token's own comment
+         in tokens.css.
+       - --shadow-glass-rim-panel, not --shadow-glass-rim — the unscaled
+         rim read as a negligible sliver at this size; see that token's
+         own comment in tokens.css.
+     Kept the backdrop blur itself rather than dropping it: a brief
+     experiment removing it read as more "glass" in isolation (a sharp
+     pitch line under a plain tint stays visible where a blurred one washes
+     out over this mostly-uniform dark turf), but the ask afterwards was
+     explicit — keep the blur here, it belongs. */
+  border: none;
+  background: var(--glass-fill-droplet-panel);
+  backdrop-filter: var(--blur-hud) url("#rs-drawer-glass");
+  -webkit-backdrop-filter: var(--blur-hud) url("#rs-drawer-glass");
+  box-shadow: var(--shadow-glass-rim-panel);
+  /* A soft alpha fade at the drawer's own bottom edge, not a background
+     gradient: mask-image only modulates the alpha of whatever is already
+     painted there (the glass fill, its blur, its content) — it introduces
+     no color of its own, so it is not the "decorative gradient" CLAUDE.md
+     bans (that rule is about `background`, and the one exception to it,
+     the legibility scrim, is a color-bearing case this isn't). It is also
+     not a shadow, so it needs no named shadow exception either. Reusing the
+     backdrop-filter blur the panel already carries rather than adding a
+     second blur mechanism: fading the glass to transparent over this band
+     lets progressively more of that already-blurred backdrop show through
+     before the sharp pitch takes over beneath it, which is what reads as a
+     soft, slightly blurred edge rather than a hard rectangle cutting off
+     mid-slide. */
+  -webkit-mask-image: linear-gradient(to top, transparent, black var(--space-8));
+  mask-image: linear-gradient(to top, transparent, black var(--space-8));
+  /* Scroll-linked slide, continuous across the whole reveal range rather
+     than a fade: --rs-drawer is written every frame by useScrollScrub
+     (RobotSimulator.jsx), which is already the eased *position* itself —
+     not a raw scroll readout — via the same exponential-approach engine
+     (easedApproach.js) the hero field's own eased-follow motion runs on.
+     That is what makes this feel smoothed and lagged rather than pinned
+     1:1 to the wheel, and why this transform reads --rs-drawer directly
+     on every frame with no CSS transition/duration token of its own: the
+     easing already happened in JS before this custom property was set,
+     and a CSS transition racing a value that is already itself eased
+     would just double up the lag. translateX(-50%) is part of the same
+     transform because an element has only one — it is the horizontal
+     centring, constant across every frame, riding alongside the vertical
+     slide that isn't.
+
+     The vertical distance is 100% of the drawer's own height PLUS
+     var(--space-8), not just 100%: this box is docked at bottom:
+     var(--space-6), so translateY(100%) alone only walks its top edge down
+     to that dock line (field_bottom - var(--space-6)) — still var(--space-6)
+     short of the field's actual bottom edge, which read as a persistent
+     sliver of the drawer's top staying visible no matter how far up you
+     scrolled, followed by a sudden pop to nothing once is-hidden's
+     visibility: hidden finally kicked in below DRAWER_REVEAL_THRESHOLD. The
+     extra var(--space-8) walks the top edge var(--space-8) - var(--space-6)
+     = 8px past the field's bottom edge — fully into rs-field-panel's
+     overflow: hidden clip, with a small margin against sub-pixel rounding —
+     so it is genuinely offscreen well before is-hidden ever applies, and
+     nothing pops. */
   transform: translateX(-50%)
-    translateY(calc((1 - var(--rs-drawer)) * var(--space-6)))
-    scale(calc(0.94 + 0.06 * var(--rs-drawer)));
-  opacity: clamp(0, calc(var(--rs-drawer) / 0.35), 1);
+    translateY(calc((1 - var(--rs-drawer)) * (100% + var(--space-8))));
 }
 
-/* Closed, it is a full-size fully transparent box sitting over the pitch —
-   unlike the old drawer, which slid outside the field's clipped bounds. It
-   has to stop existing for the pointer and for assistive tech, or it would
-   swallow every drag meant for the ball underneath it. RobotSimulator.jsx
-   toggles this from the scrub's frame callback. */
+/* Without backdrop-filter a translucent fill just reveals the field through
+   the text. Fall back to the same near-opaque droplet fallback .rs-back
+   uses, for the same reason: legibility never depends on the effect
+   landing. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .robot-simulator-page .rs-physics-drawer {
+    background: var(--glass-fill-droplet-fallback);
+  }
+}
+
+/* Below DRAWER_REVEAL_THRESHOLD the slide above has the box sitting a full
+   height past its own dock, clipped away by rs-field-panel's overflow:
+   hidden — but a transform alone doesn't pull an element out of the
+   accessibility tree or stop it intercepting a stray pointer event once it
+   re-enters that clipped region, so it still needs to stop existing for
+   both explicitly at rest. RobotSimulator.jsx toggles this from the scrub's
+   frame callback. */
 .robot-simulator-page .rs-physics-drawer.is-hidden {
   visibility: hidden;
   pointer-events: none;
 }
 
+/* Label and reset button on one row — the label's own flex/typography rules
+   are untouched (shared with .rs-panel-label / .rs-role-label), this just
+   gives the row somewhere to put the button without restating them. */
+.robot-simulator-page .rs-physics-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Icon-only, no chrome at all — no fill, no border, no pill — per the ask
+   that this sit directly on the drawer's own glass rather than read as a
+   second control stacked on it. Same shape as .info-hint-trigger
+   (InfoHint.css): a 44px tap target holding a visually small 16px glyph,
+   transparent at rest, with only a color shift (never a background/border)
+   as the hover/press feedback every interactive element on this page still
+   needs. Pulled left on the right margin: enough negative to cancel the
+   44px hit area pushing the drawer's own padding out, plus var(--space-3)
+   more so the glyph sits a little further in from the edge than the
+   padding alone would put it. */
+.robot-simulator-page .rs-drawer-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  margin-right: calc((var(--tap-target-min) - var(--space-4)) / -2 + var(--space-3));
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-tertiary-label);
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.robot-simulator-page .rs-drawer-reset svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.robot-simulator-page .rs-drawer-reset:hover {
+  color: var(--color-accent);
+}
+
+.robot-simulator-page .rs-drawer-reset:active {
+  transform: scale(0.92);
+}
+
+.robot-simulator-page .rs-drawer-reset:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -8px;
+  border-radius: var(--radius-pill);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page .rs-drawer-reset {
+    transition: none;
+  }
+  .robot-simulator-page .rs-drawer-reset:active {
+    transform: none;
+  }
+}
 
 /* The six physics sliders, 3 across x 2 down rather than stacked in one tall
    column — trades the drawer's height for width. RNG seed stays outside this
@@ -1632,12 +1727,15 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 /* Native range chrome is unstyleable and looks nothing like the rest of this
-   app, so the whole control is rebuilt from tokens: a 2px etched track on the
-   separator value — the same hairline the progress bar uses — and an accent
-   thumb that glows on hover, matching every other interactive element.
-   Deliberately no filled lower portion: WebKit cannot draw one without a
-   gradient, so styling it in Firefox alone would make the two browsers
-   disagree about what the control looks like. */
+   app, so the whole control is rebuilt from tokens: a 2px etched track and
+   an accent thumb that glows on hover, matching every other interactive
+   element. The track uses --slider-track, not --color-separator (the
+   hairline the progress bar and every other panel on the app uses) —
+   confirmed against a real running build that --color-separator reads as
+   invisible against this drawer's dark, blurred glass; see --slider-track's
+   own comment above. Deliberately no filled lower portion: WebKit cannot
+   draw one without a gradient, so styling it in Firefox alone would make
+   the two browsers disagree about what the control looks like. */
 .robot-simulator-page .rs-slider input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
@@ -1653,13 +1751,13 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 .robot-simulator-page .rs-slider input[type="range"]::-webkit-slider-runnable-track {
   height: 2px;
   border-radius: var(--radius-pill);
-  background: var(--color-separator);
+  background: var(--slider-track);
 }
 
 .robot-simulator-page .rs-slider input[type="range"]::-moz-range-track {
   height: 2px;
   border-radius: var(--radius-pill);
-  background: var(--color-separator);
+  background: var(--slider-track);
 }
 
 .robot-simulator-page .rs-slider input[type="range"]::-webkit-slider-thumb {
@@ -1759,20 +1857,38 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  /* getDrawerTarget() (RobotSimulator.jsx) pins the scroll-scrub target at 0
+     under reduced motion rather than tracking window.scrollY, so --rs-drawer
+     never leaves 0 and the slide transform above never actually travels —
+     that is the "instant show/hide" half of the fallback the drawer already
+     gets for free, with no rule needed here to produce it. This rule covers
+     the other half: opacity is given a short, ordinary CSS crossfade in
+     place of the scroll-driven slide, for whatever future non-scroll
+     affordance ends up toggling this drawer's visibility for reduced-motion
+     users (see CLAUDE.md's "Known gap" under Motion — there isn't one yet).
+     --duration-base, not --duration-slow: that token is reserved for the
+     once-per-load page entrance, and a drawer visibility toggle here is a
+     small runtime state change, the same category CLAUDE.md already puts
+     tab/segment cross-fades in. No slide under reduced motion, full stop —
+     transform is held at the centring translateX alone. */
   .robot-simulator-page .rs-physics-drawer {
-    transition: none;
+    transition: opacity var(--duration-base) var(--ease-out);
+    transform: translateX(-50%);
   }
 }
 
 /* --------------------------------------------------------- right column */
 
-/* The HUD. No longer a column in a row beside the field — a glass panel
-   floating ON it, inset from the viewport on all four sides so the field
-   reads as running underneath and past it rather than stopping at a seam.
-   Its width is the --rs-hud-width declared on rs-run-layout, the same value
-   the pitch, legend, drawer and reticle inset themselves by, so the chrome
-   and the drawing it must not cover are derived from one number. */
-.robot-simulator-page .rs-run-console {
+/* The vertical positioning root for the whole right-hand column: the
+   floating playback cluster and the console card beneath it. Absolutely
+   positioned exactly where .rs-run-console alone used to be — same
+   top/right/bottom/width the pitch, legend, drawer and reticle also derive
+   --rs-hud-reserve from — so splitting the buttons out of the card changed
+   the column's internal structure, not its footprint on the field. Carries
+   no fill of its own: the glass surface stays scoped to .rs-run-console, so
+   the cluster reads as floating on the field rather than inside a shared
+   card with the telemetry below it. */
+.robot-simulator-page .rs-console-col {
   position: absolute;
   top: var(--space-6);
   right: var(--space-6);
@@ -1781,7 +1897,52 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   z-index: 3;
   display: flex;
   flex-direction: column;
-  /* Separates the playback row from the stats card. Same token as the
+  /* Separates the cluster from the card below it — an 8pt step, the same
+     rhythm the card's own internal gap and padding use. */
+  gap: var(--space-6);
+}
+
+/* Play, Reset and the speed options, floating standalone on the field above
+   the console card — see CLAUDE.md -> Components -> Glass button. Two rows
+   rather than one: at the HUD's ~320-420px width, cramming all five buttons
+   onto one line would either crowd the 44px tap-target minimum or force
+   uneven wrapping. Play/Reset paired on the first row and the three speed
+   options evenly split on the second keeps both rows symmetric. */
+.robot-simulator-page .rs-playback-cluster {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.robot-simulator-page .rs-playback-primary {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.robot-simulator-page .rs-play-btn,
+.robot-simulator-page .rs-reset-btn {
+  /* Equal-width split of the row rather than sizing to each label's own
+     text, so "Play"/"⏸ Stop" swapping in and out never shifts Reset's
+     position next to it. */
+  flex: 1 1 0;
+}
+
+/* The HUD. No longer a column in a row beside the field — a glass panel
+   floating ON it, inset from the viewport on all four sides so the field
+   reads as running underneath and past it rather than stopping at a seam.
+   Now holds only the role label and the telemetry card — Play, Reset and
+   the speed options moved out to .rs-playback-cluster above, in
+   .rs-console-col, so this keeps the exact material/padding/radius it
+   always had, just without those three controls as children. flex: 1 1 auto
+   fills whatever height .rs-playback-cluster doesn't take in the shared
+   column; min-height: 0 is what lets that computed height actually shrink
+   below content size so overflow-y: auto has somewhere real to scroll. */
+.robot-simulator-page .rs-run-console {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* Separates the role label from the stats card. Same token as the
      padding, so the rhythm reads as one consistent unit rather than two
      different spacings competing. */
   gap: var(--space-6);
@@ -1790,20 +1951,6 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   border-radius: var(--radius-panel);
   box-sizing: border-box;
   overflow-y: auto;
-}
-
-.robot-simulator-page .rs-playback-row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-/* In a HUD column this no longer has a wide row to be pushed to the end of —
-   `margin-left: auto` would just strand it against whatever wrapped above.
-   Give it the full row instead, so it reads as the panel's caption. */
-.robot-simulator-page .rs-role-label {
-  flex-basis: 100%;
 }
 
 /* ------------------------------------------------------------ stats card */
@@ -2069,5 +2216,68 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   overflow: auto;
   z-index: 1;
   animation: rs-cross-fade var(--duration-base) var(--ease-out) both;
+}
+
+/* ------------------------------------------------------- sub-900px layout */
+
+/* Relocated here (was inlined right after .rs-run-layout's own declaration)
+   so it actually wins the cascade. Every selector below shares its exact
+   specificity with an unconditional rule declared earlier in this file
+   (.rs-run-layout, .rs-field-panel, .rs-console-col, .rs-run-spacer); CSS
+   breaks a same-specificity tie by source order alone, regardless of which
+   side carries the @media condition, so a mobile override placed earlier
+   than the rule it's meant to override is simply dead at every viewport,
+   never just the ones outside its media condition. Keeping this block last
+   in the file is what makes the whole page's real breakpoint. */
+@media (max-width: 900px) {
+  .robot-simulator-page .rs-run-layout {
+    position: static;
+    inset: auto;
+    width: auto;
+    height: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    padding: var(--space-4);
+    --rs-hud-reserve: 0px;
+  }
+
+  .robot-simulator-page .rs-field-panel {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 3 / 2;
+    border: 1px solid var(--color-separator);
+    border-radius: var(--radius-panel);
+  }
+
+  /* The SVG needs no override — --rs-hud-reserve is 0px here, so its
+     calc(100% - reserve) width already resolves to the full field box. */
+
+  .robot-simulator-page .rs-console-col {
+    position: relative;
+    inset: auto;
+    width: auto;
+  }
+
+  .robot-simulator-page .rs-run-spacer {
+    display: none;
+  }
+
+  /* The 3x2 slider grid only has the width to work above this breakpoint —
+     stacked back to one column here, so the drawer reverts to the taller,
+     narrower shape that fits the sub-900px field. Unlike the desktop drawer,
+     this one scrolls internally past a cap: the field itself is short here
+     (aspect-ratio 3/2, no longer the full viewport), so there usually isn't
+     room to draw seven stacked rows out in full the way there is on desktop. */
+  .robot-simulator-page .rs-physics-drawer {
+    width: min(420px, calc(100% - var(--space-12)));
+    max-height: min(56%, 460px);
+    overflow-y: auto;
+  }
+  .robot-simulator-page .rs-slider-grid {
+    grid-template-columns: 1fr;
+  }
 }
 

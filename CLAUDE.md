@@ -201,9 +201,9 @@ rival accents.
   text legible, it does not belong.
 - **No *depth* shadows on UI chrome** — not on panels, cards, buttons,
   inputs, or popovers. Separate surfaces with `--color-elevated-background`
-  and `--color-separator` hairlines instead. There are exactly three named
-  exceptions, below; only the third is genuinely depth, and it is the one
-  case where depth is the point.
+  and `--color-separator` hairlines instead. There are exactly four named
+  exceptions, below; the third and fourth are genuinely depth, and they are
+  the cases where depth is the point.
 - **Exception 1 — `--shadow-hero`.** A single soft drop-shadow beneath
   hero/product-style *imagery* sitting on a surface. Nothing else may use it.
 - **Exception 2 — `--glow-accent`.** An accent-colored glow
@@ -229,6 +229,61 @@ rival accents.
   spread) so it never reads as the pane floating off the control. Scoped to
   that one element. A *static* surface — panel, card, button, popover —
   still gets a hairline and nothing else, glass or not.
+- **Exception 4 — `--shadow-glass-rim`.** A rim of inset highlights standing
+  in for specular light catching the edge of a glass surface, rather than an
+  offset drop. Exists because a backdrop-distortion filter only reads as
+  "glass" where there is texture behind it for the displacement to bend;
+  over a flat pitch corner, that filter alone is invisible. The rim is what
+  makes the material read regardless of backdrop content. Its ambient/
+  contact layers stay literal black `rgba()` like the other three
+  exceptions; its highlight insets are `color-mix`ed from `--color-label`,
+  never a raw white. Scoped to one shared vehicle plus two further
+  distinctly-tuned surfaces, each reconsidered explicitly rather than
+  copied in passing:
+  - **Every `<GlassButton>` instance** (`.rs-back`, and the run console's
+    Play and Reset — see Components → Glass button) always, plus
+    `<GlassSlider>`'s own thumb (Components → Glass slider), which carries
+    the identical material by CSS rather than by rendering a `GlassButton`
+    itself. All of them reference the *same* turbulence filter,
+    `GlassButtonFilter` / `#glass-button-noise`
+    (`src/components/GlassButton.jsx`), rendered once per page — this is one
+    shared definition, not one bespoke filter per control, since every
+    consumer sits at roughly the same ~44px-tall scale the filter was tuned
+    against.
+  - `.rs-legend` only in its expanded (`:hover`/`:focus-visible`) state —
+    collapsed, the legend stays the plain corner-icon-button frost every
+    other static HUD surface uses, and only swaps in the rim plus its own
+    tuned turbulence filter (`LegendGlassFilter`, `#rs-legend-glass` — lower
+    `baseFrequency`, larger displacement `scale` than GlassButton's shared
+    one, since the expanded key is a much wider surface for the same wobble
+    to read across) once it opens.
+  - `.rs-physics-drawer` always, with its own filter again (`DrawerGlassFilter`,
+    `#rs-drawer-glass` — the lowest `baseFrequency` of the three filters, since
+    the drawer is the largest, content-bearing surface of the set and needs
+    the broadest wobble to read as glass rather than noise).
+
+  `.rs-physics-drawer` also diverges on fill and rim, not just carrying
+  GlassButton's material unchanged: `--glass-fill-droplet-panel`, not
+  `--glass-fill-droplet`, and `--shadow-glass-rim-panel`, not
+  `--shadow-glass-rim` — same layer order and `color-mix` ratios as their
+  GlassButton counterparts, fill less opaque and rim spreads/blurs scaled
+  ~2.5x. Confirmed against a real running build: `--shadow-glass-rim`'s
+  values are tuned against a 44px circle, and both read as too solid / too
+  negligible a sliver against the drawer's ~940x380px surface at that scale
+  (see both tokens' own comments in tokens.css). The backdrop blur itself
+  stays — an earlier pass dropped it after finding a sharp pitch line under
+  a plain tint stayed more visible than a blurred one over this
+  mostly-uniform dark turf, but keeping the blur here was an explicit,
+  deliberate call afterward, not an oversight. Every other static surface —
+  cards, panels, buttons, popovers, `.rs-stats-toggle` — still gets a
+  hairline and nothing else. A new *button-shaped* control reaching for this
+  material should go through `<GlassButton>` (Components → Glass button)
+  rather than inventing a new bespoke filter — that's the reuse this
+  extraction is for. Reconsider this section the same way a new
+  *non-button* turbulence-filter surface or a fourth rim-token variant would
+  need to, and don't reach for `--shadow-glass-rim-panel` on a small control
+  just because it's punchier — it exists specifically for a surface
+  `--shadow-glass-rim` has already been confirmed too subtle for.
 - **No blur/translucency on chrome, except where chrome is genuinely stacked
   over moving content.** That is the whole test, and on this route only the
   simulate step meets it — there, the field is live and everything sits on
@@ -320,13 +375,26 @@ rival accents.
 There is no component library. Build from tokens, following Apple's patterns:
 
 - **Segmented control** — pill-shaped track, single glass active segment.
-  This is the pattern for switching views (e.g. the simulate step's playback
-  speed, `0.5× / 1× / 2×`), *not* a tab bar with underlines. The active segment takes the glass chrome
-  treatment: `--glass-chrome` fill, `--border-accent-subtle` hairline, the
-  label in `--color-accent`, and `--glow-accent`. Every segment carries a
-  `1px solid transparent` border at rest so the active one's hairline costs
-  no layout — without it the whole track jumps by 2px each time the selection
-  moves.
+  This is the pattern for switching views, *not* a tab bar with underlines.
+  The active segment takes the glass chrome treatment: `--glass-chrome`
+  fill, `--border-accent-subtle` hairline, the label in `--color-accent`,
+  and `--glow-accent`. Every segment carries a `1px solid transparent`
+  border at rest so the active one's hairline costs no layout — without it
+  the whole track jumps by 2px each time the selection moves.
+
+  > The run step's playback speed (`0.5× / 1× / 2×`) was this pattern's
+  > reference case — one joined `SegmentedControl` track — until floating
+  > the console's buttons directly on the field (see Glass button, below)
+  > moved it briefly to three standalone `<GlassButton>`s, each carrying its
+  > own `selected` state. That was itself a stop on the way to where it
+  > lives now: one `<GlassSlider>` (Components → Glass slider) — a single
+  > pill track whose active state is a physical glass thumb sliding between
+  > slots, rather than three separate glass surfaces that happened to sit
+  > next to each other. `SegmentedControl` itself is untouched and still
+  > available for an ordinary view switch — the same "no current call site,
+  > still the right component when one appears" status `SelectableCard`
+  > already carries (see Migration status) — it just has no call site on
+  > this route anymore.
 - **Buttons** — pill-shaped. Exactly two variants, and they are deliberately
   *not* the same treatment. No tertiary, no danger variant.
   - **Primary** stays a **solid `--color-accent` fill** with `--color-on-accent`
@@ -351,6 +419,17 @@ There is no component library. Build from tokens, following Apple's patterns:
     > lone button's icon *is* its anchor. That button is gone — it is the
     > path input group now — and the exception went with it. Don't
     > reintroduce a second icon size without a live case for it.
+
+  `.btn` is the pattern for a button sitting on an ordinary opaque surface —
+  the landing step's cards, the checks summary. A button floating over the
+  live field or stacked inside the run step's HUD is a different pattern,
+  `<GlassButton>` (see Components → Glass button below): same primary/
+  secondary-shaped hierarchy in spirit (one opaque accent variant, one
+  translucent variant) but built on the glass material and magnetic motion
+  this route's field chrome uses, not `.btn`'s flat fill and lift-on-hover.
+  Don't mix the two on the same surface — pick whichever this section's
+  "chrome is genuinely stacked over moving content" test (Surfaces) says the
+  surface belongs to.
 - **Path input group** (`.rs-path-group`) — a read-only value field with the
   control that changes it joined to its right edge under one shared border.
   This is the pattern for **stating a setting whose value is a path or other
@@ -548,16 +627,218 @@ There is no component library. Build from tokens, following Apple's patterns:
 - **Corner icon button** — a circular, icon-only glass control pinned to a
   corner: `--tap-target-min` square hit area with a 16px glyph inside, glass
   fill, hairline border, and accent + `--glow-accent` on hover. Two instances,
-  and they are deliberately the same object: `.rs-back` (top-left of the
-  field, the only in-page route back to the editor, since this step renders
-  no header or site nav) and `.rs-stats-toggle` (the stats card's flip). A
-  third corner control should reuse this pattern rather than invent one.
+  built on the same base: `.rs-back` (top-left of the field, the only in-page
+  route back to the editor, since this step renders no header or site nav)
+  and `.rs-stats-toggle` (the stats card's flip). A third corner control
+  should reuse this pattern rather than invent one.
+
+  **`.rs-back` is a named, scoped divergence from this base, not a second
+  application of it.** It swaps the hairline border for `--shadow-glass-rim`
+  (Surfaces → Exception 4) layered under an SVG turbulence `backdrop-filter`,
+  so it reads as liquid glass regardless of what's behind it in that corner
+  of the pitch. `.rs-stats-toggle` still gets the plain hairline-border
+  version — don't copy the rim treatment onto it without reconsidering this
+  note; it was scoped to the one control that was actually asked for it.
+
   `.rs-back` lives *inside* `.rs-field-panel`, not in `.rs-run-layout`, so it
   stays anchored to the field in the stacked sub-900px layout where the run
   layout itself is `position: static`. Anything else claiming a corner insets
   itself past it by deriving from the same tokens — see `.rs-legend`'s
   `left: calc(var(--space-6) + var(--tap-target-min) + var(--space-4))`, which
   moves automatically if the button does.
+
+  **`.rs-back` also diverges on fill and on motion**, both scoped to this one
+  control in a *position/shape* sense — the material and motion themselves
+  are no longer bespoke to it. They are `<GlassButton>`'s (see the next
+  entry, Glass button); `.rs-back` is one named instance of that component,
+  not a one-off:
+  - Its resting fill is **`--glass-fill-droplet`** (40% elevated-background),
+    not `--glass-hud` (70%). `--glass-hud` is tuned for the console/legend,
+    where text sitting on it has to stay legible over a moving field — this
+    is an icon-only circle with no text to protect, and at 70% it read as
+    near-solid black rather than a translucent bead of glass. Don't reuse
+    `--glass-hud` here or `--glass-fill-droplet` on a text-bearing surface.
+  - It is a **liquid droplet**, not a static icon button: on pointer proximity
+    it leans toward the cursor (a `framer-motion` spring on `x`/`y`, driven by
+    a `window` `mousemove` listener that reads position into motion values —
+    never `setState`, for the same reason `RoleToggle`'s cursor highlight
+    isn't state-driven either), grows slightly on hover, and bounces on
+    click. See Motion → Spring-based controls for the `SPRING_MAGNETIC` /
+    `SPRING_CLICK` configs this uses and why they're allowed to differ from
+    `SPRING_UI`. `.rs-stats-toggle` gets none of this — it stays a static
+    corner button, per the divergence note above.
+- **Glass button** — the app's canonical interactive-button pattern, and the
+  vehicle every liquid-glass control above the run step's field goes through
+  now: `<GlassButton>` (`src/components/GlassButton.jsx`, styles in the
+  colocated `GlassButton.css`). It is `.rs-back`'s original material and
+  motion, extracted once that pattern needed a fourth use (the run console's
+  Play and Reset) rather than copied a fourth time: a droplet fill wobbled
+  by a shared SVG turbulence filter (`GlassButtonFilter`, rendered once per
+  page — every instance references it by the same
+  `url(#glass-button-noise)`, since an SVG filter is addressed by id and
+  doesn't care how many elements point at it), the `--shadow-glass-rim`
+  edge, and framer-motion's magnetic cursor pull plus a spring click bounce
+  (`SPRING_MAGNETIC` / `SPRING_CLICK` — see Motion → Spring-based
+  controls). Its material (fill, filter, rim) is also what
+  `<GlassSlider>`'s thumb is built from, below — read this entry first.
+
+  **Two fills, `variant="glass"` and `variant="accent"`, and they are the
+  only thing allowed to differ between instances** — never the structure, the
+  material, or the motion. `glass` is the translucent droplet fill above
+  (`--glass-fill-droplet`, secondary-label ink resting, accent ink on
+  hover); `accent` is the one opaque exception, a solid `--color-accent`
+  fill with `--color-on-accent` ink, reserved for the single dominant action
+  in a row — the run console's Play/Stop toggle, which stays this fill
+  regardless of which state it's showing, not the primary/secondary swap it
+  used to be. A `selected` prop adds an `.is-selected` state — an accent
+  hairline, ink and glow layered on the glass fill — for a GlassButton
+  standing in for a segmented control's active segment. Nothing on the run
+  console currently uses `selected` — the playback speed, its original
+  case, moved to `<GlassSlider>` once it needed to be one sliding thumb
+  rather than three independently-selected buttons — but the prop stays for
+  the next control shaped like that. Play never carries it, since it is a
+  single action, not one of a set.
+
+  **Reach/pull/strength/hoverScale/tapScale are props, not constants baked
+  into the component**, because the right pull for a 44px circle (the back
+  button) is too strong for a wider pill (Play, Reset) — the same "tune per
+  control shape, not per instance" rule the run step's legend already
+  established relative to the back button. GlassButton defaults to its own
+  `PILL_*` constants (`src/components/GlassButton.jsx`), tuned for its own
+  icon-and-text pill shape family; `.rs-back` passes the original
+  `BACK_BUTTON_*` values from `RobotSimulator.jsx` explicitly to keep its
+  exact prior feel. `PILL_TAP_SCALE` is exported for exactly one outside
+  consumer — `<GlassSlider>` reuses the literal constant for its own thumb's
+  click bounce, so the two controls' "click feedback" reads as the same
+  magnitude rather than two independently-chosen numbers that happen to be
+  close.
+
+  **Each instance owns its own `mousemove` listener**, rather than joining
+  the run step's single console-wide listener (the one `.rs-legend` still
+  uses directly, undocumented through this component — see Motion →
+  Spring-based controls). That consolidation exists to keep a small, fixed
+  set of bespoke controls off a per-control listener; a reusable component
+  has no fixed control count to consolidate against, and the listener only
+  ever reads a pointer position into a motion value — it never triggers a
+  re-render — so one more per instance costs nothing next to the win of a
+  fully self-contained control. `applyMagneticPull`/`clampMagnitude`
+  themselves live in `src/lib/magneticPull.js`, shared by GlassButton and by
+  `.rs-legend`'s own bespoke listener.
+- **Glass slider** — a second named glass pattern, for a small fixed set of
+  equal-width options where the active state should read as one physical
+  surface moving between them rather than as several independently-selected
+  buttons: `<GlassSlider>` (`src/components/GlassSlider.jsx`, styles in the
+  colocated `GlassSlider.css`). The run console's playback speed
+  (`0.5× / 1× / 2×`) is the reference case — see Migration status. A plain
+  neutral rounded-rectangle track (`--color-elevated-background` fill,
+  `--color-separator` hairline, `--radius-panel` corners — the same track
+  fill/hairline `SegmentedControl` uses, and the same corner step
+  `.rs-stats-card`/`.rs-physics-drawer` use) carries always-visible
+  plain-text options; the *track* is deliberately not glass. The one glass
+  surface is a single thumb — GlassButton's own material
+  (`--glass-fill-droplet`, the shared `#glass-button-noise` turbulence
+  filter, `--shadow-glass-rim`), plus the `--border-accent-subtle` hairline
+  and `--glow-accent` glow GlassButton's own `.is-selected` state carries —
+  that follows the cursor while the track is hovered and settles onto
+  whichever option is active otherwise. Its own corners are
+  `--radius-control`, not the track's `--radius-panel`: inset by
+  `--space-1` on all four sides, the thumb is only ~34px tall, and half of
+  that is just under `--radius-panel`'s 18px — that token would still cap
+  the thumb to a full pill on its vertical edges despite the intent, where
+  `--radius-control` (12px) stays comfortably under the half-height
+  ceiling. The active option's own text goes `--color-accent`, the same
+  reading `.is-selected` gives a label against a glass fill (never
+  `--color-on-accent` — that token is calibrated against an *opaque* accent
+  fill, and this thumb is translucent).
+
+  **The follow, the settle, and the click bounce are three motions from two
+  systems, layered on one element** — the full state machine is documented
+  in `GlassSlider.jsx`'s own header and inline comments:
+  - Position (`x`) is the eased-follow/rAF engine (Motion → Eased-follow
+    elements), extended here to a third driver,
+    `usePointerApproach` (`src/lib/usePointerApproach.js`) — while the
+    track is hovered, `mousemove` continuously re-targets the thumb, but to
+    the *centre of whichever option's zone the cursor currently sits in*
+    (each option's own equal flex slot; the boundary between two zones is
+    the midpoint between their slot centres, which is what makes the target
+    flip exactly "as the cursor crosses the midpoint between two labels"),
+    never to the cursor's literal x-position. What's continuous is the
+    tracking, not the target — the thumb still only ever eases toward one
+    of the same fixed slot centres a click or keyboard selection commits
+    to; the target just updates live as the cursor moves between zones. On
+    `mouseleave`, or once a commit happens, the target becomes the active
+    option's slot instead. It's the same engine easing toward whatever the
+    current target is either way, which is what makes this a genuine
+    extension of the pattern rather than a fourth, differently-built
+    element: a continuous input (the cursor) driving a value that eases
+    rather than snaps, exactly what the hero shot and the physics drawer
+    already do with a React-state target and a scroll-derived target
+    respectively. Tuned to `--duration-fast` rather than the engine's
+    default `--duration-base` (`readTau`'s second, optional argument,
+    threaded through `usePointerApproach`) — a live cursor needs to be
+    visibly kept pace with, not trailed at the same unhurried rate the
+    hero/drawer use; still a real token, never an invented number.
+  - The click bounce (`scale`) is `SPRING_CLICK` at GlassButton's own
+    `PILL_TAP_SCALE` — "the same spring/scale effect" every individual
+    GlassButton already gets from its own `whileTap`. It can't literally be
+    a `whileTap` here, because the pointer press lands on whichever label
+    sits on top of the thumb, not on the thumb itself, so it's triggered
+    imperatively through framer-motion's `useAnimationControls` instead,
+    sequenced up then back down on every click.
+
+  `x` is a raw `useMotionValue`, written every settling frame by the
+  eased-follow engine's `onFrame` callback (`xMotionValue.set(...)`), not
+  animated through `AnimationControls` — only `scale` goes through
+  `useAnimationControls`. The two are independent motion values on the same
+  element that framer-motion composites into one `transform` automatically,
+  the same composition GlassButton's own `style={{ x, y }}` (its magnetic
+  pull) plus `whileHover`/`whileTap` (its scale) already relies on. Neither
+  ever fights a raw CSS `transition: transform`, because there isn't one.
+
+  **"Stays there until hovered again," precisely**: a click or keyboard
+  selection sets a `followingRef` flag to `false` in addition to moving the
+  target, and `mousemove` is a no-op whenever that flag is false — only a
+  genuine `mouseenter` sets it back to `true`. That is what stops a click
+  from being immediately undone by the cursor still sitting somewhere else
+  on the track at the moment of the click: continuing to move the mouse
+  *without* first leaving and re-entering does not resume the follow.
+
+  **No DOM measurement of the thumb itself, unlike `RoleToggle`'s sliding
+  pill.** `RoleToggle` measures real button geometry because its two labels
+  are organic text; a fixed, always-equal-width option set doesn't need
+  that for its *own* box — but unlike the discrete-tween version of this
+  control that preceded cursor-follow, resolving a live cursor position
+  into "which zone is this" does need real pixel bounds, so
+  `GlassSlider.jsx` measures the *track's* `clientWidth` (which already
+  excludes its border, since the track has no padding) and derives the
+  thumb's pixel width analytically
+  from that and the option count — the same formula the CSS
+  `width: calc(...)` on the thumb resolves, computed a second time in JS
+  because the pointer math needs it as a number. Re-measured on mount (a
+  `useLayoutEffect`, not the plain `useEffect` this file's other measured
+  patterns use, so the very first paint already lands on the correct
+  resting slot instead of flashing in from `x: 0`) and on window resize,
+  since the HUD column itself is fluid (`clamp(320px, 26vw, 420px)`).
+  Reach for `RoleToggle` instead of `GlassSlider` the moment the option set
+  needs organic-width labels; reach for `GlassSlider` instead of
+  `RoleToggle` the moment the surface needs to be glass rather than
+  neutral, or the active state needs to track the cursor rather than only
+  ever jump between commits.
+
+  **Hover on an inactive option is ink only now, no background tint.**
+  Before the thumb followed the cursor, a translucent `--glow-cursor` fill
+  was the only "this is interactive" signal a hovered, inactive option
+  could give; the glass thumb sliding toward it is a much stronger one now,
+  and a second static glass-ish fill appearing underneath it read as two
+  surfaces stacking rather than one. Dropped instead of softened, since even
+  a fainter version still doubles up the instant the thumb arrives; the
+  `color: var(--color-label)` brighten stays, because it's instant and
+  still answers in the beat before the eased thumb catches up to a fresh
+  `mouseenter`. Under `prefers-reduced-motion`, the cursor-follow is
+  disabled outright — no `mousemove`/`mouseenter`/`mouseleave` handlers are
+  even attached — and the control falls back to what it was before: a
+  discrete jump straight to the clicked or keyboard-selected slot, no click
+  bounce either. See Motion.
 - **Scrollbars are styled once, page-wide** — the native scrollbar is a
   light-mode artifact (white track, mid-grey thumb) and is glaring against
   dark glass. `.robot-simulator-page` restyles every scrollable box: thin,
@@ -729,15 +1010,23 @@ attention-seeking.
   scrolling back up must return it exactly to where it started.
 - **An eased value approaches its target, it does not track it frame-exact.**
   Whatever sets the target — scroll for the drawer, a state change for the
-  hero — the value approaches it (exponential approach: each frame closes a
-  fraction of the remaining gap) rather than snapping straight to it, so it
-  trails its input by a beat the same way a hover state transitions instead
-  of swapping instantly. Take the time constant from `--duration-base` via
+  hero, the cursor's position for the run console's speed slider — the value
+  approaches it (exponential approach: each frame closes a fraction of the
+  remaining gap) rather than snapping straight to it, so it trails its input
+  by a beat the same way a hover state transitions instead of swapping
+  instantly. Take the time constant from `--duration-base` via
   `getComputedStyle`, read once, not a number invented in JS. **One
   implementation**, `src/lib/easedApproach.js`: `createApproach` is the loop,
-  `useEasedApproach` drives it from React state (the hero) and
-  `useScrollScrub` drives it from scroll (the drawer). Extend that file
-  rather than writing a third copy of the easing loop.
+  driven by three sibling hooks that differ only in what sets the target —
+  `useEasedApproach` from React state (the hero), `useScrollScrub` from
+  scroll (the drawer), and `usePointerApproach`
+  (`src/lib/usePointerApproach.js`) from whatever the caller feeds it
+  imperatively (`<GlassSlider>`'s thumb, fed from its own `mousemove`/
+  `mouseleave`/commit handlers — the policy for *which* target wins at a
+  given moment is specific enough to that control that the hook itself
+  stays a thin, undecorated wrapper around the engine rather than trying to
+  own that policy). Extend that file, and add a fourth sibling hook beside
+  these three, rather than writing a second copy of the easing loop itself.
 - **A scrub's origin is scroll position zero, so the view it lives on must
   start there.** React does not reset scroll on a state change the way a
   route change would, and the simulate step replaces a tall editor step the
@@ -782,11 +1071,14 @@ system, and it is scoped narrowly rather than left to spread — a page
 should not have to guess which of two systems a given piece of motion
 belongs to.
 
-**Where it's used, and where it stops:** exactly two controls on the
-robot-simulator landing step, both because the reference-quality feel comes
-specifically from spring *physics* (a value that can overshoot slightly and
-settle, driven by stiffness/damping/mass) rather than from a fixed-duration
-curve, which `--ease-out` cannot produce:
+**Where it's used, and where it stops:** four independently-scoped cases —
+two on the robot-simulator landing step, two on the run step — all because
+the reference-quality feel comes specifically from spring *physics* (a value
+that can overshoot slightly and settle, driven by stiffness/damping/mass)
+rather than from a fixed-duration curve, which `--ease-out` cannot produce.
+One of the run-step cases, `<GlassButton>`, is itself a reusable component
+with several instances rather than a single bespoke control — see below for
+why that doesn't count as a fifth case:
 
 - **`RoleToggle`** (`src/components/RoleToggle.jsx`) — the striker/
   goalkeeper toggle's sliding selected-state pill. The pill's `x`/`width`/
@@ -803,30 +1095,100 @@ curve, which `--ease-out` cannot produce:
   `CircleCheck` (`lucide-react`) that mounts in once checks have actually
   passed. `layout`, again rather than a hardcoded width, for the same
   reason as the toggle.
+- **`<GlassButton>`** (`src/components/GlassButton.jsx` — see Components →
+  Glass button) — the liquid-droplet hover/click treatment, layered on top
+  of the component's own glass material, and the reusable form of what used
+  to be `.rs-back`'s bespoke implementation. Two motions, not one, on every
+  instance: a magnetic pull toward the cursor (`x`/`y` motion values,
+  spring-eased toward wherever a `window` `mousemove` listener last placed
+  them, cleared to `0, 0` the instant the pointer leaves an extended
+  detection zone around the button) plus a `whileHover` scale bump, and a
+  separate `whileTap` scale overshoot for the click acknowledgment. Unlike
+  the two landing-step uses, neither motion here is measuring real DOM
+  layout — it's expressive feedback on a fixed-size control — so it earns
+  its own, more elastic spring tuning rather than reusing `SPRING_UI` (see
+  below). `<GlassSlider>` (Components → Glass slider) reuses this same
+  `SPRING_CLICK` config and `PILL_TAP_SCALE` magnitude for its own thumb's
+  click bounce — imperatively, through `useAnimationControls`, rather than
+  `whileTap`, since the press lands on a label rather than the thumb itself
+  — which is why it isn't listed as a fifth case below: it introduces no new
+  tuning, only a new way of triggering tuning that already exists. Its
+  *positional* slide is deliberately outside this spring system entirely —
+  see Components → Glass slider for why that half is a token-driven tween
+  instead. Reach/pull/strength/hover-scale/tap-scale are props, tuned per
+  control *shape* rather than fixed to the component: the run step's back
+  button (`.rs-back`) passes its own original `BACK_BUTTON_*` constants
+  (`RobotSimulator.jsx`) to keep the stronger pull a 44px circle can take
+  without reading as loose; the run console's Play and Reset take
+  GlassButton's own weaker `PILL_*` defaults, sized for a wider pill
+  carrying text.
+- **The run step's legend** (`RobotSimulator.jsx`, `.rs-legend` — see
+  Migration status for the rest of its collapse/expand behavior) — the same
+  magnetic pull and click bounce as GlassButton, reusing `SPRING_MAGNETIC`
+  and `SPRING_CLICK` unchanged rather than tuning a third pair: the *feel*
+  the ask ("do the same, but weaker") called for was identical, only the
+  *amount* differs. It is deliberately **not** built on `<GlassButton>`
+  itself — its expand/collapse behavior and its own distinctly-tuned
+  turbulence filter (`LegendGlassFilter`, Surfaces → Exception 4) make it
+  enough of its own thing that forcing it through the button component would
+  cost more than it'd save. `LEGEND_REACH_PX`/`LEGEND_PULL_PX`/
+  `LEGEND_PULL_STRENGTH` in `RobotSimulator.jsx` are deliberately smaller
+  than the back button's — the legend expands into a wide bar rather than
+  staying a fixed 44px circle, so the same pull magnitude would drag a much
+  larger surface around and read as loose rather than elastic — and
+  `LEGEND_TAP_SCALE` (1.05) is far more modest than the back button's 1.24
+  for the same reason: a pop that size on a fully expanded key would read as
+  a lurch, not a bounce. Its pull is driven off its own `window` `mousemove`
+  listener in `SimStep`, using the same `applyMagneticPull` helper every
+  GlassButton instance calls from its own listener (`src/lib/
+  magneticPull.js`) rather than a copy of the function.
 
-**The spring config is one shared, named constant** —
-`SPRING_UI` in `src/lib/motionSpring.js` — imported by both, not
-re-tuned independently per control:
+**The spring config is named, shared where the *feel* is shared, and
+distinct where it isn't** — all three constants live in
+`src/lib/motionSpring.js`:
 
 ```js
 export const SPRING_UI = { type: "spring", stiffness: 500, damping: 40, mass: 0.8 };
+export const SPRING_MAGNETIC = { type: "spring", stiffness: 300, damping: 18, mass: 0.6 };
+export const SPRING_CLICK = { type: "spring", stiffness: 700, damping: 15, mass: 0.5 };
 ```
 
-Tuned heavier on damping than framer-motion's own default so it settles
-rather than visibly overshooting/wobbling — a bouncy spring next to the
-rest of the page's strictly ease-out, no-bounce motion language would read
-as a different app. Both consumers fall back to `{ duration: 0 }` under
+`SPRING_UI` is imported by `RoleToggle` and the two-stage button, unchanged:
+tuned heavier on damping than framer-motion's own default so it settles
+rather than visibly overshooting/wobbling — a bouncy spring next to the rest
+of the page's strictly ease-out, no-bounce motion language would read as a
+different app. `SPRING_MAGNETIC` and `SPRING_CLICK` are `<GlassButton>` and
+the legend's shared pair, and they deliberately *do* allow a controlled
+overshoot — lighter damping than `SPRING_UI` — because the ask for both was
+explicitly an elastic liquid droplet reaching for the cursor and springing
+back, not a settled layout change; `SPRING_CLICK` is tuned lighter and
+stiffer again for a snappier, more emphatic bounce that reads as a click
+acknowledgment rather than a sustained hover response. `<GlassSlider>` is a
+third `SPRING_CLICK` consumer — its thumb only ever bounces, never leans
+toward the cursor, so it has no use for `SPRING_MAGNETIC`. Every consumer
+falls back to a hard `{ duration: 0 }` state swap under
 `prefers-reduced-motion: reduce` (read via framer-motion's own
 `useReducedMotion()`, the same media query the CSS side answers) rather
-than trying to express "no motion" as a spring with zero stiffness.
+than trying to express "no motion" as a spring with zero stiffness —
+`<GlassButton>` and the legend additionally drop their magnetic pull
+entirely under reduced motion (no `x`/`y` style at
+all) and keep only a minimal, non-spring hover/tap scale.
 
-**Don't reach for this a third time without reconsidering.** Two named,
-scoped uses is a deliberate, audited exception, the same shape as
-`--shadow-hero` (one use) or `--glow-accent` (two named uses); it is not a
-general license to animate other page motion with springs instead of the
-token-driven CSS system above. If a future control also needs true spring
-physics, extend this section explicitly rather than letting a third
-untracked spring config appear inline somewhere.
+**Don't reach for this a fourth time without reconsidering — unless it's
+another `<GlassButton>` instance, which is exactly what the component is
+for.** Four named, scoped cases is a deliberate, audited exception, the same
+shape as `--shadow-hero` (one use) or `--glow-accent` (two named uses); it is
+not a general license to animate other page motion with springs instead of
+the token-driven CSS system above. `<GlassButton>` exists precisely so a new
+liquid-glass *button* doesn't need a fifth bespoke case — pass it tuned
+props and reuse `SPRING_MAGNETIC`/`SPRING_CLICK` through the component, the
+way the run console's Play and Reset do; `<GlassSlider>` shows that reuse
+extending a level further, pulling `SPRING_CLICK` and `PILL_TAP_SCALE` out
+of `GlassButton` for its own thumb rather than either duplicating the
+numbers or forcing the slider itself to be a `GlassButton`. A genuinely new
+*kind* of spring-driven motion — not a button, or not this same magnetic-
+droplet feel — should still extend this section explicitly rather than
+letting a new untracked spring config appear inline somewhere.
 
 ## File conventions
 
@@ -922,10 +1284,14 @@ control, and no site nav — navigation back to the editor is the top-left
 `.rs-back` corner button (or browser-back)
 — and its `position: fixed` root occupies the full viewport edge to edge. The
 field is the *entire* viewport (`.rs-field-panel`, `position: absolute; inset:
-0`, no border, no radius) and the console floats **on** it as a glass panel
-inset by `--space-6` on all four sides, so the field reads as running
-underneath and past it rather than stopping at a seam. This replaced an
-earlier two-column flex row where the field and console sat side by side.
+0`, no border, no radius) and the console column floats **on** it, inset by
+`--space-6` on all four sides (`.rs-console-col`), so the field reads as
+running underneath and past it rather than stopping at a seam. This replaced
+an earlier two-column flex row where the field and console sat side by side.
+Within that inset column, the floating Play/Reset/speed cluster and the
+console card itself (`.rs-run-console` — the actual glass panel, now holding
+only the role label and the telemetry) stack top-to-bottom rather than the
+whole column being one panel — see Components → Glass button.
 
 The **physics drawer** is a compact rounded glass card floating at the bottom
 centre of the pitch area — not the full-width bottom-docked tray it used to
@@ -933,12 +1299,42 @@ be. Bottom centre because the pitch's own landmarks are symmetric about that
 axis and both goal labels sit at the top, so it is the one region that crowds
 neither goal nor merges with the console into a lopsided right-hand mass. It
 is centred on `calc((100% - var(--rs-hud-reserve)) / 2)`, capped at a width
-that leaves a clear margin inside the pitch area on both sides, and scrolls
-internally past `max-height`. Its reveal is scale + fade + a slight rise
-rather than a slide: a small card sliding its own height reads as a jump,
-where growing into place reads as settling. The `translateX(-50%)` that
-centres it is part of the same `transform` as the reveal — an element has only
-one, and the centring has to survive every frame of the animation.
+that leaves a clear margin inside the pitch area on both sides. Above 900px
+it draws out to its full content height rather than capping and scrolling —
+the field has the room; below 900px, where the field shrinks to a stacked
+`aspect-ratio: 3/2` box, it goes back to a `max-height` and an internal
+scroll, since there often isn't room to show it in full there (see the
+sub-900px override in RobotSimulator.css). Its material is `.rs-back`'s
+own — droplet fill and rim scaled up for its own size
+(`--glass-fill-droplet-panel`, `--shadow-glass-rim-panel` — see Surfaces →
+Exception 4 for why those differ from `.rs-back`'s own values), backdrop
+blur and turbulence wobble kept unscaled and identical to `.rs-back`'s; not
+the plain `.rs-glass` fill every other nested surface on the HUD uses. Its
+continuous reveal (as the scroll-scrub value `--rs-drawer` moves) is a
+slide, not a fade: `--rs-drawer` is itself an eased position, not a raw
+scroll readout — `useScrollScrub` drives it through the same
+exponential-approach engine (`easedApproach.js`) the hero shot's own
+eased-follow motion runs on, so it trails the scroll wheel by a beat rather
+than pinning to it frame-exact, and reverses cleanly if the user scrolls
+back up. At `--rs-drawer: 0` the drawer sits `100% + var(--space-8)` below
+its own dock via a `%`-based `translateY` (no guessed pixel/vh figure
+needed): 100% alone only walks its top edge down to its own
+`bottom: var(--space-6)` dock line, still `var(--space-6)` short of the
+field's actual bottom edge, which used to leave a permanent sliver visible
+no matter how far the page scrolled, followed by a sudden pop once
+`is-hidden`'s `visibility: hidden` finally applied. The extra
+`var(--space-8)` walks it fully past `rs-field-panel`'s `overflow: hidden`
+clip line with margin to spare, so it is genuinely gone well before
+`is-hidden` applies and nothing pops. At `--rs-drawer: 1` it's fully
+docked. A `mask-image` alpha gradient — not a `background` gradient, so it
+carries no color and isn't the banned kind — softens its own bottom edge as
+it slides under the field's edge, rather than cutting off with a hard
+rectangle; letting progressively more of the panel's own backdrop-filter
+blur show through as the fade approaches full transparency is what reads as
+a soft, blurred edge rather than a second blur mechanism. The
+`translateX(-50%)` that centres it is part of the same `transform` as that
+slide — an element has only one, and the centring has to survive every
+frame of it.
 
 Everything that must stay clear of the HUD — the pitch drawing, the legend,
 the physics drawer, the reticle — insets itself by **one** custom property,
@@ -960,7 +1356,12 @@ Two sizing traps worth keeping in mind here:
   about width, with the visual box spilling into the console.
 
 The legend is an overlay pinned to the field's top edge, not a row below it —
-a flush, full-height field has no spare row left for one.
+a flush, full-height field has no spare row left for one. It gets the same
+magnetic-droplet and click-bounce treatment as `.rs-back` (see Motion →
+Spring-based controls), tuned weaker since it expands into a wide bar rather
+than staying a fixed circle, and its expanded key swaps in the liquid-glass
+rim/turbulence treatment rather than the plain `--glass-hud` frost it keeps
+collapsed (see Surfaces → Exception 4).
 
 Named, scoped exceptions living in the simulate step's own custom-property
 block at the top of its section in `RobotSimulator.css` (not the shared
@@ -995,10 +1396,18 @@ block at the top of its section in `RobotSimulator.css` (not the shared
 
 Components built for this route and available for reuse (`src/components/`):
 `SegmentedControl`, `SelectableCard`, `StatusIndicator`, `Notice`,
-`ProgressBar`, `InfoHint`. The simulate step also introduced
-`src/lib/easedApproach.js` — the shared rAF/exponential-approach loop, driven
-from scroll by `useScrollScrub.js` for this step's physics drawer and from
-state by `useEasedApproach` for the landing hero's shot. See Motion.
+`ProgressBar`, `InfoHint`, `GlassButton` (the canonical liquid-glass button —
+see Components → Glass button — backing the run step's back button, Play and
+Reset), `GlassSlider` (the glass-thumb-in-a-track pattern — see Components →
+Glass slider — backing the run step's playback speed). The simulate step
+also introduced `src/lib/easedApproach.js` — the shared rAF/exponential-
+approach loop, now with three sibling driver hooks: `useScrollScrub.js`
+(from scroll, this step's physics drawer), `useEasedApproach` (from React
+state, the landing hero's shot), and `usePointerApproach.js` (from the
+cursor, the run console's speed slider — see Motion) — and
+`src/lib/magneticPull.js`, the `applyMagneticPull`/`clampMagnitude` pair
+`GlassButton` and the run step's legend both call from their own
+`mousemove` listeners (see Motion → Spring-based controls).
 
 **Not yet migrated**, still on legacy bespoke styling:
 

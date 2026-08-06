@@ -1,0 +1,132 @@
+/* The glass-thumb-in-a-track pattern — see CLAUDE.md -> Components -> Glass
+   slider. Track is a plain neutral rounded rectangle (no glass, no blur)
+   carrying always-visible plain-text options; the one glass surface is the
+   thumb, which follows the cursor while the track is hovered and settles
+   onto whichever option is active otherwise (GlassSlider.jsx). Under
+   prefers-reduced-motion the follow is disabled entirely — the thumb only
+   ever moves on a commit (click or keyboard), same as every other control
+   on this route. */
+
+.glass-slider {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  min-height: var(--tap-target-min);
+  /* Softer than a full pill — the same corner step .rs-stats-card and
+     .rs-physics-drawer already use, so the track reads as a rounded
+     rectangle rather than a capsule. */
+  border-radius: var(--radius-panel);
+  background: var(--color-elevated-background);
+  border: 1px solid var(--color-separator);
+  /* Redundant with .robot-simulator-page *'s page-wide reset (see
+     RobotSimulator.css), which is what every other control's own
+     min-height/border math on this route already resolves against —
+     stated explicitly here anyway because the thumb beside it does real
+     percentage-based sizing math (GlassSlider.jsx) that depends on this
+     box model, the same reasoning RoleToggle.css states it explicitly for
+     its own measured pill. */
+  box-sizing: border-box;
+}
+
+/* The one moving, glass-filled surface — the same material GlassButton's
+   glass variant and .rs-back use (droplet fill, the shared turbulence
+   wobble referenced through the same #glass-button-noise filter, the rim
+   edge in place of a drawn hairline), plus the accent hairline and glow
+   every other "this is the selected one" glass surface in the app carries
+   (see GlassButton.css's .is-selected). Inset from the track by --space-1
+   on all four sides; sized to one slot via the inline `width` in
+   GlassSlider.jsx (a layout fact derived from the option count, not a
+   design value). No CSS transition on transform here, and no border-radius
+   transition either despite the corner change above — framer-motion owns
+   this element's transform outright (GlassSlider.jsx: `x` written every
+   settling frame by the eased-follow engine while the cursor holds it or
+   travels to its resting slot otherwise, `scale` for the click bounce), and
+   a raw CSS transition on the same property would fight that per-frame
+   write. aria-hidden and pointer-events: none — purely a "you are here"
+   surface, never the click target itself. */
+.glass-slider-thumb {
+  position: absolute;
+  top: var(--space-1);
+  bottom: var(--space-1);
+  left: var(--space-1);
+  /* Not --radius-panel, the track's own value: the thumb is inset by
+     --space-1 on both the top and bottom, which at this control's height
+     leaves it only ~34px tall — half of that is ~17px, just under
+     --radius-panel's 18px, so that token would still cap to a full pill on
+     the vertical edges despite the intent here. --radius-control sits
+     comfortably under that half-height ceiling, so the thumb actually
+     reads as a rounded rectangle too, not just the track around it. */
+  border-radius: var(--radius-control);
+  background: var(--glass-fill-droplet);
+  border: 1px solid var(--border-accent-subtle);
+  backdrop-filter: var(--blur-hud) url("#glass-button-noise");
+  -webkit-backdrop-filter: var(--blur-hud) url("#glass-button-noise");
+  box-shadow: var(--shadow-glass-rim), var(--glow-accent);
+  pointer-events: none;
+}
+
+/* The three (or N) always-visible labels, laid directly over the track and
+   the thumb beneath it. Equal-width flex children spanning the full track —
+   a few px wider than the thumb's own inset slots, which is expected: the
+   thumb is a visual "you are here" surface roughly centered under its
+   label, not a pixel-exact mask of the hit target. */
+.glass-slider-option {
+  position: relative;
+  z-index: 1;
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--color-secondary-label);
+  font-family: var(--font-sans);
+  font-size: var(--text-callout);
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+
+/* Brightened, accent ink against the thumb's glass fill — the same reading
+   GlassButton's own .is-selected gives a selected glass surface, not a true
+   inversion: --color-on-accent is reserved for opaque accent fills (Play),
+   and this label sits on a translucent one. */
+.glass-slider-option.is-active {
+  color: var(--color-accent);
+}
+
+/* Ink brightens on hover for the inactive labels — no background tint here
+   anymore. Before the thumb followed the cursor, this label's own glow
+   (--glow-cursor) was the only "this is interactive" signal a hovered,
+   inactive option could give; now the glass thumb itself is doing that,
+   sliding to roughly this label's position in the same gesture. A second,
+   static translucent fill appearing underneath a label the moving thumb is
+   also approaching read as two glass surfaces stacking rather than one —
+   dropped instead of softened, since even a fainter version of the same
+   fill still doubles up the instant the thumb arrives. The ink brighten
+   stays: it is instant, costs nothing next to the thumb, and still answers
+   the moment right after a mouseenter, before the eased thumb has caught up
+   to the cursor. Never applied to the active option — hovering the label
+   the thumb already rests under has nothing new to say. */
+.glass-slider-option:not(.is-active):hover {
+  color: var(--color-label);
+}
+
+.glass-slider-option:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-slider-thumb {
+    background: var(--glass-fill-droplet-fallback);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-slider-option {
+    transition: none;
+  }
+}

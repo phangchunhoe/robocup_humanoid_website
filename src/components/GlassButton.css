@@ -1,0 +1,119 @@
+/* The canonical liquid-glass interactive control — see CLAUDE.md ->
+   Components -> Glass button. Structure and motion are identical across
+   every use; only the fill (glass-btn--glass vs glass-btn--accent) and the
+   optional selected state change. */
+
+.glass-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--tap-target-min);
+  padding: 0 var(--space-6);
+  /* Transparent at rest rather than `border: 0` — the same reasoning the
+     segmented control's active segment documents: swapping a real border
+     color in for .is-selected must not shift layout by the border's own
+     width. */
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-family: var(--font-sans);
+  font-size: var(--text-callout);
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  /* The same droplet material as the run step's back button: a fixed
+     --blur-hud frost wobbled by the shared turbulence filter
+     (GlassButtonFilter). Hardcoded rather than read from --chrome-blur so
+     the control still reads as glass wherever it is mounted, not only
+     inside a subtree that has switched blur on for it. */
+  backdrop-filter: var(--blur-hud) url("#glass-button-noise");
+  -webkit-backdrop-filter: var(--blur-hud) url("#glass-button-noise");
+  /* The edge is defined by the rim's inset highlights, not a drawn hairline
+     — see --shadow-glass-rim's own comment in tokens.css. */
+  box-shadow: var(--shadow-glass-rim);
+  transition: color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+/* Zero-size and inert — this element paints nothing on its own, every
+   .glass-btn reaches it only through backdrop-filter: url(#glass-button-noise). */
+.glass-btn-filter-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.glass-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.glass-btn:disabled {
+  opacity: 0.36;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* -------------------------------------------------------------- glass fill */
+
+.glass-btn--glass {
+  background: var(--glass-fill-droplet);
+  color: var(--color-secondary-label);
+}
+
+.glass-btn--glass:hover {
+  color: var(--color-accent);
+  background: var(--glass-chrome-hover);
+}
+
+/* ------------------------------------------------------------- accent fill */
+/* The one opaque exception, reserved for the single dominant action in a
+   row (Play) — same rule .btn-primary already follows elsewhere on this
+   page: if it read the same as its neighbours the hierarchy would be gone. */
+
+.glass-btn--accent {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.glass-btn--accent:hover {
+  background: var(--color-accent-hover);
+}
+
+/* Shared hover response for both fills — the rim keeps defining the edge,
+   --glow-accent adds the same reply every other glass control on the app
+   gives a pointer. */
+.glass-btn:hover {
+  box-shadow: var(--shadow-glass-rim), var(--glow-accent);
+}
+
+/* --------------------------------------------------------------- selected */
+/* Stands in for a segmented control's active segment on a button that is
+   one of a set (the run step's speed options) rather than a single action —
+   an accent hairline plus ink, the same "glass fill, accent hairline, glow"
+   reading every other selected state in the app uses. Play never carries
+   this. */
+.glass-btn.is-selected {
+  border-color: var(--border-accent-subtle);
+  color: var(--color-accent);
+  box-shadow: var(--shadow-glass-rim), var(--glow-accent);
+}
+
+.glass-btn.is-selected:hover {
+  border-color: var(--border-accent-strong);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-btn--glass {
+    background: var(--glass-fill-droplet-fallback);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-btn {
+    transition: none;
+  }
+}

@@ -3,28 +3,44 @@
 // the input by a beat the same way a hover state transitions instead of
 // swapping instantly. See CLAUDE.md's Motion section.
 //
-// Two things drive a value with it, and they differ only in what sets the
+// Three things drive a value with it, and they differ only in what sets the
 // target — never in how the value gets there:
 //   - useScrollScrub.js — the simulate step's physics drawer, target from
 //     scroll position, pushed imperatively (scroll fires far more often than
 //     the display refreshes, so it may never touch React state).
 //   - useEasedApproach below — the landing hero's shot, target from discrete
 //     UI state (page entrance, then Load & Check).
+//   - usePointerApproach.js — the run console's speed slider thumb, target
+//     from the nearest option's slot to the cursor while its track is
+//     hovered (GlassSlider.jsx snaps the cursor's position to a discrete
+//     zone before handing it over — the target is never the cursor's
+//     literal x), and from a commit (click or keyboard) otherwise. Unlike
+//     the other two, the caller drives it imperatively from several
+//     different event handlers rather than the hook wiring up one event
+//     source itself — see that file's own header.
 //
-// Keep both on this implementation rather than letting the algorithm drift
-// between them.
+// Keep all three on this implementation rather than letting the algorithm
+// drift between them.
 
 import { useEffect, useRef } from "react";
 
 const FALLBACK_TAU_MS = 300;
 
 /**
- * The easing's time constant, taken from --duration-base off a real element
- * rather than invented in JS, so the motion tokens still own the feel.
+ * The easing's time constant, taken off a real element rather than invented
+ * in JS, so the motion tokens still own the feel. Defaults to
+ * --duration-base, the token every existing consumer of this engine
+ * (useScrollScrub, useEasedApproach) tunes against; a caller answering to a
+ * continuous, live input rather than a discrete state change — currently
+ * only usePointerApproach's one consumer, the speed slider's cursor-follow
+ * — can pass a tighter token (--duration-fast) instead, since a smaller tau
+ * converges faster. Still a real token either way, never a number invented
+ * in JS.
  * @param {Element} el
+ * @param {string} [tokenName]
  */
-export function readTau(el) {
-  const raw = window.getComputedStyle(el).getPropertyValue("--duration-base");
+export function readTau(el, tokenName = "--duration-base") {
+  const raw = window.getComputedStyle(el).getPropertyValue(tokenName);
   const parsed = parseFloat(raw);
   if (!Number.isFinite(parsed) || parsed <= 0) return FALLBACK_TAU_MS;
   return raw.trim().endsWith("ms") ? parsed : parsed * 1000;
