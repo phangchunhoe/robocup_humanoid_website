@@ -16,9 +16,11 @@ components that live with the page or in `src/components/`.
 >
 > Also supersedes the pure Apple direction that preceded it: a peach accent,
 > a system-font-only stack, and opaque chrome everywhere. The accent is
-> emerald, the type is Space Grotesk / JetBrains Mono, and chrome stacked
-> over the live field is glass. Those are described below; the layout,
-> spacing, tap-target and motion discipline are unchanged.
+> emerald, the type is Space Grotesk / JetBrains Mono, and liquid glass —
+> blur, translucency, magnetic motion — is the app's chrome material
+> wherever it fits, not only where it happens to sit over the live field.
+> Those are described below; the layout, spacing, tap-target and motion
+> discipline are unchanged.
 
 ## Core discipline
 
@@ -284,11 +286,12 @@ rival accents.
   need to, and don't reach for `--shadow-glass-rim-panel` on a small control
   just because it's punchier — it exists specifically for a surface
   `--shadow-glass-rim` has already been confirmed too subtle for.
-- **No blur/translucency on chrome, except where chrome is genuinely stacked
-  over moving content.** That is the whole test, and on this route only the
-  simulate step meets it — there, the field is live and everything sits on
-  top of it, so all of its chrome is glass. Two levels, both in
-  `RobotSimulator.css`:
+- **Glass — blur plus translucency — is a surface treatment available to any
+  chrome, not gated to where it happens to sit over moving content.** Reach
+  for it whenever a surface should read as a floating, layered material
+  rather than a flat opaque panel; the simulate step's HUD is the deepest
+  reference implementation, but it isn't the only place the app should use
+  it. Two levels, both in `RobotSimulator.css`:
   - **`.rs-hud`** — the floating chrome itself: the console and the legend.
     `--glass-hud` (`--color-elevated-background` at 70%) plus `--blur-hud`
     (16px) and a `--color-separator` hairline.
@@ -300,27 +303,32 @@ rival accents.
   ordinary `.rs-panel`, given translucency instead of opacity, and both have
   a near-opaque fallback (`--glass-*-fallback`) under `@supports not
   (backdrop-filter: …)` so legibility never depends on the effect landing.
-  The landing step's panels sit on a static canvas, so they stay opaque
-  `.rs-panel`s. If it isn't over moving content, it doesn't get glass.
-- **Named exception — `RoleToggle`'s selected pane is glass on a static
-  canvas.** It is the one control that gets the treatment without sitting
-  over moving content, because *it* is the thing that moves: the pane slides
-  across its own track, and a translucent fill is what lets the unselected
-  label stay legible underneath as it passes. Its fill is
-  **`--glass-neutral`** — the neutral counterpart to `--glass-chrome`,
-  carrying no accent at all — under a `--border-neutral-subtle` hairline,
-  with `--shadow-glass` and `--blur-control` (8px). Both neutral tokens are
-  `color-mix`ed from `--color-label` rather than a raw white, so the app
-  still has exactly one white.
+  One thing worth knowing, not a rule to obey: a `backdrop-filter` blur over
+  a flat, opaque background has nothing to distort, so it renders no
+  differently than `blur: none` there. That only means the *blur* is inert
+  in that case — the translucent fill on top of it is still visibly glass
+  (see `RoleToggle` below, which does exactly this on a static canvas), so a
+  panel that isn't stacked over moving content can still take the glass fill
+  treatment; it's the blur specifically that has nothing to add there.
+- **`RoleToggle`'s selected pane is glass on a static canvas.** *It* is the
+  thing that moves: the pane slides across its own track, and a translucent
+  fill is what lets the unselected label stay legible underneath as it
+  passes. Its fill is **`--glass-neutral`** — the neutral counterpart to
+  `--glass-chrome`, carrying no accent at all — under a
+  `--border-neutral-subtle` hairline, with `--shadow-glass` and
+  `--blur-control` (8px). Both neutral tokens are `color-mix`ed from
+  `--color-label` rather than a raw white, so the app still has exactly one
+  white.
 
-  Two deviations from the surrounding rules are deliberate and worth naming
-  rather than letting a future reader "fix" them:
+  One deviation from the surrounding rules is deliberate and worth naming
+  rather than letting a future reader "fix" it:
   - **It writes `backdrop-filter: var(--blur-control)` directly, not
-    `var(--chrome-blur)`.** The rule below says blur is inherited from
-    context because a literal blur over an opaque panel is invisible; that
-    is still true here, and this control accepts the cost anyway so its
-    material is the same wherever it is reused. If a second static-canvas
-    glass control appears, generalise this rather than copying it.
+    `var(--chrome-blur)`.** `--chrome-blur` is the inherited switch a
+    container stacking chrome over moving content turns on for the glass
+    controls within it; a control that wants to read as glass wherever it's
+    reused, static canvas or not, can just write its blur directly instead,
+    the way this one does — reach for this same approach the next time a
+    glass control needs to work outside that inherited-blur subtree.
   - **The selected state carries no accent.** *Open question* — this is the
     one control on the route where selection is signalled by material and
     ink weight rather than by hue, which is in tension with "saturation
@@ -328,20 +336,25 @@ rival accents.
     hairline on the pane (`--border-accent-strong`), accent ink on the
     active label, or a short accent underline. Resolve this and delete this
     paragraph either way.
-- **Glass controls declare blur through `--chrome-blur`, not directly.**
-  Whether a translucent button actually blurs is a property of *where it
-  sits*, not of what it is — so it is inherited. `--chrome-blur` is `none` at
-  `:root`, and `.rs-run-layout` (the one container stacking chrome over the
-  live field) sets it to `var(--blur-chrome)`. Every glass control writes
-  `backdrop-filter: var(--chrome-blur)` and switches on automatically in that
-  subtree. This matters: over a flat opaque panel there is nothing behind to
-  blur, so a literal `backdrop-filter` there is invisible while still costing
-  a compositor layer per control. Add a glass control by reading the
-  property, never by hardcoding a blur.
-- **Don't stack backdrop-filters.** Each one blurs whatever is painted behind
-  it, so nesting them re-blurs an already-blurred backdrop for no visible
-  gain. The stats card sits *inside* `.rs-hud` and therefore takes a plain
-  translucent tint, not glass — see the comment on `.rs-stats-card`.
+- **A glass control over moving content declares its blur through
+  `--chrome-blur` rather than hardcoding one**, so the cost is only paid
+  where the blur actually has something to distort. `--chrome-blur` is
+  `none` at `:root`, and `.rs-run-layout` (the one container stacking chrome
+  over the live field) sets it to `var(--blur-chrome)`; a glass control
+  inside that subtree writes `backdrop-filter: var(--chrome-blur)` and
+  switches on automatically. Outside a subtree like that — a static canvas,
+  or anywhere the blur should always be on regardless of context — write the
+  blur directly instead (`RoleToggle`'s pane, above, is the reference for
+  that). Either way, glass itself is not gated by this mechanism; it only
+  decides whether the *blur* component is worth paying for.
+- **Avoid stacking two backdrop-filters directly on top of each other** —
+  each one blurs whatever is painted behind it, so a second blur immediately
+  inside an already-blurred surface adds compositor cost without changing
+  how it looks. Where that's the situation (the stats card sits *inside* the
+  already-blurred `.rs-hud`), a plain translucent tint reads as the same
+  glass material without paying for a redundant blur pass — see the comment
+  on `.rs-stats-card`. This is about not blurring twice, not about avoiding
+  glass.
 
 ## Layout and spacing
 
@@ -400,8 +413,9 @@ There is no component library. Build from tokens, following Apple's patterns:
   - **Primary** stays a **solid `--color-accent` fill** with `--color-on-accent`
     ink, deepening to `--color-accent-hover` plus `--glow-accent` on
     hover/press. It is the single dominant action in its row; if it read the
-    same as its neighbours the hierarchy would be gone. Do not convert it to
-    glass.
+    same as its neighbours the hierarchy would be gone — the same reasoning
+    `<GlassButton>`'s own opaque `accent` variant follows for its one
+    dominant action (Components → Glass button).
   - **Secondary** is **glass**: `--glass-chrome` fill, `--border-accent-subtle`
     hairline, `--color-accent` label, going to `--glass-chrome-hover` +
     `--border-accent-strong` + `--glow-accent` on hover.
@@ -420,16 +434,13 @@ There is no component library. Build from tokens, following Apple's patterns:
     > path input group now — and the exception went with it. Don't
     > reintroduce a second icon size without a live case for it.
 
-  `.btn` is the pattern for a button sitting on an ordinary opaque surface —
-  the landing step's cards, the checks summary. A button floating over the
-  live field or stacked inside the run step's HUD is a different pattern,
-  `<GlassButton>` (see Components → Glass button below): same primary/
-  secondary-shaped hierarchy in spirit (one opaque accent variant, one
-  translucent variant) but built on the glass material and magnetic motion
-  this route's field chrome uses, not `.btn`'s flat fill and lift-on-hover.
-  Don't mix the two on the same surface — pick whichever this section's
-  "chrome is genuinely stacked over moving content" test (Surfaces) says the
-  surface belongs to.
+  `.btn` is the flat-fill pattern: a plain lift-on-hover button for an
+  ordinary surface. `<GlassButton>` (see Components → Glass button below) is
+  the liquid-glass pattern: same primary/secondary-shaped hierarchy in
+  spirit (one opaque accent variant, one translucent variant) but built on
+  the glass material and magnetic motion this route's field chrome uses.
+  Reach for `<GlassButton>` anywhere that material and motion fits, not only
+  where chrome happens to be stacked over the live field.
 - **Path input group** (`.rs-path-group`) — a read-only value field with the
   control that changes it joined to its right edge under one shared border.
   This is the pattern for **stating a setting whose value is a path or other
@@ -739,106 +750,116 @@ There is no component library. Build from tokens, following Apple's patterns:
   (`--glass-fill-droplet`, the shared `#glass-button-noise` turbulence
   filter, `--shadow-glass-rim`), plus the `--border-accent-subtle` hairline
   and `--glow-accent` glow GlassButton's own `.is-selected` state carries —
-  that follows the cursor while the track is hovered and settles onto
-  whichever option is active otherwise. Its own corners are
-  `--radius-control`, not the track's `--radius-panel`: inset by
-  `--space-1` on all four sides, the thumb is only ~34px tall, and half of
-  that is just under `--radius-panel`'s 18px — that token would still cap
-  the thumb to a full pill on its vertical edges despite the intent, where
-  `--radius-control` (12px) stays comfortably under the half-height
-  ceiling. The active option's own text goes `--color-accent`, the same
-  reading `.is-selected` gives a label against a glass fill (never
+  that behaves like it's on an elastic tether to the cursor while the track
+  is hovered and settles onto whichever option is committed otherwise. Its
+  own corners are `--radius-control`, not the track's `--radius-panel`:
+  inset by `--space-1` on all four sides, the thumb is only ~34px tall, and
+  half of that is just under `--radius-panel`'s 18px — that token would
+  still cap the thumb to a full pill on its vertical edges despite the
+  intent, where `--radius-control` (12px) stays comfortably under the
+  half-height ceiling. The active option's own text goes `--color-accent`,
+  the same reading `.is-selected` gives a label against a glass fill (never
   `--color-on-accent` — that token is calibrated against an *opaque* accent
   fill, and this thumb is translucent).
 
-  **The follow, the settle, and the click bounce are three motions from two
-  systems, layered on one element** — the full state machine is documented
-  in `GlassSlider.jsx`'s own header and inline comments:
-  - Position (`x`) is the eased-follow/rAF engine (Motion → Eased-follow
-    elements), extended here to a third driver,
-    `usePointerApproach` (`src/lib/usePointerApproach.js`) — while the
-    track is hovered, `mousemove` continuously re-targets the thumb, but to
-    the *centre of whichever option's zone the cursor currently sits in*
-    (each option's own equal flex slot; the boundary between two zones is
-    the midpoint between their slot centres, which is what makes the target
-    flip exactly "as the cursor crosses the midpoint between two labels"),
-    never to the cursor's literal x-position. What's continuous is the
-    tracking, not the target — the thumb still only ever eases toward one
-    of the same fixed slot centres a click or keyboard selection commits
-    to; the target just updates live as the cursor moves between zones. On
-    `mouseleave`, or once a commit happens, the target becomes the active
-    option's slot instead. It's the same engine easing toward whatever the
-    current target is either way, which is what makes this a genuine
-    extension of the pattern rather than a fourth, differently-built
-    element: a continuous input (the cursor) driving a value that eases
-    rather than snaps, exactly what the hero shot and the physics drawer
-    already do with a React-state target and a scroll-derived target
-    respectively. Tuned to `--duration-fast` rather than the engine's
-    default `--duration-base` (`readTau`'s second, optional argument,
-    threaded through `usePointerApproach`) — a live cursor needs to be
-    visibly kept pace with, not trailed at the same unhurried rate the
-    hero/drawer use; still a real token, never an invented number.
-  - The click bounce (`scale`) is `SPRING_CLICK` at GlassButton's own
-    `PILL_TAP_SCALE` — "the same spring/scale effect" every individual
-    GlassButton already gets from its own `whileTap`. It can't literally be
-    a `whileTap` here, because the pointer press lands on whichever label
-    sits on top of the thumb, not on the thumb itself, so it's triggered
-    imperatively through framer-motion's `useAnimationControls` instead,
-    sequenced up then back down on every click.
+  **The tether, the release/settle bounce, the squash-and-stretch, and the
+  click bounce are four motions from two systems, layered on one element** —
+  the full state machine is documented in `GlassSlider.jsx`'s own header and
+  inline comments:
+  - Position (`x`) runs on a genuine spring-physics simulation —
+    `useSpringTether` (`src/lib/springTether.js`), a real
+    position/velocity/spring-force/damping integrator, **not** this app's
+    rAF eased-follow engine (`easedApproach.js`, Motion → Eased-follow
+    elements) and **not** a framer-motion `type: "spring"` transition. See
+    Motion → Spring-physics tether for why this is a third, distinct motion
+    system rather than a variant of either. While the cursor sits within
+    the *anchored* option's own zone, two spring forces of very different
+    strength act on the thumb at once: a dominant pull toward that option's
+    own centre (HOME) and a much weaker tug toward the cursor's raw
+    position (CURSOR, ~25× softer). The thumb settles near HOME's target —
+    CURSOR alone is nowhere near strong enough to win the equilibrium —
+    with just enough real displacement toward the cursor to read as
+    resistance and tension building, not a follow. The anchor updates the
+    moment the cursor's raw position crosses into a *different* option's
+    own equal-thirds zone, and that crossing is a discrete **snap**, not
+    the two forces gradually trading places: CURSOR is dropped outright and
+    HOME's own target jumps straight to the new zone's centre, so whatever
+    velocity the thumb had already built up (small while tethered, since
+    the pre-snap displacement itself is small) carries into a real,
+    physical overshoot-and-settle as HOME alone reels it the rest of the
+    way in — not a separately triggered "bounce" animation layered on top,
+    an actual consequence of the simulation. The very next move, with the
+    cursor now inside that new zone, falls straight back into the
+    tethered, HOME-dominant regime relative to it. `mouseleave` and a
+    commit (click or keyboard) both trigger the same kind of snap — but
+    only `mouseleave` also stops the tether outright (the pointer has left,
+    so there's no cursor left to tug at CURSOR); a commit only ever fires
+    while the pointer is over a label, i.e. still inside the track, so it
+    leaves hovering exactly as it found it and CURSOR keeps engaging
+    against the newly-committed anchor on every move after. Conflating the
+    two used to disable the whole control after any click that didn't end
+    in the cursor actually leaving — see Motion → Spring-physics tether.
+  - Squash-and-stretch (`scaleX`/`scaleY`) is read live off that same
+    simulation's velocity (`Math.abs(v) * STRETCH_PER_VELOCITY`, clamped),
+    gated to zero whenever the track isn't hovered, and passed through a
+    quick framer-motion spring (`SPRING_CLICK` — reused rather than a
+    fourth spring config invented for one more value) so it eases in as the
+    pull ramps up and back out to exactly `1` on release rather than
+    popping. It is *derived*, not a separate animation someone remembered
+    to reset: because it comes from real velocity, it is already zero the
+    instant the simulation itself is at rest.
+  - The click bounce (`scale`, independent of the scaleX/scaleY above) is
+    `SPRING_CLICK` at GlassButton's own `PILL_TAP_SCALE` — "the same
+    spring/scale effect" every individual GlassButton already gets from its
+    own `whileTap`. It can't literally be a `whileTap` here, because the
+    pointer press lands on whichever label sits on top of the thumb, not on
+    the thumb itself, so it's triggered imperatively through framer-motion's
+    `useAnimationControls` instead, sequenced up then back down on every
+    click.
 
-  `x` is a raw `useMotionValue`, written every settling frame by the
-  eased-follow engine's `onFrame` callback (`xMotionValue.set(...)`), not
-  animated through `AnimationControls` — only `scale` goes through
-  `useAnimationControls`. The two are independent motion values on the same
-  element that framer-motion composites into one `transform` automatically,
-  the same composition GlassButton's own `style={{ x, y }}` (its magnetic
-  pull) plus `whileHover`/`whileTap` (its scale) already relies on. Neither
-  ever fights a raw CSS `transition: transform`, because there isn't one.
-
-  **"Stays there until hovered again," precisely**: a click or keyboard
-  selection sets a `followingRef` flag to `false` in addition to moving the
-  target, and `mousemove` is a no-op whenever that flag is false — only a
-  genuine `mouseenter` sets it back to `true`. That is what stops a click
-  from being immediately undone by the cursor still sitting somewhere else
-  on the track at the moment of the click: continuing to move the mouse
-  *without* first leaving and re-entering does not resume the follow.
+  `x`, `scaleX` and `scaleY` are raw/derived motion values written by the
+  spring-tether engine's own `onFrame` callback; `scale` is framer-driven
+  through `useAnimationControls`. All four are independent motion values on
+  the same element, combined into one `transform` by framer-motion
+  automatically — the same composition GlassButton's own `style={{ x, y }}`
+  (its magnetic pull) plus `whileHover`/`whileTap` (its scale) already
+  relies on.
 
   **No DOM measurement of the thumb itself, unlike `RoleToggle`'s sliding
   pill.** `RoleToggle` measures real button geometry because its two labels
-  are organic text; a fixed, always-equal-width option set doesn't need
-  that for its *own* box — but unlike the discrete-tween version of this
-  control that preceded cursor-follow, resolving a live cursor position
-  into "which zone is this" does need real pixel bounds, so
-  `GlassSlider.jsx` measures the *track's* `clientWidth` (which already
-  excludes its border, since the track has no padding) and derives the
-  thumb's pixel width analytically
-  from that and the option count — the same formula the CSS
-  `width: calc(...)` on the thumb resolves, computed a second time in JS
-  because the pointer math needs it as a number. Re-measured on mount (a
-  `useLayoutEffect`, not the plain `useEffect` this file's other measured
-  patterns use, so the very first paint already lands on the correct
-  resting slot instead of flashing in from `x: 0`) and on window resize,
-  since the HUD column itself is fluid (`clamp(320px, 26vw, 420px)`).
-  Reach for `RoleToggle` instead of `GlassSlider` the moment the option set
-  needs organic-width labels; reach for `GlassSlider` instead of
-  `RoleToggle` the moment the surface needs to be glass rather than
-  neutral, or the active state needs to track the cursor rather than only
+  are organic text; a fixed, always-equal-width option set doesn't need that
+  for its *own* box — but resolving a live cursor position into "which zone
+  is this, and what are the tether's clamp bounds" does need real pixel
+  bounds, so `GlassSlider.jsx` measures the *track's* `clientWidth` (which
+  already excludes its border, since the track has no padding) and derives
+  the thumb's pixel width analytically from that and the option count — the
+  same formula the CSS `width: calc(...)` on the thumb resolves, computed a
+  second time in JS because the tether needs it as a number. Re-measured on
+  mount (a `useLayoutEffect`, not the plain `useEffect` this file's other
+  measured patterns use, so the very first paint already lands on the
+  correct resting slot instead of flashing in from `x: 0`) and on window
+  resize, since the HUD column itself is fluid (`clamp(320px, 26vw,
+  420px)`). Reach for `RoleToggle` instead of `GlassSlider` the moment the
+  option set needs organic-width labels; reach for `GlassSlider` instead of
+  `RoleToggle` the moment the surface needs to be glass rather than neutral,
+  or the active state needs to feel tethered to the cursor rather than only
   ever jump between commits.
 
-  **Hover on an inactive option is ink only now, no background tint.**
-  Before the thumb followed the cursor, a translucent `--glow-cursor` fill
-  was the only "this is interactive" signal a hovered, inactive option
-  could give; the glass thumb sliding toward it is a much stronger one now,
-  and a second static glass-ish fill appearing underneath it read as two
-  surfaces stacking rather than one. Dropped instead of softened, since even
-  a fainter version still doubles up the instant the thumb arrives; the
-  `color: var(--color-label)` brighten stays, because it's instant and
-  still answers in the beat before the eased thumb catches up to a fresh
-  `mouseenter`. Under `prefers-reduced-motion`, the cursor-follow is
+  **Hover on an inactive option is ink only, no background tint.** A
+  translucent `--glow-cursor` fill was an earlier version's only "this is
+  interactive" signal for a hovered, inactive option; the glass thumb
+  tethering toward it is a much stronger one, and a second static glass-ish
+  fill appearing underneath read as two surfaces stacking rather than one.
+  Dropped instead of softened, since even a fainter version still doubles up
+  the instant the thumb arrives; the `color: var(--color-label)` brighten
+  stays, because it's instant and still answers in the beat before the
+  tethered thumb catches up to a fresh `mouseenter`. Under
+  `prefers-reduced-motion`, the whole spring/tether/stretch system is
   disabled outright — no `mousemove`/`mouseenter`/`mouseleave` handlers are
-  even attached — and the control falls back to what it was before: a
-  discrete jump straight to the clicked or keyboard-selected slot, no click
-  bounce either. See Motion.
+  even attached — and the control falls back to plain, discrete
+  click-to-slide: a click or keyboard selection jumps the thumb straight to
+  its slot with no travel, no overshoot, no stretch, and no click bounce.
+  See Motion.
 - **Scrollbars are styled once, page-wide** — the native scrollbar is a
   light-mode artifact (white track, mid-grey thumb) and is glaring against
   dark glass. `.robot-simulator-page` restyles every scrollable box: thin,
@@ -1010,23 +1031,19 @@ attention-seeking.
   scrolling back up must return it exactly to where it started.
 - **An eased value approaches its target, it does not track it frame-exact.**
   Whatever sets the target — scroll for the drawer, a state change for the
-  hero, the cursor's position for the run console's speed slider — the value
-  approaches it (exponential approach: each frame closes a fraction of the
-  remaining gap) rather than snapping straight to it, so it trails its input
-  by a beat the same way a hover state transitions instead of swapping
-  instantly. Take the time constant from `--duration-base` via
+  hero — the value approaches it (exponential approach: each frame closes a
+  fraction of the remaining gap) rather than snapping straight to it, so it
+  trails its input by a beat the same way a hover state transitions instead
+  of swapping instantly. Take the time constant from `--duration-base` via
   `getComputedStyle`, read once, not a number invented in JS. **One
   implementation**, `src/lib/easedApproach.js`: `createApproach` is the loop,
-  driven by three sibling hooks that differ only in what sets the target —
-  `useEasedApproach` from React state (the hero), `useScrollScrub` from
-  scroll (the drawer), and `usePointerApproach`
-  (`src/lib/usePointerApproach.js`) from whatever the caller feeds it
-  imperatively (`<GlassSlider>`'s thumb, fed from its own `mousemove`/
-  `mouseleave`/commit handlers — the policy for *which* target wins at a
-  given moment is specific enough to that control that the hook itself
-  stays a thin, undecorated wrapper around the engine rather than trying to
-  own that policy). Extend that file, and add a fourth sibling hook beside
-  these three, rather than writing a second copy of the easing loop itself.
+  `useEasedApproach` drives it from React state (the hero) and
+  `useScrollScrub` drives it from scroll (the drawer). Extend that file
+  rather than writing a second copy of the easing loop — but see Motion →
+  Spring-physics tether below before reaching for it for a *continuous*
+  input like a live cursor position: this engine has no velocity and cannot
+  overshoot, which is the wrong tool for anything that needs to feel
+  tethered or bounce on release rather than just trail its input.
 - **A scrub's origin is scroll position zero, so the view it lives on must
   start there.** React does not reset scroll on a state change the way a
   route change would, and the simulate step replaces a tall editor step the
@@ -1189,6 +1206,131 @@ numbers or forcing the slider itself to be a `GlassButton`. A genuinely new
 *kind* of spring-driven motion — not a button, or not this same magnetic-
 droplet feel — should still extend this section explicitly rather than
 letting a new untracked spring config appear inline somewhere.
+
+### Spring-physics tether — a third, named motion system
+
+Two motion systems are already documented above: the rAF eased-follow engine
+(`easedApproach.js`) and framer-motion's own `type: "spring"` transitions
+(`motionSpring.js`'s `SPRING_UI`/`SPRING_MAGNETIC`/`SPRING_CLICK`). Neither is
+the right tool for a control that must be pulled by *two independent forces
+at once* and read its own live velocity back out for something else (squash-
+and-stretch) — the eased-follow engine has no velocity and cannot overshoot
+by construction (`shown += (target - shown) * (1 - e^(-dt/tau))` converges
+monotonically, always), and framer-motion's spring transitions animate one
+motion value toward one target at a time. A genuine mass-spring-damper
+simulation — real position, velocity, spring force, damping, integrated
+frame by frame — is a third, distinct system: `src/lib/springTether.js`
+(`createSpringTether` the engine, `useSpringTether` its React lifecycle
+wrapper), documented here explicitly so it is never read as "the eased-follow
+pattern, just tuned differently" or "a framer-motion spring, just custom."
+
+**One call site: the run console's speed slider's thumb** (`<GlassSlider>` —
+Components → Glass slider). The engine's two spring targets are given very
+different strengths on purpose, so the thumb reads as *planted* rather than
+readily draggable:
+- **HOME (the engine's "primary" target, dominant)** — the currently
+  *anchored* option's own slot centre. Always present while hovering; this
+  is what makes the thumb feel resistant to leaving its committed section
+  rather than tracking the cursor.
+- **CURSOR (the engine's "secondary" target, deliberately weak)** — the
+  cursor's own clamped position. Only active while the cursor is still
+  within the anchored option's own zone; on its own it is far too weak to
+  win the equilibrium against HOME, so the thumb only ever drifts a small,
+  real fraction of the way toward it — enough to read as tension building
+  (and, via velocity, to drive squash-and-stretch), not enough to look like
+  a follow.
+
+The two settle wherever their forces balance — never at a coin-flip
+50/50, since HOME's stiffness dominates by design (~25×
+`TETHER_CURSOR_STIFFNESS`, tuned so the thumb reads as planted for most of
+the anchored zone's own width, not just resistant right at its centre). The
+moment the cursor's raw position crosses out of the anchored zone into a
+different one, that is a **snap**, not the two forces gradually trading
+places: CURSOR is set to `null` (dropped outright) in the same update that
+retargets HOME itself at the new zone's centre — a hard, discrete
+substitution, not an interpolated crossover. Whatever velocity the thumb
+already had (small, since the pre-snap drift itself was small) then carries
+into a real, physical overshoot against that new fixed target — a release,
+exactly like `mouseleave` or a commit produce (both also drop CURSOR and
+retarget HOME, just at the true committed slot or the newly selected one
+rather than a hover-crossed zone).
+
+**A commit's snap is not the same thing as `mouseleave`'s, and conflating
+them was a real bug, not a stylistic choice.** Both retarget HOME, but
+`mouseleave` also flips `followingRef` to `false` — the pointer has
+genuinely left, so there's nothing left to tug at CURSOR. A commit
+(`handleSelect`, fired by a click or a keyboard selection) only ever
+happens while the pointer is over one of the labels, which is *inside* the
+track, so it must not touch `followingRef` at all: an earlier version set
+it to `false` there too, on the theory that the thumb should "lock until
+hovered again," and that silently broke the control the moment a user
+clicked without the cursor ever leaving the track (the overwhelmingly
+common case) — `handleMouseMove`'s own `if (!followingRef.current) return`
+guard then had no way back to `true` short of a genuine `mouseleave`/
+`mouseenter` pair, so the tether stayed dead for the rest of that hover
+session. `handleSelect` now only ever updates *which* option is anchored;
+whether the cursor can currently tug at it is `followingRef`'s job alone,
+driven strictly by `mouseenter`/`mouseleave`, so a commit's snap behaves
+exactly like a hover-crossing snap — CURSOR simply re-engages relative to
+the new anchor on the very next move, if the pointer is still there to
+provide one.
+
+`createSpringTether` integrates both forces plus one shared damping term
+every frame (semi-implicit Euler: velocity updates from the current force,
+then position updates from the new velocity), in fixed ~8ms substeps rather
+than one step per whole frame — a large step at high stiffness is exactly
+the case that makes an explicit integrator diverge, and a backgrounded tab
+resuming after seconds away hands back precisely that. Settling is checked
+against the system's actual equilibrium (where both active forces cancel),
+not naively against the primary target — those are only the same point once
+the secondary has been dropped. An optional `boundsRef` (read fresh every
+substep, not captured once, since the track can be measured and re-measured
+after the engine already exists) clamps position and zeroes the
+wall-crossing component of velocity every substep it engages, so a fast
+flick toward an edge is inelastically stopped there rather than rendering
+past it for even one frame.
+
+**GlassSlider owns all of the tuning** — `TETHER_HOME_STIFFNESS` (large,
+~25× `TETHER_CURSOR_STIFFNESS`), `TETHER_CURSOR_STIFFNESS` (small),
+`TETHER_DAMPING`, `TETHER_MASS`, all in `GlassSlider.jsx`, not in
+`springTether.js`, which stays tuning-agnostic the same way
+`easedApproach.js`'s `createApproach` takes a `tau` from its caller rather
+than hardcoding one. The anchor itself, and the decision to snap, are owned
+by `GlassSlider.jsx` too, not the engine: `handleMouseMove` compares the
+cursor's raw zone against the current anchor on every move, and either
+keeps both targets live (still the same zone: HOME at the anchor, CURSOR at
+the cursor) or drops CURSOR and jumps HOME to a new zone (a different zone:
+the snap) — see that function's own comment. `mouseleave` and a commit
+(click or keyboard) perform the same kind of snap, targeting the true
+committed slot or whatever was just selected. The engine only ever answers
+"given these targets and this physics, where is the thumb right now" —
+every decision about *what the targets are, and when they change* belongs
+to the caller, the same separation `usePointerApproach` (now removed — its
+one consumer, this same thumb, moved onto this engine instead of the
+exponential one) and `useScrollScrub` already keep between engine and
+policy.
+
+**Squash-and-stretch is derived from this simulation's own velocity, not a
+separate animation.** `scaleX`/`scaleY` read `Math.abs(v)` off the tether's
+`onFrame` callback (gated to zero whenever the track isn't hovered) through
+a quick framer-motion spring for smoothing — reusing framer-motion here is
+fine, since smoothing a single scalar toward a single target is exactly what
+its spring transitions are for; it's only the dual-target position tether
+itself that needed a custom engine. Because the stretch amount is *read from*
+velocity rather than independently triggered, it cannot drift out of sync
+with the motion it's meant to be selling, and it is already zero the instant
+the simulation is genuinely at rest — nothing has to remember to reset it.
+
+**`prefers-reduced-motion` turns the whole system off, not just the
+overshoot.** `GlassSlider` never attaches `mousemove`/`mouseenter`/
+`mouseleave` handlers when reduced motion is active, so the tether, the
+release bounce, and the velocity-driven stretch are all simply never
+engaged; a commit calls the engine's `jumpTo` (position and velocity both
+set to the target instantly, no integration at all) instead of setting a
+target and letting the spring travel. This is the same "drop to a hard
+`{ duration: 0 }`-equivalent state swap" rule `SPRING_MAGNETIC`/`SPRING_CLICK`
+consumers already follow, applied to a system that has no framer-motion
+`transition` prop to swap in the first place.
 
 ## File conventions
 
@@ -1401,13 +1543,14 @@ see Components → Glass button — backing the run step's back button, Play and
 Reset), `GlassSlider` (the glass-thumb-in-a-track pattern — see Components →
 Glass slider — backing the run step's playback speed). The simulate step
 also introduced `src/lib/easedApproach.js` — the shared rAF/exponential-
-approach loop, now with three sibling driver hooks: `useScrollScrub.js`
-(from scroll, this step's physics drawer), `useEasedApproach` (from React
-state, the landing hero's shot), and `usePointerApproach.js` (from the
-cursor, the run console's speed slider — see Motion) — and
-`src/lib/magneticPull.js`, the `applyMagneticPull`/`clampMagnitude` pair
-`GlassButton` and the run step's legend both call from their own
-`mousemove` listeners (see Motion → Spring-based controls).
+approach loop, with two sibling driver hooks: `useScrollScrub.js` (from
+scroll, this step's physics drawer) and `useEasedApproach` (from React
+state, the landing hero's shot) — `src/lib/springTether.js` (`GlassSlider`'s
+own genuine spring-physics engine, a third and architecturally distinct
+motion system from the eased-follow one — see Motion → Spring-physics
+tether) — and `src/lib/magneticPull.js`, the `applyMagneticPull`/
+`clampMagnitude` pair `GlassButton` and the run step's legend both call from
+their own `mousemove` listeners (see Motion → Spring-based controls).
 
 **Not yet migrated**, still on legacy bespoke styling:
 

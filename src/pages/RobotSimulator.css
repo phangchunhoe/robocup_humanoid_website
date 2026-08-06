@@ -1249,6 +1249,25 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   height: var(--tap-target-min);
   padding: 0;
   border-radius: 50%;
+  /* EXPERIMENT: overriding .glass-btn--glass's --glass-fill-droplet (40%)
+     resting fill with a lighter 20% tint instead of fully transparent --
+     blur/turbulence/rim stay unchanged either way. Not a decided change yet;
+     20% chosen over introducing a new token since it's the same color-mix
+     ratio --glass-fill-droplet-panel already uses (for the drawer, a
+     differently-scoped surface) -- written out directly here rather than
+     reusing that token by name, so this doesn't quietly borrow a value
+     documented as scoped to something else. */
+  background: color-mix(in srgb, var(--color-elevated-background) 20%, transparent);
+}
+
+/* .rs-back and .glass-btn--glass:hover carry equal specificity (two classes
+   apiece), so without this, this rule's own later position in the bundle
+   made it win even while hovered, silently cancelling the accent-tinted
+   hover fill .glass-btn--glass:hover sets -- only the ink color (a separate
+   property, untouched here) still visibly changed. Restated at :hover with
+   one extra class of specificity so it actually wins over both. */
+.robot-simulator-page .rs-back:hover {
+  background: var(--glass-chrome-hover);
 }
 
 /* Zero-size and inert -- this element paints nothing on its own, every
@@ -1925,6 +1944,23 @@ html:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
      text, so "Play"/"⏸ Stop" swapping in and out never shifts Reset's
      position next to it. */
   flex: 1 1 0;
+}
+
+/* EXPERIMENT: same 50% cut as .rs-back's own resting fill -- .glass-btn--glass's
+   default --glass-fill-droplet (40% color-mix) taken down to 20%. Blur/
+   turbulence/rim stay unchanged, only the fill opacity drops. Not a decided
+   change yet; written out directly rather than introducing a token, same
+   reasoning as .rs-back's own override. */
+.robot-simulator-page .rs-reset-btn {
+  background: color-mix(in srgb, var(--color-elevated-background) 20%, transparent);
+}
+
+/* Same fix as .rs-back's own :hover restatement, and for the same reason:
+   equal specificity plus later position in the bundle let the rule above
+   silently win even while hovered, so the background never actually
+   brightened on hover -- only the ink color did. */
+.robot-simulator-page .rs-reset-btn:hover {
+  background: var(--glass-chrome-hover);
 }
 
 /* The HUD. No longer a column in a row beside the field — a glass panel
