@@ -19,3 +19,28 @@ import "./styles/tokens.css";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+
+/* Hand off from the static pre-hydration loader in index.html to the real
+   app. Wait for webfonts too, not just the render call: the loader is
+   still covering the screen at this point, so this is the one moment the
+   app can swap Space Grotesk/JetBrains Mono in before anything is visible,
+   rather than the page flashing its system-font fallback for a beat. The
+   timeout is a safety net in case a font load ever hangs or errors. */
+const initialLoader = document.getElementById("initial-loader");
+if (initialLoader) {
+  const fontsReady = document.fonts?.ready ?? Promise.resolve();
+  const safetyTimeout = new Promise((resolve) => setTimeout(resolve, 2000));
+
+  Promise.race([fontsReady, safetyTimeout]).then(() => {
+    // Two rAFs: the first is queued before the browser's next paint, the
+    // second runs after it — so the real app is guaranteed to have painted
+    // at least once behind the loader before it starts fading out.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (window.__initialLoaderTimer) clearInterval(window.__initialLoaderTimer);
+        initialLoader.classList.add("is-hiding");
+        initialLoader.addEventListener("transitionend", () => initialLoader.remove(), { once: true });
+      });
+    });
+  });
+}

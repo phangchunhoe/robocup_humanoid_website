@@ -1,0 +1,31 @@
+/* Full-viewport loading state: shown wherever the app has nothing else to
+   paint yet, from the pre-hydration splash in index.html through to any
+   in-app Suspense fallback. Kept intentionally minimal — a dot-matrix
+   readout and one instrument label, on the plain canvas, no panel. */
+.loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  background: var(--color-background);
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.loading-screen.is-hiding {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-screen-label {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  font-weight: var(--text-micro-weight);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+  color: var(--color-tertiary-label);
+}

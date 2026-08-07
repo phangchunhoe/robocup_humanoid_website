@@ -4,9 +4,85 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>StrikerChase Curve Artifacts</title>
+    <!-- Render-blocking on purpose: these have to be in place before first
+         paint so the pre-hydration loader below never flashes unstyled
+         (white background, unpositioned dots) before settling into the
+         canvas + dot-matrix look the React app renders later. -->
+    <link rel="stylesheet" href="/src/styles/tokens.css" />
+    <link rel="stylesheet" href="/src/components/DotLoader.css" />
+    <link rel="stylesheet" href="/src/components/LoadingScreen.css" />
   </head>
   <body>
+    <!-- Shown the instant the HTML parses, before the module script below
+         (deferred by the module spec) has even started downloading — this
+         is what covers the "nothing on screen yet" gap at startup that a
+         React-rendered loading state cannot reach, since React itself isn't
+         running during that gap. src/main.jsx removes this once the real
+         app has mounted and its webfonts are ready; see the script at the
+         end of this file and src/components/LoadingScreen.jsx, whose markup
+         and CSS classes this intentionally mirrors. -->
+    <div id="initial-loader" class="loading-screen" role="status" aria-live="polite">
+      <div class="dot-loader" id="initial-loader-dots"></div>
+      <p class="loading-screen-label">Loading</p>
+    </div>
     <div id="root"></div>
+    <script>
+      console.log("This website was created by Chun Hoe");
+      (function () {
+        var grid = document.getElementById("initial-loader-dots");
+        var frag = document.createDocumentFragment();
+        for (var i = 0; i < 49; i++) {
+          var dot = document.createElement("div");
+          dot.className = "dot-loader-dot";
+          frag.appendChild(dot);
+        }
+        grid.appendChild(frag);
+
+        // Kept in sync by hand with LOADING_FRAMES in
+        // src/components/LoadingScreen.jsx — this inline script runs before
+        // the module graph exists, so it can't import that constant.
+        var frames = [
+          [14, 7, 0, 8, 6, 13, 20],
+          [14, 7, 13, 20, 16, 27, 21],
+          [14, 20, 27, 21, 34, 24, 28],
+          [27, 21, 34, 28, 41, 32, 35],
+          [34, 28, 41, 35, 48, 40, 42],
+          [34, 28, 41, 35, 48, 42, 46],
+          [34, 28, 41, 35, 48, 42, 38],
+          [34, 28, 41, 35, 48, 30, 21],
+          [34, 28, 41, 48, 21, 22, 14],
+          [34, 28, 41, 21, 14, 16, 27],
+          [34, 28, 21, 14, 10, 20, 27],
+          [28, 21, 14, 4, 13, 20, 27],
+          [28, 21, 14, 12, 6, 13, 20],
+          [28, 21, 14, 6, 13, 20, 11],
+          [28, 21, 14, 6, 13, 20, 10],
+          [14, 6, 13, 20, 9, 7, 21],
+        ];
+
+        var dots = grid.children;
+        function applyFrame(index) {
+          var frame = frames[index] || [];
+          for (var i = 0; i < dots.length; i++) {
+            var active = frame.indexOf(i) !== -1;
+            dots[i].classList.toggle("is-active", active);
+          }
+        }
+
+        var reduceMotion =
+          window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+        applyFrame(0);
+        if (!reduceMotion) {
+          var frameIndex = 0;
+          window.__initialLoaderTimer = window.setInterval(function () {
+            frameIndex = (frameIndex + 1) % frames.length;
+            applyFrame(frameIndex);
+          }, 90);
+        }
+      })();
+      
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
