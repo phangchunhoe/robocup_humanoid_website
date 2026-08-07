@@ -107,7 +107,8 @@ export function createRenderer(svg) {
   footR.setAttribute("cx", 0.1 * PXPM);
   footR.setAttribute("cy", stanceBiasPx);
 
-  function update(world, telemetry) {
+  function update(world, telemetry, opts = {}) {
+    const { hideCurve = false, hideTarget = false } = opts;
     const r = world.robot;
     const b = world.ball;
 
@@ -156,8 +157,10 @@ export function createRenderer(svg) {
     }
     trailPath.setAttribute("d", d.trim());
 
-    // Chase target the interpreted code is currently steering to
-    if (telemetry.target) {
+    // Chase target the interpreted code is currently steering to — hidden
+    // while the ball is being dragged, since it's stale the instant the
+    // ball moves (only a brain tick refreshes it, and none run mid-drag).
+    if (telemetry.target && !hideTarget) {
       const [tx, ty] = toSvg(telemetry.target.x, telemetry.target.y);
       targetMark.setAttribute("transform", `translate(${tx.toFixed(2)} ${ty.toFixed(2)})`);
       targetMark.setAttribute("visibility", "visible");
@@ -165,8 +168,10 @@ export function createRenderer(svg) {
       targetMark.setAttribute("visibility", "hidden");
     }
 
-    // Planned curve (Bezier control points or long-range curve samples)
-    if (telemetry.curve && telemetry.curve.length > 1) {
+    // Planned curve (Bezier control points or long-range curve samples) —
+    // hidden while the robot is being dragged, for the same staleness
+    // reason as the target mark above.
+    if (!hideCurve && telemetry.curve && telemetry.curve.length > 1) {
       let d = "";
       telemetry.curve.forEach(([cx, cy], i) => {
         const [sx, sy] = toSvg(cx, cy);

@@ -136,8 +136,10 @@ export default function RobotSimulator() {
   // world.trailTracking (physics.js), which is what actually gates the
   // recording; this copy only drives the button's own selected/aria state.
   // Turning it off does not hide or clear the line already drawn — see
-  // onToggleTrail/onClearTrail below.
-  const [trailTracking, setTrailTracking] = useState(false);
+  // onToggleTrail/onClearTrail below. Starts true to match
+  // world.trailTracking's own default (physics.js) — the path records from
+  // the first step of a run without the button needing a press first.
+  const [trailTracking, setTrailTracking] = useState(true);
 
   const svgRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -159,6 +161,18 @@ export default function RobotSimulator() {
   // is only written when a value actually changes.
   const errorRef = useRef(null);
   const overrunRef = useRef(false);
+  // True from the moment a drag actually moves the robot or ball until the
+  // next real brain tick. runtime.telemetry.curve/target (the planned kick
+  // path and the chase target) are only ever written by a tick — dragging
+  // doesn't tick the brain, so the instant either handle moves, both are
+  // describing a placement that no longer exists. Gating strictly on
+  // "currently dragging" isn't enough: releasing the pointer used to let
+  // that same stale telemetry reappear, since nothing had actually
+  // recomputed it yet. Read by onRender (below) to hide both while this is
+  // true, and only cleared inside onStep once runtime.tick() has genuinely
+  // produced a fresh value — i.e. once the sim is resumed and takes its
+  // first step at the new placement.
+  const telemetryStaleRef = useRef(false);
 
   useEffect(() => {
     document.title = "Robot Simulator — Chase / Adjust / Kick";
@@ -296,6 +310,7 @@ export default function RobotSimulator() {
     if (logRef.current) logRef.current.textContent = "";
     errorRef.current = null;
     overrunRef.current = false;
+    telemetryStaleRef.current = false;
     setRuntimeError(null);
     setOverrun(false);
     if (engineRef.current) engineRef.current.resetStats();
@@ -309,6 +324,9 @@ export default function RobotSimulator() {
     runtime.tick(world);
     world.command = runtime.host.command;
     stepWorld(world, FIXED_DT);
+    // A real tick just recomputed telemetry.curve/target from the current
+    // placement, so whatever a prior drag invalidated is trustworthy again.
+    telemetryStaleRef.current = false;
   }, []);
 
   const onRender = useCallback(() => {
@@ -316,7 +334,10 @@ export default function RobotSimulator() {
     const runtime = runtimeRef.current;
     if (!world || !runtime || !rendererRef.current) return;
 
-    rendererRef.current.update(world, runtime.telemetry);
+    rendererRef.current.update(world, runtime.telemetry, {
+      hideCurve: telemetryStaleRef.current,
+      hideTarget: telemetryStaleRef.current,
+    });
     const onDecision = (bucket, text) => {
       const last = lastDecisionRef.current;
       if (last.bucket === bucket && last.text === text) return;
@@ -332,6 +353,25 @@ export default function RobotSimulator() {
       errorRef.current = runtime.error;
       setRuntimeError(runtime.error);
       if (engineRef.current) engineRef.current.stop();
+      setRunning(false);
+    }
+
+    // A goal/own-goal/out (physics.js's checkTermination) only ever blocks
+    // onStep's own guard — it never stopped the engine itself, so the rAF
+    // loop kept running in the background (engine.isRunning() stayed true,
+    // Stop stayed the button's label) even though nothing was visibly
+    // moving. Dragging the robot or ball afterward clears world.result (see
+    // the drag effect below) so a repositioned episode can continue — but
+    // with the loop still alive underneath, that clear immediately
+    // unblocked onStep again on the very next frame, silently resuming real
+    // physics stepping (and whatever velocity the ball still had from the
+    // kick) the instant you let go of the robot. Stopping the engine here,
+    // the moment a result lands, is what actually pauses it — the same
+    // treatment runtime.error gets above. engine.isRunning() is its own
+    // "already handled" guard: once stopped, this block has nothing left
+    // to do on subsequent frames.
+    if (world.result && engineRef.current && engineRef.current.isRunning()) {
+      engineRef.current.stop();
       setRunning(false);
     }
   }, []);
@@ -400,9 +440,14 @@ export default function RobotSimulator() {
     logCountRef.current = 0;
     errorRef.current = null;
     overrunRef.current = false;
+    telemetryStaleRef.current = false;
     setRuntimeError(null);
     setOverrun(false);
     setRunning(false);
+    // The new world's own trailTracking starts true (physics.js) — keep the
+    // button's mirrored state in sync in case a previous run in this same
+    // mount had turned it off.
+    setTrailTracking(true);
     setStep("run");
   };
 
@@ -431,9 +476,12 @@ export default function RobotSimulator() {
     logCountRef.current = 0;
     errorRef.current = null;
     overrunRef.current = false;
+    telemetryStaleRef.current = false;
     setRuntimeError(null);
     setOverrun(false);
-    setTrailTracking(false);
+    // The new world's own trailTracking starts true (physics.js) — see
+    // handleReset's own version of this comment below.
+    setTrailTracking(true);
     onRender();
   };
 
@@ -456,9 +504,9 @@ export default function RobotSimulator() {
     }
     resetWorld();
     // resetWorld() hands worldRef a brand-new world, whose trailTracking
-    // starts false (physics.js) — sync the button's own state to match so it
-    // doesn't keep reading "on" for a world that's no longer tracking.
-    setTrailTracking(false);
+    // starts true (physics.js) — sync the button's own state to match so a
+    // reset always resumes recording immediately, same as a fresh run.
+    setTrailTracking(true);
     onRender();
   };
 
@@ -518,10 +566,24 @@ export default function RobotSimulator() {
       const hy = world.robot.y + 0.55 * Math.sin(world.robot.theta);
       const dHeading = Math.hypot(fx - hx, fy - hy);
 
-      if (dHeading < 0.28) dragging = "heading";
-      else if (dBall < 0.3) dragging = "ball";
-      else if (dRobot < 0.35) dragging = "robot";
-      else return;
+      // Whichever handle the click is proportionally closest to (distance
+      // over that handle's own hit radius) wins, rather than a fixed
+      // heading/ball/robot priority order — the ball rests right against
+      // the robot for most of a real chase-and-kick approach, so a click
+      // meant for the robot's body regularly also falls inside the ball's
+      // hit radius. With a fixed order testing ball before robot, that
+      // click silently grabbed the ball instead — repositioning the robot
+      // dragged the ball along with it. Comparing normalized distances
+      // means the handle whose hit zone the click is deepest inside is the
+      // one that responds, regardless of which check happens to run first.
+      const candidates = [
+        { kind: "heading", ratio: dHeading / 0.28 },
+        { kind: "ball", ratio: dBall / 0.3 },
+        { kind: "robot", ratio: dRobot / 0.35 },
+      ].filter((c) => c.ratio < 1);
+      if (candidates.length === 0) return;
+      candidates.sort((a, b) => a.ratio - b.ratio);
+      dragging = candidates[0].kind;
 
       svg.setPointerCapture(evt.pointerId);
       evt.preventDefault();
@@ -545,6 +607,11 @@ export default function RobotSimulator() {
         world.robot.theta = Math.atan2(fy - world.robot.y, fx - world.robot.x);
       }
       world.result = null;
+      // The robot or ball just moved to a placement runtime.telemetry knows
+      // nothing about yet — keep the planned curve/target hidden (onRender,
+      // via telemetryStaleRef) until a real tick recomputes them, rather
+      // than un-hiding on release only to show the same stale plan again.
+      telemetryStaleRef.current = true;
       setPlacement({
         robot: { x: world.robot.x, y: world.robot.y, theta: world.robot.theta },
         ball: { x: world.ball.x, y: world.ball.y },

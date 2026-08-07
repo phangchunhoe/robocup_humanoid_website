@@ -93,8 +93,11 @@ export function createWorld(initial, physics) {
     // (last) segment — the trail toggle button's on/off state, mutated
     // directly by the caller (RobotSimulator.jsx). Existing segments stay
     // put when this goes false; only Clear (worldRef.current.trail.length =
-    // 0) empties them.
-    trailTracking: false,
+    // 0) empties them. Starts true: the path draws from the very first
+    // step of a run by default, with no separate action needed to begin
+    // recording it — Stop (which halts stepping entirely) is what actually
+    // stops new points from being added, not this flag on its own.
+    trailTracking: true,
     events: [],
     result: null, // "goal" | "own_goal" | "out" | null
     physics: { ...DEFAULT_PHYSICS, ...physics },
