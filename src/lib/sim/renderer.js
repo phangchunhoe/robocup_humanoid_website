@@ -24,8 +24,13 @@ export function createRenderer(svg) {
   svg.appendChild(pitch);
   buildPitch(pitch);
 
-  // Dynamic layers, back to front
-  const trailPath = svgEl("polyline", {
+  // Dynamic layers, back to front.
+  // A <path>, not a <polyline>: world.trail is an array of segments (see its
+  // own comment in physics.js), and only a path's multiple "M" subpaths let
+  // a pause-then-resume render as a real gap rather than a single flat
+  // point list, which would draw a straight connector across whatever
+  // ground the robot covered while tracking was off.
+  const trailPath = svgEl("path", {
     fill: "none",
     stroke: "var(--decision-chase)",
     "stroke-width": 2,
@@ -132,17 +137,24 @@ export function createRenderer(svg) {
       ballVel.setAttribute("visibility", "hidden");
     }
 
-    // Trail
-    if (world.trail.length > 1) {
-      let pts = "";
-      for (const [tx, ty] of world.trail) {
+    // Trail — one subpath per segment, always painted when present.
+    // world.trailTracking (physics.js) gates whether *new* points get
+    // appended to the current segment, not whether existing segments are
+    // drawn, so turning tracking off leaves them in place rather than
+    // hiding them; only an explicit Clear empties world.trail itself. Each
+    // segment starts its own "M" rather than continuing the previous
+    // segment's "L", so a paused-then-resumed trail renders as a real gap —
+    // not a straight connector across whatever ground was covered while
+    // tracking was off.
+    let d = "";
+    for (const segment of world.trail) {
+      if (segment.length < 2) continue;
+      segment.forEach(([tx, ty], i) => {
         const [sx, sy] = toSvg(tx, ty);
-        pts += `${sx.toFixed(1)},${sy.toFixed(1)} `;
-      }
-      trailPath.setAttribute("points", pts.trim());
-    } else {
-      trailPath.setAttribute("points", "");
+        d += `${i === 0 ? "M" : "L"} ${sx.toFixed(1)} ${sy.toFixed(1)} `;
+      });
     }
+    trailPath.setAttribute("d", d.trim());
 
     // Chase target the interpreted code is currently steering to
     if (telemetry.target) {

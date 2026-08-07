@@ -120,9 +120,24 @@ export default function RobotSimulator() {
   const [placement, setPlacement] = useState(INITIAL_PLACEMENT.striker);
   const [overrun, setOverrun] = useState(false);
   const [runtimeError, setRuntimeError] = useState(null);
+  // The decision pill is a real React-rendered GlassButton now (see SimStep),
+  // not an imperatively-painted DOM node — but paintReadout still runs on
+  // every animation frame, and re-rendering on every one of those would
+  // dominate the frame budget the same way repainting the stat rows through
+  // React would. lastDecisionRef (below, with the other refs) lets onRender
+  // dedupe: it only calls setDecisionState when the bucket/text actually
+  // changed, which is far rarer than every tick (the decision only flips
+  // when the behaviour tree takes a different branch).
+  const [decisionState, setDecisionState] = useState({ bucket: "idle", text: "—" });
   const [folderScan, setFolderScan] = useState(null);
   const [folderBusy, setFolderBusy] = useState(false);
   const [heroKick, setHeroKick] = useState(HERO_KICK_ENTERED);
+  // Whether the trail button is currently recording new points — mirrors
+  // world.trailTracking (physics.js), which is what actually gates the
+  // recording; this copy only drives the button's own selected/aria state.
+  // Turning it off does not hide or clear the line already drawn — see
+  // onToggleTrail/onClearTrail below.
+  const [trailTracking, setTrailTracking] = useState(false);
 
   const svgRef = useRef(null);
   const folderInputRef = useRef(null);
@@ -137,6 +152,7 @@ export default function RobotSimulator() {
   const logCountRef = useRef(0);
   const placementRef = useRef(placement);
   const physicsRef = useRef(physics);
+  const lastDecisionRef = useRef({ bucket: "idle", text: "—" });
   // The rAF callbacks must have stable identities: they are dependencies of the effect
   // that builds the engine, so anything that changes them tears down and rebuilds the
   // whole scene mid-run. Everything they touch therefore lives in a ref, and React state
@@ -301,7 +317,13 @@ export default function RobotSimulator() {
     if (!world || !runtime || !rendererRef.current) return;
 
     rendererRef.current.update(world, runtime.telemetry);
-    paintReadout(readoutRef.current, detailRef.current, world, runtime, engineRef.current);
+    const onDecision = (bucket, text) => {
+      const last = lastDecisionRef.current;
+      if (last.bucket === bucket && last.text === text) return;
+      lastDecisionRef.current = { bucket, text };
+      setDecisionState({ bucket, text });
+    };
+    paintReadout(onDecision, readoutRef.current, detailRef.current, world, runtime, engineRef.current);
     paintNotes(notesRef.current, runtime);
     drainLogs(logRef.current, runtime, logCountRef);
 
@@ -384,6 +406,37 @@ export default function RobotSimulator() {
     setStep("run");
   };
 
+  // The run view's own role toggle switches the live simulation, not just a
+  // label — the two roles are structurally different behaviour trees, not a
+  // reparameterization of one, so this rebuilds the program for the new
+  // role's XML (both were already read off disk in one pass at scan time,
+  // same as the setup step's instant switch) and restarts the episode at
+  // that role's own initial placement. A failed parse leaves the current run
+  // untouched rather than tearing down a working simulation for a broken one.
+  const handleRoleSwitch = (nextRole) => {
+    if (nextRole === role) return;
+    const result = parseNow(nextRole, sources);
+    if (!result.ok || !result.runtime) return;
+    if (engineRef.current) engineRef.current.stop();
+    setRunning(false);
+    setRole(nextRole);
+    runtimeRef.current = result.runtime;
+    const p = INITIAL_PLACEMENT[nextRole];
+    setPlacement(p);
+    placementRef.current = p;
+    worldRef.current = createWorld(
+      { robot: { ...p.robot }, ball: { ...p.ball } },
+      { ...physics, stanceBias: CONFIG_DEFAULTS.stance_bias }
+    );
+    logCountRef.current = 0;
+    errorRef.current = null;
+    overrunRef.current = false;
+    setRuntimeError(null);
+    setOverrun(false);
+    setTrailTracking(false);
+    onRender();
+  };
+
   const togglePlay = () => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -402,9 +455,42 @@ export default function RobotSimulator() {
       setRunning(false);
     }
     resetWorld();
+    // resetWorld() hands worldRef a brand-new world, whose trailTracking
+    // starts false (physics.js) — sync the button's own state to match so it
+    // doesn't keep reading "on" for a world that's no longer tracking.
+    setTrailTracking(false);
     onRender();
   };
 
+  // Mutates world.trailTracking directly rather than routing through a ref
+  // read by the render loop: unlike the old visibility toggle, this has
+  // nothing to repaint immediately (a paused sim only draws new points once
+  // it steps again), it only has to flip a flag stepWorld checks on its next
+  // tick — see the field's own comment in physics.js. Turning tracking back
+  // on also opens a fresh segment (world.trail.push([])) right here, at the
+  // exact moment "resume" happens — see world.trail's own comment in
+  // physics.js for why a new segment, not a continuation of the last one,
+  // is what keeps the render from drawing a straight line across whatever
+  // ground was covered while paused.
+  const onToggleTrail = useCallback(() => {
+    setTrailTracking((v) => {
+      const next = !v;
+      if (worldRef.current) {
+        worldRef.current.trailTracking = next;
+        if (next) worldRef.current.trail.push([]);
+      }
+      return next;
+    });
+  }, []);
+
+  // Clears the recorded points themselves, not just their visibility — the
+  // line is gone until tracking (on or later turned on) records fresh ones.
+  // Independent of trailTracking on purpose: usable, and immediately
+  // visible, whether tracking is currently on or off.
+  const onClearTrail = useCallback(() => {
+    if (worldRef.current) worldRef.current.trail.length = 0;
+    onRender();
+  }, [onRender]);
 
   // ------------------------------------------------------------- dragging
 
@@ -562,6 +648,7 @@ export default function RobotSimulator() {
                left claiming a simulation that no longer exists. */
             <SimStep
               svgRef={svgRef}
+              decisionState={decisionState}
               readoutRef={readoutRef}
               detailRef={detailRef}
               notesRef={notesRef}
@@ -570,11 +657,15 @@ export default function RobotSimulator() {
               onTogglePlay={togglePlay}
               onReset={handleReset}
               onSpeed={(v) => engineRef.current && engineRef.current.setSpeed(v)}
+              trailTracking={trailTracking}
+              onToggleTrail={onToggleTrail}
+              onClearTrail={onClearTrail}
               physics={physics}
               setPhysics={setPhysics}
               overrun={overrun}
               runtimeError={runtimeError}
-              roleMeta={roleMeta}
+              role={role}
+              onRoleChange={handleRoleSwitch}
               onBack={() => {
                 setRunning(false);
                 setStep("edit");
@@ -1131,25 +1222,8 @@ const CONSOLE_VIEWS = [
   { id: "reports", label: "Test Reports" },
 ];
 
-// A single stroked cycle icon for the stats-card toggle — flips between the
-// two faces, so it reads as "swap" rather than picking from a menu.
-function FlipIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      <path
-        d="M3 8a5 5 0 0 1 8.5-3.5M13 8a5 5 0 0 1-8.5 3.5M11 2.5V5h2.5M5 13.5V11H2.5"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.3"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-/* Same 16px grid and 1.3 stroke as FlipIcon, so the two corner controls read
-   as one set. The button carries the accessible name; this is decoration. */
+// 16px grid, 1.3 stroke — the button carries the accessible name, this is
+// decoration only.
 function BackIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -1160,6 +1234,51 @@ function BackIcon() {
         strokeWidth="1.3"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+// Trail toggle, off state — a ring standing in for a tracked point/pin, the
+// same convention the rest of this file's icons follow (stroke-only,
+// currentColor).
+function TrailIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <circle cx="8" cy="8" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.3" />
+    </svg>
+  );
+}
+
+// Trail toggle, on state — a pause glyph rather than a stop square:
+// clicking again suspends recording without discarding it, and resuming
+// continues the same line rather than starting over, so "pause" is the
+// accurate reading, not "stop". Deliberately distinct from TrailClearIcon's
+// square below, since the two buttons sit right next to each other and
+// would otherwise share a glyph for two very different actions.
+function TrailPauseIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <line x1="6" y1="4" x2="6" y2="12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+      <line x1="10" y1="4" x2="10" y2="12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+// Clear trail — a square, standing in for the classic transport "stop"
+// glyph repurposed here for a momentary clear rather than a toggle state.
+function TrailClearIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      <rect
+        x="4.25"
+        y="4.25"
+        width="7.5"
+        height="7.5"
+        rx="1.5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.3"
       />
     </svg>
   );
@@ -1212,9 +1331,9 @@ function DrawerGlassFilter() {
   );
 }
 
-/* Same 16px grid and 1.3 stroke as BackIcon/FlipIcon — a stack of two layers,
-   read as "key/legend" rather than "info", since this is a fixed set of
-   categorical tags rather than explanatory prose (that's InfoHint's job). */
+/* Same 16px grid and 1.3 stroke as BackIcon — a stack of two layers, read as
+   "key/legend" rather than "info", since this is a fixed set of categorical
+   tags rather than explanatory prose (that's InfoHint's job). */
 function LegendIcon() {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
@@ -1287,16 +1406,41 @@ const LEGEND_TAP_SCALE = 1.05;
 
 function SimStep(props) {
   const {
-    svgRef, readoutRef, detailRef, notesRef, logRef, running, onTogglePlay, onReset, onSpeed,
-    physics, setPhysics, overrun, runtimeError, roleMeta, onBack,
+    svgRef, decisionState, readoutRef, detailRef, notesRef, logRef, running, onTogglePlay, onReset, onSpeed,
+    trailTracking, onToggleTrail, onClearTrail,
+    physics, setPhysics, overrun, runtimeError, role, onRoleChange, onBack,
   } = props;
 
   const [speedId, setSpeedId] = useState("1");
   const [consoleView, setConsoleView] = useState("single");
   const [statsFace, setStatsFace] = useState("telemetry");
   const [logAlertOpen, setLogAlertOpen] = useState(false);
+  const [logCopied, setLogCopied] = useState(false);
+  const logCopiedTimeoutRef = useRef(null);
   const drawerRef = useRef(null);
   const reduceMotion = useReducedMotion();
+
+  // Copies the log stream's current text on click and shows "Copied!" for
+  // 3s. logRef's own textContent is written imperatively by drainLogs on
+  // every frame (see the comment on .rs-log-stream-wrap below), so reading
+  // it fresh here rather than from React state is the only way to get
+  // what's actually on screen at click time. The previous timeout is
+  // cleared on every click so a rapid second click restarts the full 3s
+  // rather than the badge fading mid-read.
+  const onCopyLog = () => {
+    const text = logRef.current ? logRef.current.textContent : "";
+    if (!text) return;
+    navigator.clipboard.writeText(text).then(() => {
+      setLogCopied(true);
+      if (logCopiedTimeoutRef.current) window.clearTimeout(logCopiedTimeoutRef.current);
+      logCopiedTimeoutRef.current = window.setTimeout(() => setLogCopied(false), 3000);
+    });
+  };
+  useEffect(() => {
+    return () => {
+      if (logCopiedTimeoutRef.current) window.clearTimeout(logCopiedTimeoutRef.current);
+    };
+  }, []);
 
   // The legend's own magnetic-droplet pull. A motion value, not React state
   // — a mousemove-driven setState would re-render SimStep on every frame of
@@ -1532,6 +1676,46 @@ function SimStep(props) {
               <GlassButton variant="glass" className="rs-reset-btn" onClick={onReset}>
                 ⟲ Reset
               </GlassButton>
+
+              {/* Small circular icon buttons — same 44px-circle shape class
+                  as .rs-back, so they reuse its exact tuning rather than
+                  GlassButton's wider-pill defaults (CLAUDE.md -> Motion ->
+                  Spring-based controls: tune per shape, not per instance).
+                  Trail is a toggle (selected = accent glass, per the same
+                  "selected" reading a segmented control's active segment
+                  gets, plus an icon swap to name the action a click will
+                  take next — ring "start" / bars "pause") that starts or
+                  pauses recording new points without touching the ones
+                  already drawn; Clear is a momentary action that empties
+                  them and never carries selected. */}
+              <GlassButton
+                variant="glass"
+                className="rs-trail-toggle-btn"
+                selected={trailTracking}
+                onClick={onToggleTrail}
+                aria-pressed={trailTracking}
+                aria-label={trailTracking ? "Pause trail tracking" : "Start trail tracking"}
+                reach={BACK_BUTTON_REACH_PX}
+                pull={BACK_BUTTON_PULL_PX}
+                strength={BACK_BUTTON_PULL_STRENGTH}
+                hoverScale={BACK_BUTTON_HOVER_SCALE}
+                tapScale={BACK_BUTTON_TAP_SCALE}
+              >
+                {trailTracking ? <TrailPauseIcon /> : <TrailIcon />}
+              </GlassButton>
+              <GlassButton
+                variant="glass"
+                className="rs-trail-clear-btn"
+                onClick={onClearTrail}
+                aria-label="Clear trail"
+                reach={BACK_BUTTON_REACH_PX}
+                pull={BACK_BUTTON_PULL_PX}
+                strength={BACK_BUTTON_PULL_STRENGTH}
+                hoverScale={BACK_BUTTON_HOVER_SCALE}
+                tapScale={BACK_BUTTON_TAP_SCALE}
+              >
+                <TrailClearIcon />
+              </GlassButton>
             </div>
 
             {/* A single glass-thumb-in-a-track slider — see CLAUDE.md ->
@@ -1572,22 +1756,49 @@ function SimStep(props) {
 
             <aside className="rs-run-console rs-hud">
             <div className={`rs-console-face${consoleView === "single" ? " is-active" : ""}`}>
-              <span className="rs-role-label">{roleMeta.label}</span>
+              {/* Reuses the setup step's own RoleToggle unchanged — switching
+                  roles here rebuilds the running program for the other role's
+                  behaviour tree and restarts the episode at its own initial
+                  placement (see handleRoleSwitch in RobotSimulator), rather
+                  than only relabelling a static readout. */}
+              <RoleToggle
+                className="rs-run-role-toggle"
+                ariaLabel="Role"
+                options={ROLES.map((r) => ({ id: r.id, label: r.label }))}
+                value={role}
+                onChange={onRoleChange}
+              />
 
-              {/* Not .rs-glass: this sits inside the HUD, which has already
-                  blurred the field behind it — a second backdrop-filter would
-                  blur an already-blurred backdrop. Its own translucent tint is
-                  enough to read as raised against the HUD's surface. */}
-              <div className="rs-stats-card">
-                <button
-                  type="button"
-                  className="rs-stats-toggle"
-                  onClick={() => setStatsFace((f) => (f === "telemetry" ? "log" : "telemetry"))}
-                  aria-label={statsFace === "telemetry" ? "Show brain log" : "Show telemetry"}
-                >
-                  <FlipIcon />
-                </button>
+              {/* The decision state (Chase / Adjust / Kick / Idle) is the
+                  readout's one always-visible headline, so it sits outside
+                  the flippable info below rather than flipping away with the
+                  telemetry face — decisionState is set from paintReadout via
+                  onRender's onDecision callback (RobotSimulator), deduped so
+                  it only re-renders when the bucket/text actually changes.
+                  It's also the flip control itself now: the glass-button
+                  press already reads as "this responds to a tap", so a
+                  second dedicated flip button alongside it would be a
+                  redundant control doing the same thing — see CLAUDE.md ->
+                  Components -> Glass button for the material/motion this
+                  reuses unchanged, just tinted per decision bucket instead
+                  of the neutral droplet fill. No visible affordance beyond
+                  that (no icon, no hint text) — same restraint as any other
+                  hover/press state on this page. */}
+              <GlassButton
+                className={`rs-decision-pill rs-decision-pill--${decisionState.bucket}`}
+                onClick={() => setStatsFace((f) => (f === "telemetry" ? "log" : "telemetry"))}
+                aria-label={statsFace === "telemetry" ? "Show brain log" : "Show telemetry"}
+              >
+                {decisionState.text}
+              </GlassButton>
 
+              {/* No nested card surface — telemetry and log sit directly on
+                  the console's own glass background (.rs-run-console is
+                  already the HUD, which has already blurred the field behind
+                  it; a second backdrop-filter here would blur an
+                  already-blurred backdrop for nothing). This wrapper only
+                  owns the stacking/scroll geometry the flip needs. */}
+              <div className="rs-run-info">
                 {/* Both faces stay mounted at all times — paintReadout/paintNotes/
                     drainLogs write into readoutRef/detailRef/notesRef/logRef on
                     every simulation frame, and unmounting either face would break
@@ -1608,7 +1819,18 @@ function SimStep(props) {
 
                 <div className={`rs-stats-face${statsFace === "log" ? " is-active" : ""}`}>
                   <div className="rs-log-stream-wrap">
-                    <pre ref={logRef} className="rs-log-stream" />
+                    <pre
+                      ref={logRef}
+                      className="rs-log-stream"
+                      onClick={onCopyLog}
+                      title="Click to copy"
+                    />
+                    <span
+                      className={`rs-log-copied${logCopied ? " is-visible" : ""}`}
+                      aria-live="polite"
+                    >
+                      Copied!
+                    </span>
                     {logAlertOpen ? (
                       <div className="rs-log-alert-detail">
                         <Notice
@@ -1710,22 +1932,26 @@ const DECISION_BUCKET = {
   zone_find: "idle",
 };
 
+// The pill's own label is just the bucket, not the raw decision name or node
+// (dropped the "· StrikerChase" / "· not simulated" / "· episode ended: …"
+// suffixes it used to carry) — a simplified, always-one-of-these-four
+// readout rather than a detailed trace. The full decision/node/result is
+// still in the compact rows and "More detail" table below it.
+const DECISION_BUCKET_LABEL = { chase: "Chase", adjust: "Adjust", kick: "Kick", idle: "Idle" };
+
 /**
  * Written straight into the DOM rather than through React state: this runs on every
  * animation frame, and re-rendering the tree that often would dominate the frame budget.
- * `root` gets the decision pill and the three compact rows; `detailTable` (inside the
- * card's "More detail" disclosure) gets everything else FIELDS knows about.
+ * `onDecision(bucket, text)` reports the decision pill's state to the caller instead of
+ * painting a DOM node directly — the pill is a real React GlassButton now (SimStep), and
+ * the caller is responsible for only calling setState when the value actually changed (see
+ * onRender's own comment). `root` gets the three compact rows; `detailTable` (inside the
+ * "More detail" disclosure) gets everything else FIELDS knows about.
  */
-function paintReadout(root, detailTable, world, runtime, engine) {
+function paintReadout(onDecision, root, detailTable, world, runtime, engine) {
   if (!root) return;
-  let pill = root.querySelector(".rs-decision-pill");
   let rows = root.querySelector(".rs-stat-rows");
-  if (!pill) {
-    pill = document.createElement("div");
-    pill.className = "rs-decision-pill";
-    pill.textContent = "—";
-    root.appendChild(pill);
-
+  if (!rows) {
     rows = document.createElement("div");
     rows.className = "rs-stat-rows";
     rows.innerHTML = COMPACT_KEYS.map(
@@ -1749,10 +1975,7 @@ function paintReadout(root, detailTable, world, runtime, engine) {
 
   const decision = t.decision || "—";
   const bucket = DECISION_BUCKET[decision] || "idle";
-  pill.className = `rs-decision-pill rs-decision-pill--${bucket}`;
-  pill.textContent = world.result
-    ? `${decision.toUpperCase()} · episode ended: ${world.result.replace("_", " ")}`
-    : decision.toUpperCase() + (t.simulatedNode ? ` · ${t.simulatedNode}` : " · not simulated");
+  if (onDecision) onDecision(bucket, DECISION_BUCKET_LABEL[bucket]);
 
   const w = t.decideWatched || {};
   set(rows, "robot", `${world.robot.x.toFixed(2)}, ${world.robot.y.toFixed(2)} @ ${world.robot.theta.toFixed(2)}`);

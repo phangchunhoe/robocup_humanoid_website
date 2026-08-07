@@ -409,8 +409,7 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
    than as undersized body copy. This is the panel/section label only; status
    indicators deliberately do NOT get this treatment (see CLAUDE.md). */
 .robot-simulator-page .rs-panel-label,
-.robot-simulator-page .rs-physics-drawer-label,
-.robot-simulator-page .rs-role-label {
+.robot-simulator-page .rs-physics-drawer-label {
   font-size: var(--text-micro);
   font-weight: var(--text-micro-weight);
   letter-spacing: var(--text-micro-tracking);
@@ -1677,8 +1676,8 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 /* Label and reset button on one row — the label's own flex/typography rules
-   are untouched (shared with .rs-panel-label / .rs-role-label), this just
-   gives the row somewhere to put the button without restating them. */
+   are untouched (shared with .rs-panel-label), this just gives the row
+   somewhere to put the button without restating them. */
 .robot-simulator-page .rs-physics-drawer-header {
   display: flex;
   align-items: center;
@@ -1952,12 +1951,13 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   gap: var(--space-6);
 }
 
-/* Play, Reset and the speed options, floating standalone on the field above
-   the console card — see CLAUDE.md -> Components -> Glass button. Two rows
-   rather than one: at the HUD's ~320-420px width, cramming all five buttons
-   onto one line would either crowd the 44px tap-target minimum or force
-   uneven wrapping. Play/Reset paired on the first row and the three speed
-   options evenly split on the second keeps both rows symmetric. */
+/* Play, Reset, the trail toggle/clear pair, and the speed options, floating
+   standalone on the field above the console card — see CLAUDE.md ->
+   Components -> Glass button. Two rows rather than one: at the HUD's
+   ~320-420px width, cramming everything onto one line would either crowd
+   the 44px tap-target minimum or force uneven wrapping. Play/Reset plus the
+   two small circular trail buttons share the first row and the three speed
+   options evenly split the second, keeping both rows symmetric. */
 .robot-simulator-page .rs-playback-cluster {
   display: flex;
   flex-direction: column;
@@ -2007,23 +2007,43 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   background: var(--glass-chrome-hover);
 }
 
+/* Trail toggle + clear — small circular icon buttons sitting to the right
+   of Reset in the same row. Deliberately NOT flex: 1 1 0 like Play/Reset:
+   these read as a fixed-size accessory pair (the same 44px-circle scale as
+   .rs-back), not a third and fourth equal share of the row. Play/Reset still
+   split whatever width is left between them via their own flex: 1 1 0. */
+.robot-simulator-page .rs-trail-toggle-btn,
+.robot-simulator-page .rs-trail-clear-btn {
+  flex: 0 0 auto;
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  padding: 0;
+  border-radius: 50%;
+}
+
+.robot-simulator-page .rs-trail-toggle-btn svg,
+.robot-simulator-page .rs-trail-clear-btn svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
 /* The HUD. No longer a column in a row beside the field — a glass panel
    floating ON it, inset from the viewport on all four sides so the field
    reads as running underneath and past it rather than stopping at a seam.
-   Holds only the role label and the telemetry card — Play, Reset and the
-   speed options live in .rs-playback-cluster above, and the view tabs live
-   directly above this in .rs-console-group (CLAUDE.md -> Components ->
-   Boxed tab bar). flex: 1 1 auto fills whatever height ViewTabs doesn't
-   take within that group; min-height: 0 is what lets that computed height
-   actually shrink below content size so each .rs-console-face has somewhere
-   real to scroll.
+   Holds the role toggle, decision state and telemetry directly against its
+   own glass — Play, Reset and the speed options live in
+   .rs-playback-cluster above, and the view tabs live directly above this in
+   .rs-console-group (CLAUDE.md -> Components -> Boxed tab bar). flex: 1 1
+   auto fills whatever height ViewTabs doesn't take within that group;
+   min-height: 0 is what lets that computed height actually shrink below
+   content size so each .rs-console-face has somewhere real to scroll.
 
    position: relative + overflow: hidden turns this into the same kind of
-   stacking parent .rs-stats-card already is for its own telemetry/log
-   faces below — layout, padding and scrolling live on .rs-console-face
-   instead, since the two views it stacks (Single Robot's real content vs.
-   the Multi Robot / Test Reports placeholder) need independent scroll
-   regions, not one shared by both.
+   stacking parent .rs-run-info already is for its own telemetry/log faces
+   below — layout, padding and scrolling live on .rs-console-face instead,
+   since the two views it stacks (Single Robot's real content vs. the Multi
+   Robot / Test Reports placeholder) need independent scroll regions, not
+   one shared by both.
 
    No top border and no top corner radius: ViewTabs sits flush above with
    zero gap (.rs-console-group), and the tab row's own top/side borders plus
@@ -2059,7 +2079,15 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   display: flex;
   flex-direction: column;
   gap: var(--space-6);
-  padding: var(--space-6);
+  /* Vertical padding trimmed to the smallest step that still reads as
+     breathing room (--space-3, not flush) rather than --space-6 on all four
+     sides — the log face's own flex: 1 1 auto child (.rs-run-info) grows
+     into whatever this frees, so a smaller top+bottom pair here is real,
+     usable log height, not just tighter chrome. Left/right stay --space-6:
+     shrinking those would change the card's horizontal proportions, which
+     is out of scope for a height-only change. Top and bottom still match
+     each other (CLAUDE.md -> Layout and spacing -> Symmetric padding). */
+  padding: var(--space-3) var(--space-6);
   overflow-y: auto;
   box-sizing: border-box;
   opacity: 0;
@@ -2083,25 +2111,37 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   }
 }
 
-/* ------------------------------------------------------------ stats card */
+/* The run console's own instance widens to fill the column instead of
+   hugging its label text — every other instance (the setup step's Step 1)
+   keeps RoleToggle's own default fit-content/centred track untouched. Equal
+   flex on both segments rather than a fixed width, so the two stay the same
+   size as each other regardless of "Striker" vs. "Goalkeeper"'s different
+   label lengths. */
+.robot-simulator-page .rs-run-role-toggle .role-toggle-track {
+  width: 100%;
+  margin-inline: 0;
+}
+.robot-simulator-page .rs-run-role-toggle .role-toggle-segment {
+  flex: 1 1 0;
+}
 
-/* A surface stacked inside the HUD, not on the field. The HUD has already
-   blurred everything behind it, so a second backdrop-filter here would spend
-   another compositor layer blurring an already-blurred backdrop for no
-   visible gain — a translucent tint is all it takes to read as raised
-   against the HUD's own surface. */
-.robot-simulator-page .rs-stats-card {
+/* ------------------------------------------------------------- run info */
+
+/* No nested card surface here — telemetry and log sit directly on
+   .rs-run-console's own glass background (see .rs-decision-pill above it
+   and the role toggle above that). This wrapper owns only the
+   stacking/scroll geometry the flip needs: a positioned ancestor for the
+   two absolutely-stacked .rs-stats-face panes, and overflow: hidden so
+   their scale/opacity transition never spills past its own box. */
+.robot-simulator-page .rs-run-info {
   position: relative;
   flex: 1 1 auto;
   min-height: 280px;
-  border-radius: var(--radius-panel);
   overflow: hidden;
-  background: color-mix(in srgb, var(--color-elevated-background) 55%, transparent);
-  border: 1px solid var(--color-separator);
 }
 
-/* The Multi Robot / Test Reports placeholder — same footprint the stats
-   card fills in the Single Robot view, so switching tabs doesn't change the
+/* The Multi Robot / Test Reports placeholder — same footprint .rs-run-info
+   fills in the Single Robot view, so switching tabs doesn't change the
    console's own height. */
 .robot-simulator-page .rs-console-placeholder {
   flex: 1 1 auto;
@@ -2114,45 +2154,6 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   border: 1px solid var(--color-separator);
 }
 
-.robot-simulator-page .rs-stats-toggle {
-  position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-  z-index: 3;
-  width: var(--tap-target-min);
-  height: var(--tap-target-min);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 50%;
-  border: 1px solid var(--color-separator);
-  background: var(--color-elevated-background-hover);
-  color: var(--color-secondary-label);
-  cursor: pointer;
-  transition: color var(--duration-base) var(--ease-out),
-    background-color var(--duration-base) var(--ease-out),
-    border-color var(--duration-base) var(--ease-out),
-    box-shadow var(--duration-base) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
-}
-.robot-simulator-page .rs-stats-toggle:hover {
-  color: var(--color-accent);
-  border-color: var(--border-accent-strong);
-  background: var(--glass-chrome-hover);
-  box-shadow: var(--glow-accent);
-}
-.robot-simulator-page .rs-stats-toggle:active {
-  transform: scale(0.94);
-}
-.robot-simulator-page .rs-stats-toggle:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
-}
-.robot-simulator-page .rs-stats-toggle svg {
-  width: var(--space-4);
-  height: var(--space-4);
-}
-
 /* Both faces stay mounted always — paintReadout/paintNotes/drainLogs write
    into them every simulation frame via refs, and unmounting one would break
    those refs. The toggle only changes which is visually on top. */
@@ -2161,8 +2162,19 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   inset: 0;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-6);
+  /* Trimmed from --space-4: this is the gap above the log face's alert
+     button (and, on the telemetry face, above "More detail") — the only
+     other lever besides .rs-console-face's own padding that isn't the log
+     box's own flex sizing. --space-2 is the smallest step that still reads
+     as a real gap rather than the two elements touching. */
+  gap: var(--space-2);
+  /* No padding of its own: .rs-console-face already pads the card (12px
+     top/bottom, 24px left/right — see its own rule), so this second,
+     nested padding layer was only shrinking both faces further inside an
+     already-padded box, not protecting them from a bare edge. Dropping it
+     gives .rs-log-stream the full width and height of that outer padding
+     boundary instead of a redundant inset within it. */
+  padding: 0;
   overflow-y: auto;
   opacity: 0;
   transform: scale(0.96) translateY(var(--space-2));
@@ -2180,63 +2192,80 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .robot-simulator-page .rs-stats-face,
-  .robot-simulator-page .rs-stats-toggle {
+  .robot-simulator-page .rs-stats-face {
     transition: none;
-  }
-  .robot-simulator-page .rs-stats-toggle:active {
-    transform: none;
   }
 }
 
-/* Glass, like the rest of the run step's chrome — a tinted translucent fill
-   under a low-alpha hairline, both mixed from the decision's own color so the
-   pill says which state it is by hue alone. It takes the decision palette
-   rather than the accent precisely because it is not interactive: it is a
-   readout, and the one always-visible headline of the stats card. */
+/* The decision readout (Chase / Adjust / Kick / Idle) is a real
+   <GlassButton> now (RobotSimulator.jsx's SimStep) — the same droplet
+   material, shared turbulence filter, magnetic cursor pull and click bounce
+   as the run step's back button (CLAUDE.md -> Components -> Glass button),
+   tinted by the decision's own color instead of GlassButton's neutral
+   droplet fill. It's also the flip control for the info below (see the
+   comment at its JSX call site) — the press itself is the only affordance;
+   there's no separate icon or label saying it flips.
+
+   All four buckets share one resting/hover shape: a solid, fully-saturated
+   fill of the bucket's own token at rest — the same pairing the primary
+   .btn uses on --color-accent — darkening on hover rather than brightening,
+   via a color-mix() darken of that same token (there's no separate
+   --decision-*-hover step in tokens.css, so this derives one the same way
+   --color-accent-hover is a fixed darker step of --color-accent).
+   --color-on-accent is the resting ink throughout, for the same reason it
+   sits on the accent fill: every bucket's token is light/saturated enough
+   at full strength that a dark ink reads better than --color-label would.
+   Once hover mixes in black, that dark ink loses its contrast, so hover
+   swaps to --color-label instead. This replaces an earlier version where
+   chase stayed a translucent fill that brightened on hover (idle had no
+   fill at all) while adjust/kick alone had this solid/darkening treatment —
+   all four are one consistent pattern now.
+
+   Idle is the one bucket worth flagging: --decision-idle is deliberately
+   muted (it reads as "no state yet", not a fourth saturated color), so
+   --color-on-accent against it lands under 4.5:1 (~4:1) rather than the
+   comfortable margin the other three buckets get. Kept for consistency
+   with the other three rather than special-cased with --color-label, which
+   measures only marginally better here — reconsider if idle needs to carry
+   real legibility weight rather than read as the resting/background state. */
 .robot-simulator-page .rs-decision-pill {
-  display: inline-flex;
-  align-self: flex-start;
-  align-items: center;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--radius-pill);
-  font-size: var(--text-callout);
+  align-self: center;
+  min-height: calc(var(--tap-target-min) + var(--space-2));
+  padding: 0 var(--space-10);
+  font-size: var(--text-body);
   font-weight: 600;
-  line-height: var(--line-height-base);
-  border: 1px solid transparent;
-  backdrop-filter: var(--chrome-blur);
-  -webkit-backdrop-filter: var(--chrome-blur);
-  /* The decision changes mid-run, so the color change has to be a transition
-     rather than a swap, same rule as any hover state. */
-  transition: color var(--duration-base) var(--ease-out),
-    background-color var(--duration-base) var(--ease-out),
-    border-color var(--duration-base) var(--ease-out);
 }
-.robot-simulator-page .rs-decision-pill--chase {
-  color: var(--decision-chase);
-  border-color: color-mix(in srgb, var(--decision-chase) 45%, transparent);
-  background: color-mix(in srgb, var(--decision-chase) 14%, transparent);
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--chase {
+  background: var(--decision-chase);
+  color: var(--color-on-accent);
 }
-.robot-simulator-page .rs-decision-pill--adjust {
-  color: var(--decision-adjust);
-  border-color: color-mix(in srgb, var(--decision-adjust) 45%, transparent);
-  background: color-mix(in srgb, var(--decision-adjust) 14%, transparent);
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--chase:hover {
+  background: color-mix(in srgb, var(--decision-chase) 70%, black);
+  color: var(--color-label);
 }
-.robot-simulator-page .rs-decision-pill--kick {
-  color: var(--decision-kick);
-  border-color: color-mix(in srgb, var(--decision-kick) 45%, transparent);
-  background: color-mix(in srgb, var(--decision-kick) 14%, transparent);
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--adjust {
+  background: var(--decision-adjust);
+  color: var(--color-on-accent);
 }
-.robot-simulator-page .rs-decision-pill--idle {
-  color: var(--color-tertiary-label);
-  border-color: var(--color-separator);
-  background: color-mix(in srgb, var(--color-elevated-background-hover) 70%, transparent);
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--adjust:hover {
+  background: color-mix(in srgb, var(--decision-adjust) 70%, black);
+  color: var(--color-label);
 }
-
-@media (prefers-reduced-motion: reduce) {
-  .robot-simulator-page .rs-decision-pill {
-    transition: none;
-  }
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--kick {
+  background: var(--decision-kick);
+  color: var(--color-on-accent);
+}
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--kick:hover {
+  background: color-mix(in srgb, var(--decision-kick) 70%, black);
+  color: var(--color-label);
+}
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--idle {
+  background: var(--decision-idle);
+  color: var(--color-on-accent);
+}
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--idle:hover {
+  background: color-mix(in srgb, var(--decision-idle) 70%, black);
+  color: var(--color-label);
 }
 
 .robot-simulator-page .rs-stat-row {
@@ -2245,8 +2274,12 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   gap: var(--space-4);
   font-size: var(--text-callout);
 }
+/* --color-label, not --color-secondary-label: this row label has no hover
+   state to brighten on (it's a plain readout, not a button), so the more
+   legible ink from the decision pill's hover treatment above applies here
+   permanently instead of being gated behind a pointer interaction. */
 .robot-simulator-page .rs-stat-row > span:first-child {
-  color: var(--color-secondary-label);
+  color: var(--color-label);
 }
 .robot-simulator-page .rs-stat-row > span:last-child {
   color: var(--color-label);
@@ -2311,17 +2344,26 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 
 /* Its own positioning context, sized to exactly the log area (not the whole
    face) — the alert detail below overlays precisely this box, whatever
-   height the alert button beneath it ends up taking. */
+   height the alert button beneath it ends up taking. display: flex here is
+   what lets .rs-log-stream size itself with flex: 1 1 auto below rather than
+   a percentage height: a flex item's used height only reliably counts as
+   definite for a percentage-height *child* once it's nested this directly,
+   and this wrap already sits three flex levels deep (.rs-console-face >
+   .rs-run-info > .rs-stats-face). height: 100% was fragile at that depth —
+   it left .rs-log-stream itself short of the wrap's own (correctly full-
+   height) box, which is exactly the gap this replaces. */
 .robot-simulator-page .rs-log-stream-wrap {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  display: flex;
 }
 
 .robot-simulator-page .rs-log-stream {
   margin: 0;
   width: 100%;
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   font-family: var(--font-mono);
   font-size: var(--text-caption);
   line-height: 1.55;
@@ -2334,6 +2376,45 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   white-space: pre-wrap;
   word-break: break-word;
   box-sizing: border-box;
+  /* The whole stream is the click target for copying it — see onCopyLog in
+     SimStep — so it reads as pressable the same way any other control on
+     the page does. */
+  cursor: pointer;
+}
+
+/* "Copied!" toast for a log click (SimStep's onCopyLog) — pinned to the
+   stream's own top-right corner rather than the wrap's, so it always reads
+   against the stream's own background regardless of how much of the wrap
+   it fills. Sits above both the stream and the error-detail overlay
+   (z-index: 1), since a copy can happen right before that overlay opens.
+   Fully transparent and non-interactive at rest: this is a passive
+   confirmation, not a control, so it never steals the click meant for the
+   stream beneath it. onCopyLog toggles .is-visible on click and clears it
+   again after 3s (with the previous timeout cancelled on a rapid second
+   click, so the badge doesn't fade out mid-read of a fresh copy). */
+.robot-simulator-page .rs-log-copied {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-4);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 2;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+.robot-simulator-page .rs-log-copied.is-visible {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .robot-simulator-page .rs-log-copied {
+    transition: none;
+  }
 }
 
 /* Collapsed by default, and only rendered at all when there is something to
@@ -2345,6 +2426,12 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   align-items: center;
   border: none;
   background: none;
+  /* Already at the floor on both axes: --space-1 is the smallest non-zero
+     spacing token, and min-height can't drop below --tap-target-min without
+     breaking the 44px minimum tap target (CLAUDE.md -> Layout and spacing).
+     Reclaiming more of this row's own footprint isn't possible without
+     violating that rule — the gap above it (.rs-stats-face) is the only
+     other lever, already trimmed. */
   padding: var(--space-1) 0;
   cursor: pointer;
   min-height: var(--tap-target-min);

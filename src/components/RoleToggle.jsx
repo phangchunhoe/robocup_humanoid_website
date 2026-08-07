@@ -20,8 +20,14 @@ import "./RoleToggle.css";
  * hidden `<input type="radio">` did.
  *
  * @param {{id: string, label: string}[]} options
+ * @param {string} [ariaLabel] - Accessible name for the radiogroup when there's
+ *   no visible `legend` (e.g. the run console's toggle) — falls back to `legend`
+ *   when omitted, so every existing caller keeps its current accessible name.
+ * @param {string} [className] - Extra class on the outer <fieldset>, for a
+ *   caller that needs to scope its own sizing (e.g. widening the track to
+ *   fill a column) without changing every other instance.
  */
-export default function RoleToggle({ options, value, onChange, legend }) {
+export default function RoleToggle({ options, value, onChange, legend, ariaLabel, className }) {
   const trackRef = useRef(null);
   const segmentRefs = useRef({});
   const [pill, setPill] = useState(null);
@@ -111,13 +117,13 @@ export default function RoleToggle({ options, value, onChange, legend }) {
   };
 
   return (
-    <fieldset className="role-toggle">
+    <fieldset className={`role-toggle${className ? ` ${className}` : ""}`}>
       {legend ? <legend className="role-toggle-legend">{legend}</legend> : null}
       <div
         className="role-toggle-track"
         ref={trackRef}
         role="radiogroup"
-        aria-label={legend}
+        aria-label={ariaLabel || legend}
         onKeyDown={handleKeyDown}
       >
         {pill ? (

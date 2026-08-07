@@ -82,7 +82,19 @@ export function createWorld(initial, physics) {
     ball: { x: initial.ball.x, y: initial.ball.y, vx: 0, vy: 0 },
     // Last command the brain issued, in the robot frame.
     command: { vx: 0, vy: 0, vtheta: 0 },
+    // An array of segments, each an array of [x, y] points — not one flat
+    // point list. A new segment starts each time tracking resumes after
+    // being paused (RobotSimulator.jsx's onToggleTrail pushes it), so the
+    // renderer can draw each as its own subpath: resuming continues the
+    // line from wherever the robot currently is, rather than a straight
+    // connector jumping across whatever ground was covered while paused.
     trail: [],
+    // Whether new points are currently being appended to the trail's current
+    // (last) segment — the trail toggle button's on/off state, mutated
+    // directly by the caller (RobotSimulator.jsx). Existing segments stay
+    // put when this goes false; only Clear (worldRef.current.trail.length =
+    // 0) empties them.
+    trailTracking: false,
     events: [],
     result: null, // "goal" | "own_goal" | "out" | null
     physics: { ...DEFAULT_PHYSICS, ...physics },
@@ -108,6 +120,27 @@ function approach(current, target, maxDelta) {
  * `dt` should be small and constant (0.01 s, matching the brain's 100 Hz tick) so
  * results are reproducible regardless of display refresh rate.
  */
+
+// Caps the total point count across every trail segment combined, trimming
+// from the oldest segment's own front (segment 0 is the oldest — segments
+// are only ever appended, never reordered) so a long-running, on/off/on
+// tracked trail still rolls off its oldest points overall rather than only
+// ever trimming within whichever segment happens to be current.
+function trimTrail(trail, maxPoints) {
+  let total = 0;
+  for (const segment of trail) total += segment.length;
+  while (total > maxPoints && trail.length > 0) {
+    const oldest = trail[0];
+    if (oldest.length === 0) {
+      trail.shift();
+      continue;
+    }
+    oldest.shift();
+    total -= 1;
+    if (oldest.length === 0) trail.shift();
+  }
+}
+
 export function stepWorld(world, dt) {
   const p = world.physics;
   const r = world.robot;
@@ -154,12 +187,16 @@ export function stepWorld(world, dt) {
   resolveContact(world, dt);
 
   world.t += dt;
-  if (world.trail.length === 0 || world.trail.length % 1 === 0) {
-    // Sample the trail at ~20 Hz rather than every 100 Hz step.
-    const last = world.trail[world.trail.length - 1];
+  if (world.trailTracking) {
+    // Defensive fallback only — onToggleTrail is what normally opens a new
+    // segment the moment tracking resumes. This just keeps stepWorld safe
+    // if trailTracking is ever set true with no segment open yet.
+    if (world.trail.length === 0) world.trail.push([]);
+    const segment = world.trail[world.trail.length - 1];
+    const last = segment[segment.length - 1];
     if (!last || Math.hypot(r.x - last[0], r.y - last[1]) > 0.03) {
-      world.trail.push([r.x, r.y]);
-      if (world.trail.length > 4000) world.trail.shift();
+      segment.push([r.x, r.y]);
+      trimTrail(world.trail, 4000);
     }
   }
 
