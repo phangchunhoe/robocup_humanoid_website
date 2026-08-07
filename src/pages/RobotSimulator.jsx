@@ -502,6 +502,17 @@ export default function RobotSimulator() {
       engineRef.current.stop();
       setRunning(false);
     }
+    // resetWorld() seeds the new world from placementRef.current, which
+    // normally holds wherever the robot/ball were last dragged to — correct
+    // for "restart this exact scenario," but Reset means "back to the
+    // start," so it's pointed at the role's own initial placement first
+    // (same values handleRun/handleRoleSwitch seed a fresh run with).
+    // Setting the ref directly (not just the React state) matters here:
+    // resetWorld reads placementRef.current synchronously in this same
+    // call, before a setPlacement update would have committed.
+    const p = INITIAL_PLACEMENT[role];
+    setPlacement(p);
+    placementRef.current = p;
     resetWorld();
     // resetWorld() hands worldRef a brand-new world, whose trailTracking
     // starts true (physics.js) — sync the button's own state to match so a
@@ -1286,7 +1297,7 @@ const SPEED_SEGMENTS = [
 const CONSOLE_VIEWS = [
   { id: "single", label: "Single Robot" },
   { id: "multi", label: "Multi Robot" },
-  { id: "reports", label: "Test Reports" },
+  { id: "reports", label: "Testing" },
 ];
 
 // 16px grid, 1.3 stroke — the button carries the accessible name, this is
@@ -1940,7 +1951,7 @@ function SimStep(props) {
                 <Notice tone="muted" title="Coming soon">
                   {consoleView === "multi"
                     ? "Multi-robot simulation isn't built yet — this tab will host coordinated multi-robot runs."
-                    : "Test reports aren't built yet — this tab will hold recorded run history and pass/fail summaries."}
+                    : "Testing simulation aren't built yet — this tab will hold recorded run history and pass/fail summaries."}
                 </Notice>
               </div>
             </div>

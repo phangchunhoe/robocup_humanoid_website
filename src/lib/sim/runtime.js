@@ -8,9 +8,10 @@
 //   StrikerChase | GoalieChase        _while decision == 'chase'
 //   Adjust                            _while decision == 'adjust'
 //   Kick                              _while decision == 'kick' | 'cross'
+//   GoToGoalBlockingPosition          _while decision == 'retreat'
 //
-// Nodes the simulator does not model (FindBall, Assist, GoToGoalBlockingPosition,
-// RLVisionKick, ...) stop the robot and are reported in the readout rather than faked.
+// Nodes the simulator does not model (FindBall, Assist, RLVisionKick, ...) stop the
+// robot and are reported in the readout rather than faked.
 
 import {
   extractFunctions,

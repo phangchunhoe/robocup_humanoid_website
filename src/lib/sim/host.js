@@ -343,9 +343,19 @@ export class SimHost {
       goalBlockingTarget: { x: 0, y: 0, z: 0 },
       goalBlockingYaw: 0,
       useCustomBlockingTarget: false,
-      // BrainData::oppoLiveCount (brain_data.h:56) defaults to 0 -- opponents not
-      // tracked, GameController state fixed to PLAY -- which is also the struct's own
-      // default before any GameController packet updates it.
+      // BrainData::oppoLiveCount (brain_data.h:56) defaults to 0 and is only ever written
+      // by gameControlCallback (brain.cpp:2894-2913), fed by game_controller_node -- a pure
+      // UDP relay (src/game_controller/src/game_controller_node.cpp) that publishes nothing
+      // at all until it receives a real packet from an external GameController referee
+      // application. This simulator models exactly one robot with no opponents and no
+      // teammates -- the same environment as running ./scripts/start.sh solo with no
+      // GameController software broadcasting -- so on the real robot in that setup,
+      // gameControlCallback never fires either and oppoLiveCount genuinely stays at this
+      // same struct default for the whole session. 0 is therefore the faithful value here,
+      // not a stand-in for "no data yet": it correctly drives GoToGoalBlockingPosition::tick()
+      // and GoalieDecide's retreat-arc branches (brain_tree.cpp:2656, :1395, :7354, :7570)
+      // into the same "power-play" high-line retreat depth the real robot would hold in
+      // this exact no-opponents-connected environment.
       oppoLiveCount: 0,
       localFreekickTargetUpdateTime: makeTime(0),
 
