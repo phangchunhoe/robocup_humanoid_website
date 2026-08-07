@@ -2017,6 +2017,12 @@ const DECISION_BUCKET = {
 // still in the compact rows and "More detail" table below it.
 const DECISION_BUCKET_LABEL = { chase: "Chase", adjust: "Adjust", kick: "Kick", idle: "Idle" };
 
+// One raw decision gets its own label instead of its bucket's: "cross" still
+// buckets under "kick" (same pill color/state), but reads as "Cross" rather
+// than the generic "Kick" so the two branches stay distinguishable at a
+// glance. Keyed by the raw decision name, not the bucket.
+const DECISION_LABEL_OVERRIDE = { cross: "Cross" };
+
 /**
  * Written straight into the DOM rather than through React state: this runs on every
  * animation frame, and re-rendering the tree that often would dominate the frame budget.
@@ -2053,7 +2059,8 @@ function paintReadout(onDecision, root, detailTable, world, runtime, engine) {
 
   const decision = t.decision || "—";
   const bucket = DECISION_BUCKET[decision] || "idle";
-  if (onDecision) onDecision(bucket, DECISION_BUCKET_LABEL[bucket]);
+  const label = DECISION_LABEL_OVERRIDE[decision] || DECISION_BUCKET_LABEL[bucket];
+  if (onDecision) onDecision(bucket, label);
 
   const w = t.decideWatched || {};
   set(rows, "robot", `${world.robot.x.toFixed(2)}, ${world.robot.y.toFixed(2)} @ ${world.robot.theta.toFixed(2)}`);
