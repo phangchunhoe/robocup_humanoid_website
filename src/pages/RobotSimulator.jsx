@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useSpring } from "framer-motion";
-import { CircleCheck, RefreshCw } from "lucide-react";
+import { CircleCheck, RefreshCw, Eye, X } from "lucide-react";
 import Header from "../components/Header.jsx";
 import StatusIndicator from "../components/StatusIndicator.jsx";
 import InfoHint from "../components/InfoHint.jsx";
@@ -10,7 +10,7 @@ import Notice from "../components/Notice.jsx";
 import GlassButton, { GlassButtonFilter } from "../components/GlassButton.jsx";
 import GlassSlider from "../components/GlassSlider.jsx";
 import ViewTabs from "../components/ViewTabs.jsx";
-import { SPRING_UI, SPRING_MAGNETIC, SPRING_CLICK } from "../lib/motionSpring.js";
+import { SPRING_UI, SPRING_MAGNETIC, SPRING_CLICK, SPRING_SPLIT } from "../lib/motionSpring.js";
 import { applyMagneticPull } from "../lib/magneticPull.js";
 import { TABS, INTRO, CONFIG_NOTE, expectedRelPath } from "../content/simulatorPasteGuide.js";
 import { buildProgram } from "../lib/sim/runtime.js";
@@ -22,6 +22,7 @@ import { CONFIG_DEFAULTS } from "../lib/sim/host.js";
 import { runSelfTest } from "../lib/cpp/selftest.js";
 import { REQUIRED_BY_ROLE } from "../lib/cpp/extract.js";
 import HeroField from "./HeroField.jsx";
+import footballIcon from "../images/icons/football.png";
 import { useScrollScrub } from "../lib/useScrollScrub.js";
 import "./RobotSimulator.css";
 
@@ -56,8 +57,8 @@ const INITIAL_PLACEMENT = {
 };
 
 const SLIDERS = [
-  { key: "maxWalkSpeed", label: "Max walk speed", min: 0.2, max: 2.0, step: 0.05, unit: "m/s",
-    note: "robot.vx_limit in config.yaml is 1.2" },
+  { key: "ballJitterIntensity", label: "Ball jitter intensity", min: 0, max: 0.5, step: 0.02, unit: "m",
+    note: "perceived-ball noise σ at long range; decays exponentially near the ball" },
   { key: "ballDecel", label: "Ball rolling decel", min: 0.2, max: 2.5, step: 0.05, unit: "m/s²",
     note: "turf, μ ≈ 0.08" },
   { key: "kickGain", label: "Kick gain", min: 1.0, max: 6.0, step: 0.1, unit: "×",
@@ -173,6 +174,20 @@ export default function RobotSimulator() {
   // produced a fresh value — i.e. once the sim is resumed and takes its
   // first step at the new placement.
   const telemetryStaleRef = useRef(false);
+  // Ball-vision debug overlays (SimStep's "Limit Ball Vision" cluster).
+  // Plain refs, not state — onRender has an empty dependency list (see the effect
+  // that builds the engine below) and reads these fresh every frame, the same
+  // convention physicsRef/placementRef already follow. Reset to false at both
+  // points runtimeRef.current is rebuilt, in parity with the fresh SimHost's own
+  // usePreciseBall default.
+  const showFovRef = useRef(false);
+  const showPerceivedRef = useRef(false);
+  const onSetShowFov = useCallback((v) => {
+    showFovRef.current = v;
+  }, []);
+  const onSetShowPerceivedBall = useCallback((v) => {
+    showPerceivedRef.current = v;
+  }, []);
 
   useEffect(() => {
     document.title = "Robot Simulator — Chase / Adjust / Kick";
@@ -337,6 +352,8 @@ export default function RobotSimulator() {
     rendererRef.current.update(world, runtime.telemetry, {
       hideCurve: telemetryStaleRef.current,
       hideTarget: telemetryStaleRef.current,
+      showFov: showFovRef.current,
+      showPerceivedBall: showPerceivedRef.current,
     });
     const onDecision = (bucket, text) => {
       const last = lastDecisionRef.current;
@@ -430,6 +447,11 @@ export default function RobotSimulator() {
     const result = parseNow(role, sources);
     if (!result.ok || !result.runtime) return;
     runtimeRef.current = result.runtime;
+    // A fresh SimHost defaults usePreciseBall to true — keep the overlay refs
+    // in parity so the ball-vision control's own reset-on-remount isn't left
+    // pointing at stale true values from a previous run.
+    showFovRef.current = false;
+    showPerceivedRef.current = false;
     const p = INITIAL_PLACEMENT[role];
     setPlacement(p);
     placementRef.current = p;
@@ -466,6 +488,8 @@ export default function RobotSimulator() {
     setRunning(false);
     setRole(nextRole);
     runtimeRef.current = result.runtime;
+    showFovRef.current = false;
+    showPerceivedRef.current = false;
     const p = INITIAL_PLACEMENT[nextRole];
     setPlacement(p);
     placementRef.current = p;
@@ -744,6 +768,9 @@ export default function RobotSimulator() {
               runtimeError={runtimeError}
               role={role}
               onRoleChange={handleRoleSwitch}
+              runtimeRef={runtimeRef}
+              onSetShowFov={onSetShowFov}
+              onSetShowPerceivedBall={onSetShowPerceivedBall}
               onBack={() => {
                 setRunning(false);
                 setStep("edit");
@@ -1487,6 +1514,7 @@ function SimStep(props) {
     svgRef, decisionState, readoutRef, detailRef, notesRef, logRef, running, onTogglePlay, onReset, onSpeed,
     trailTracking, onToggleTrail, onClearTrail,
     physics, setPhysics, overrun, runtimeError, role, onRoleChange, onBack,
+    runtimeRef, onSetShowFov, onSetShowPerceivedBall,
   } = props;
 
   const [speedId, setSpeedId] = useState("1");
@@ -1497,6 +1525,35 @@ function SimStep(props) {
   const logCopiedTimeoutRef = useRef(null);
   const drawerRef = useRef(null);
   const reduceMotion = useReducedMotion();
+
+  // "Limit Ball Vision" cluster — local state so leaving and re-entering
+  // the run step (which unmounts/remounts SimStep) resets it for free.
+  // usePreciseBall itself lives on the SimHost instance (runtimeRef), mutated
+  // directly on click the same way the drag handler elsewhere in this file
+  // mutates worldRef.current.robot — a plain, synchronous ref write. The
+  // robot starts with precise, ground-truth ball tracking; pressing the pill
+  // is what switches it onto the realistic FOV/range/confidence/jitter model,
+  // and cancel (X) reverts back to precise.
+  const [ballVisionExpanded, setBallVisionExpanded] = useState(false);
+  const [showFov, setShowFov] = useState(false);
+  const [showPerceivedBall, setShowPerceivedBall] = useState(false);
+
+  const collapseBallVision = useCallback(() => {
+    if (runtimeRef.current) runtimeRef.current.host.usePreciseBall = true;
+    setShowFov(false);
+    setShowPerceivedBall(false);
+    onSetShowFov(false);
+    onSetShowPerceivedBall(false);
+    setBallVisionExpanded(false);
+  }, [runtimeRef, onSetShowFov, onSetShowPerceivedBall]);
+
+  // A role switch rebuilds a brand-new SimHost (usePreciseBall defaults to
+  // true again) without unmounting SimStep itself, so without this the
+  // cluster's own UI could keep showing "expanded"/toggled-on against a host
+  // that silently reverted underneath it.
+  useEffect(() => {
+    collapseBallVision();
+  }, [role, collapseBallVision]);
 
   // Copies the log stream's current text on click and shows "Copied!" for
   // 3s. logRef's own textContent is written imperatively by drainLogs on
@@ -1655,7 +1712,7 @@ function SimStep(props) {
             ref={legendRef}
             className="rs-legend rs-hud"
             tabIndex={0}
-            aria-label="Decision legend: chase, adjust, kick, not simulated"
+            aria-label="Decision legend: chase, adjust, kick, find, not simulated"
             style={reduceMotion ? undefined : { x: legendSpringX, y: legendSpringY }}
             whileTap={
               reduceMotion
@@ -1670,6 +1727,7 @@ function SimStep(props) {
               <span><i className="rs-legend-swatch rs-legend-swatch--chase" /> chase</span>
               <span><i className="rs-legend-swatch rs-legend-swatch--adjust" /> adjust</span>
               <span><i className="rs-legend-swatch rs-legend-swatch--kick" /> kick</span>
+              <span><i className="rs-legend-swatch rs-legend-swatch--find" /> find</span>
               <span><i className="rs-legend-swatch rs-legend-swatch--idle" /> not simulated</span>
             </div>
           </motion.div>
@@ -1847,7 +1905,7 @@ function SimStep(props) {
                 onChange={onRoleChange}
               />
 
-              {/* The decision state (Chase / Adjust / Kick / Idle) is the
+              {/* The decision state (Chase / Adjust / Kick / Find / Idle) is the
                   readout's one always-visible headline, so it sits outside
                   the flippable info below rather than flipping away with the
                   telemetry face — decisionState is set from paintReadout via
@@ -1862,13 +1920,133 @@ function SimStep(props) {
                   of the neutral droplet fill. No visible affordance beyond
                   that (no icon, no hint text) — same restraint as any other
                   hover/press state on this page. */}
-              <GlassButton
-                className={`rs-decision-pill rs-decision-pill--${decisionState.bucket}`}
-                onClick={() => setStatsFace((f) => (f === "telemetry" ? "log" : "telemetry"))}
-                aria-label={statsFace === "telemetry" ? "Show brain log" : "Show telemetry"}
-              >
-                {decisionState.text}
-              </GlassButton>
+              <div className="rs-decision-row">
+                <GlassButton
+                  className={`rs-decision-pill rs-decision-pill--${decisionState.bucket}`}
+                  onClick={() => setStatsFace((f) => (f === "telemetry" ? "log" : "telemetry"))}
+                  aria-label={statsFace === "telemetry" ? "Show brain log" : "Show telemetry"}
+                >
+                  {decisionState.text}
+                </GlassButton>
+
+                {/* Debug comparison control: precise, ground-truth ball
+                    tracking is the default. Clicking the pill is a real mode
+                    switch — it flips SimHost.usePreciseBall to false, turning
+                    on the realistic 120°/10m/confidence/jitter model in
+                    perception.js — and reveals two always-computed
+                    visualization toggles (FOV cone, perceived-ball marker)
+                    plus a cancel that reverts both the mode (back to precise)
+                    and the UI. See CLAUDE.md -> Motion -> Spring-based
+                    controls (SPRING_SPLIT) for the split/recombine animation,
+                    and -> Components -> Glass button for the frost fill's
+                    white-background exception, both scoped to this one
+                    control. */}
+                <AnimatePresence mode="wait" initial={false}>
+                  {!ballVisionExpanded ? (
+                    <motion.div
+                      key="collapsed"
+                      initial={reduceMotion ? false : { opacity: 0, scale: 0.7 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.7 }}
+                      transition={reduceMotion ? { duration: 0 } : SPRING_SPLIT}
+                    >
+                      <GlassButton
+                        variant="glass"
+                        className="rs-ball-vision-btn"
+                        onClick={() => {
+                          if (runtimeRef.current) runtimeRef.current.host.usePreciseBall = false;
+                          setBallVisionExpanded(true);
+                        }}
+                      >
+                        Limit Ball Vision
+                      </GlassButton>
+                    </motion.div>
+                  ) : (
+                    <motion.div key="expanded" className="rs-ball-vision-cluster">
+                      {[
+                        {
+                          key: "fov",
+                          node: (
+                            <GlassButton
+                              variant="frost"
+                              selected={showFov}
+                              className="rs-ball-vision-toggle"
+                              aria-pressed={showFov}
+                              aria-label="Toggle field-of-vision overlay"
+                              reach={BACK_BUTTON_REACH_PX}
+                              pull={BACK_BUTTON_PULL_PX}
+                              strength={BACK_BUTTON_PULL_STRENGTH}
+                              hoverScale={BACK_BUTTON_HOVER_SCALE}
+                              tapScale={BACK_BUTTON_TAP_SCALE}
+                              onClick={() => {
+                                const v = !showFov;
+                                setShowFov(v);
+                                onSetShowFov(v);
+                              }}
+                            >
+                              <Eye aria-hidden="true" />
+                            </GlassButton>
+                          ),
+                        },
+                        {
+                          key: "perceived",
+                          node: (
+                            <GlassButton
+                              variant="frost"
+                              selected={showPerceivedBall}
+                              className="rs-ball-vision-toggle"
+                              aria-pressed={showPerceivedBall}
+                              aria-label="Toggle perceived ball location marker"
+                              reach={BACK_BUTTON_REACH_PX}
+                              pull={BACK_BUTTON_PULL_PX}
+                              strength={BACK_BUTTON_PULL_STRENGTH}
+                              hoverScale={BACK_BUTTON_HOVER_SCALE}
+                              tapScale={BACK_BUTTON_TAP_SCALE}
+                              onClick={() => {
+                                const v = !showPerceivedBall;
+                                setShowPerceivedBall(v);
+                                onSetShowPerceivedBall(v);
+                              }}
+                            >
+                              <img src={footballIcon} alt="" className="rs-ball-icon" />
+                            </GlassButton>
+                          ),
+                        },
+                        {
+                          key: "cancel",
+                          node: (
+                            <GlassButton
+                              variant="glass"
+                              className="rs-ball-vision-cancel"
+                              aria-label="Cancel: revert to precise ball perception"
+                              reach={BACK_BUTTON_REACH_PX}
+                              pull={BACK_BUTTON_PULL_PX}
+                              strength={BACK_BUTTON_PULL_STRENGTH}
+                              hoverScale={BACK_BUTTON_HOVER_SCALE}
+                              tapScale={BACK_BUTTON_TAP_SCALE}
+                              onClick={collapseBallVision}
+                            >
+                              <X aria-hidden="true" />
+                            </GlassButton>
+                          ),
+                        },
+                      ].map(({ key, node }, i) => (
+                        <motion.div
+                          key={key}
+                          initial={reduceMotion ? false : { opacity: 0, scale: 0.4, x: -16 }}
+                          animate={{ opacity: 1, scale: 1, x: 0 }}
+                          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.4, x: -16 }}
+                          transition={
+                            reduceMotion ? { duration: 0 } : { ...SPRING_SPLIT, delay: i * 0.04 }
+                          }
+                        >
+                          {node}
+                        </motion.div>
+                      ))}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
               {/* No nested card surface — telemetry and log sit directly on
                   the console's own glass background (.rs-run-console is
@@ -2004,24 +2182,33 @@ const DECISION_BUCKET = {
   adjust: "adjust",
   kick: "kick",
   cross: "kick",
-  find: "idle",
+  // The robot actively searching (see runtime.js's tickFindBall() /
+  // GoalieZoneFindBall) is real, simulated motion -- its own bucket, not idle.
+  find: "find",
+  zone_find: "find",
   retreat: "idle",
   assist: "idle",
-  zone_find: "idle",
 };
 
 // The pill's own label is just the bucket, not the raw decision name or node
 // (dropped the "· StrikerChase" / "· not simulated" / "· episode ended: …"
-// suffixes it used to carry) — a simplified, always-one-of-these-four
+// suffixes it used to carry) — a simplified, always-one-of-these-five
 // readout rather than a detailed trace. The full decision/node/result is
 // still in the compact rows and "More detail" table below it.
-const DECISION_BUCKET_LABEL = { chase: "Chase", adjust: "Adjust", kick: "Kick", idle: "Idle" };
+const DECISION_BUCKET_LABEL = {
+  chase: "Chase",
+  adjust: "Adjust",
+  kick: "Kick",
+  find: "Find",
+  idle: "Idle",
+};
 
 // One raw decision gets its own label instead of its bucket's: "cross" still
 // buckets under "kick" (same pill color/state), but reads as "Cross" rather
 // than the generic "Kick" so the two branches stay distinguishable at a
-// glance. Keyed by the raw decision name, not the bucket.
-const DECISION_LABEL_OVERRIDE = { cross: "Cross" };
+// glance. Same for "zone_find" under "find" -- the goalkeeper's own search
+// variant. Keyed by the raw decision name, not the bucket.
+const DECISION_LABEL_OVERRIDE = { cross: "Cross", zone_find: "Zone Find" };
 
 /**
  * Written straight into the DOM rather than through React state: this runs on every

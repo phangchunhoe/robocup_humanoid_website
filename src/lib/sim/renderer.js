@@ -6,16 +6,19 @@
 
 import { FD, PXPM, toSvg, svgEl, buildPitch, OPP_GOAL_X } from "./field.js";
 import { BALL_RADIUS, ROBOT_RADIUS } from "./physics.js";
+import { BALL_FOV_HALF_ANGLE_RAD, BALL_SIGHT_RANGE_M } from "./perception.js";
 
 const DECISION_COLOR = {
   chase: "var(--decision-chase)",
   adjust: "var(--decision-adjust)",
   kick: "var(--decision-kick)",
   cross: "var(--decision-kick)",
-  find: "var(--decision-idle)",
+  // The robot actively searching (runtime.js's tickFindBall() / GoalieZoneFindBall) --
+  // real, simulated motion, so it gets its own hue rather than reading as idle.
+  find: "var(--decision-find)",
+  zone_find: "var(--decision-find)",
   retreat: "var(--decision-idle)",
   assist: "var(--decision-idle)",
-  zone_find: "var(--decision-idle)",
 };
 
 export function createRenderer(svg) {
@@ -80,7 +83,41 @@ export function createRenderer(svg) {
   );
   svg.appendChild(ballG);
 
+  // The robot's noisy belief about the ball's position — field-frame, like ballG,
+  // since it moves independently of the robot's own heading. A dashed accent ring
+  // rather than the true ball's fill/stroke or any decision color, so it reads as
+  // "a live estimate" distinct from both. Debug-only, off by default — see
+  // opts.showPerceivedBall in update().
+  const perceivedBallMark = svgEl("g", { visibility: "hidden" });
+  perceivedBallMark.appendChild(
+    svgEl("circle", {
+      r: BALL_RADIUS * PXPM * 1.6,
+      fill: "none",
+      stroke: "var(--color-accent)",
+      "stroke-width": 2,
+      "stroke-dasharray": "3 3",
+      "stroke-opacity": 0.8,
+    })
+  );
+  svg.appendChild(perceivedBallMark);
+
   const robotG = svgEl("g", { class: "sim-robot" });
+  // The robot's 120deg/10m ball-sight cone — a static wedge in the robot's own
+  // local frame (symmetric about local +x, so it needs no heading-sign math: the
+  // same translate/rotate transform update() already applies to robotG each
+  // frame carries this along for free, the same trick robotHeading/footL/footR
+  // below rely on). Debug-only, off by default — see opts.showFov in update().
+  const fovRangePx = BALL_SIGHT_RANGE_M * PXPM;
+  const fovX = fovRangePx * Math.cos(BALL_FOV_HALF_ANGLE_RAD);
+  const fovY = fovRangePx * Math.sin(BALL_FOV_HALF_ANGLE_RAD);
+  const fovCone = svgEl("path", {
+    d: `M 0 0 L ${fovX.toFixed(1)} ${(-fovY).toFixed(1)} A ${fovRangePx.toFixed(1)} ${fovRangePx.toFixed(1)} 0 0 1 ${fovX.toFixed(1)} ${fovY.toFixed(1)} Z`,
+    fill: "var(--color-separator)",
+    "fill-opacity": 0.18,
+    stroke: "none",
+    visibility: "hidden",
+  });
+  robotG.appendChild(fovCone);
   const robotBody = svgEl("circle", {
     r: ROBOT_RADIUS * PXPM,
     fill: "var(--decision-chase)",
@@ -108,7 +145,7 @@ export function createRenderer(svg) {
   footR.setAttribute("cy", stanceBiasPx);
 
   function update(world, telemetry, opts = {}) {
-    const { hideCurve = false, hideTarget = false } = opts;
+    const { hideCurve = false, hideTarget = false, showFov = false, showPerceivedBall = false } = opts;
     const r = world.robot;
     const b = world.ball;
 
@@ -121,9 +158,22 @@ export function createRenderer(svg) {
     robotBody.setAttribute("stroke", color);
     robotBody.setAttribute("fill", color);
     robotHeading.setAttribute("fill", color);
+    fovCone.setAttribute("visibility", showFov ? "visible" : "hidden");
 
     const [bx, by] = toSvg(b.x, b.y);
     ballG.setAttribute("transform", `translate(${bx.toFixed(2)} ${by.toFixed(2)})`);
+
+    // The robot's noisy belief about the ball, when it currently has one — see
+    // perception.js and host.js's syncFromWorld. Hidden once the ball drops out
+    // of the FOV/range cone: there's nothing new to show until it's seen again.
+    const perceived = telemetry.perceivedBall;
+    if (showPerceivedBall && perceived && perceived.visible) {
+      const [px, py] = toSvg(perceived.fieldFrame.x, perceived.fieldFrame.y);
+      perceivedBallMark.setAttribute("transform", `translate(${px.toFixed(2)} ${py.toFixed(2)})`);
+      perceivedBallMark.setAttribute("visibility", "visible");
+    } else {
+      perceivedBallMark.setAttribute("visibility", "hidden");
+    }
 
     // Ball velocity arrow, 0.25 s of lookahead
     const bspeed = Math.hypot(b.vx, b.vy);

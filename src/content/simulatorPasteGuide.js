@@ -17,8 +17,12 @@ export const TABS = [
       "//   TickChaseNode              StrikerChase::tick     GoalieChase::tick\n" +
       "//   Adjust::tick               StrikerDecide::tick    GoalieDecide::tick\n" +
       "//   Kick::onStart              Kick::onRunning        CalcKickDir::tick\n" +
+      "//   FindBall::tick (striker 'find')     GoalieZoneFindBall::tick (goalkeeper 'zone_find')\n" +
       "//   GoToGoalBlockingPosition::tick  (goalkeeper 'retreat')\n" +
       "//\n" +
+      "// The last three are optional: if the ball leaves the robot's field of view\n" +
+      "// (press \"Limit Ball Vision\" on the run step) without one pasted, the robot\n" +
+      "// just holds position instead of searching/retreating.\n" +
       "// Everything else in the file is skipped.",
   },
   {

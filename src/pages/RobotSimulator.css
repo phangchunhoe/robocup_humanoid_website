@@ -1107,7 +1107,7 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
      reason --turf-line is. */
   --slider-track: color-mix(in srgb, var(--color-label) 32%, transparent);
   /* Decision legend — categorical, not status, and never interactive chrome.
-     chase/adjust/kick are the only branches this simulator actually runs
+     chase/adjust/kick/find are the branches this simulator actually runs
      (see "what this simulation does not model" below); everything else
      reports as idle. */
   --decision-chase: #e2766a;
@@ -1117,6 +1117,13 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
      10° away from "this is clickable" — on a robot fill and a dashed ray that
      was a real ambiguity. Cyan reads as instrumentation, not as a control. */
   --decision-kick: #56bccb;
+  /* A fifth categorical hue for find/zone_find (the robot actively searching —
+     see runtime.js's tickFindBall()), picked at ~265° to sit far from every
+     other hue already in play here: chase (~8°), adjust (~35°), kick (~189°)
+     and the accent itself (~160°). Vivid like the other three active states,
+     not muted like idle — find is real, simulated motion, not "nothing's
+     happening". */
+  --decision-find: #a578e2;
   --decision-idle: #64756a;
   /* Cosmetic ball colors, same category as the turf. Derived from the neutral
      ramp rather than restated as raw hex: a two-tone ball still reads against
@@ -1502,6 +1509,7 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 .robot-simulator-page .rs-legend-swatch--chase { background: var(--decision-chase); }
 .robot-simulator-page .rs-legend-swatch--adjust { background: var(--decision-adjust); }
 .robot-simulator-page .rs-legend-swatch--kick { background: var(--decision-kick); }
+.robot-simulator-page .rs-legend-swatch--find { background: var(--decision-find); }
 .robot-simulator-page .rs-legend-swatch--idle { background: var(--decision-idle); }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2027,6 +2035,44 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   height: var(--space-4);
 }
 
+/* -------------------------------------------------- ball-vision cluster */
+/* "Limit Ball Vision" — collapsed to an ordinary glass pill, no
+   special sizing beyond .glass-btn's own defaults. */
+.robot-simulator-page .rs-ball-vision-btn {
+  white-space: nowrap;
+}
+
+/* The three round buttons it splits into, laid out where the pill was. Same
+   44px-circle family as .rs-trail-toggle-btn/.rs-trail-clear-btn above. */
+.robot-simulator-page .rs-ball-vision-cluster {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.robot-simulator-page .rs-ball-vision-toggle,
+.robot-simulator-page .rs-ball-vision-cancel {
+  flex: 0 0 auto;
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  padding: 0;
+  border-radius: 50%;
+}
+
+.robot-simulator-page .rs-ball-vision-toggle svg,
+.robot-simulator-page .rs-ball-vision-cancel svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.robot-simulator-page .rs-ball-icon {
+  width: var(--space-4);
+  height: var(--space-4);
+  /* The button already supplies a dark ink color (.glass-btn--frost); the
+     artwork's own black-on-transparent pixels don't need a filter to match. */
+  display: block;
+}
+
 /* The HUD. No longer a column in a row beside the field — a glass panel
    floating ON it, inset from the viewport on all four sides so the field
    reads as running underneath and past it rather than stopping at a seam.
@@ -2228,8 +2274,17 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
    with the other three rather than special-cased with --color-label, which
    measures only marginally better here — reconsider if idle needs to carry
    real legibility weight rather than read as the resting/background state. */
-.robot-simulator-page .rs-decision-pill {
+/* Holds the decision pill and the "Limit Ball Vision" cluster side by
+   side — align-self moved here from .rs-decision-pill itself now that the
+   pill's direct parent is this row rather than .rs-console-face. */
+.robot-simulator-page .rs-decision-row {
   align-self: center;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.robot-simulator-page .rs-decision-pill {
   min-height: calc(var(--tap-target-min) + var(--space-2));
   padding: 0 var(--space-10);
   font-size: var(--text-body);
@@ -2257,6 +2312,14 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
 }
 .robot-simulator-page .rs-decision-pill.rs-decision-pill--kick:hover {
   background: color-mix(in srgb, var(--decision-kick) 70%, black);
+  color: var(--color-label);
+}
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--find {
+  background: var(--decision-find);
+  color: var(--color-on-accent);
+}
+.robot-simulator-page .rs-decision-pill.rs-decision-pill--find:hover {
+  background: color-mix(in srgb, var(--decision-find) 70%, black);
   color: var(--color-label);
 }
 .robot-simulator-page .rs-decision-pill.rs-decision-pill--idle {

@@ -24,3 +24,16 @@ export const SPRING_MAGNETIC = { type: "spring", stiffness: 300, damping: 18, ma
 // hover pull (matches --duration-fast press feedback in character), with a
 // touch less damping so the overshoot reads as a tactile bounce.
 export const SPRING_CLICK = { type: "spring", stiffness: 700, damping: 15, mass: 0.5 };
+
+// A fifth, explicitly scoped case: the run step's "Use Precise Ball Location"
+// control splitting into its three round buttons (and recombining on cancel).
+// The ask was a liquid-droplet split; a true gooey SVG-blob morph would have to
+// composite on top of GlassButton's own turbulence-displacement filter and
+// backdrop-blur, and stacking two filters fighting for the same pixels risked
+// visual mush or real compositor cost for a decorative transition -- so this is
+// the named approximation instead: scale/opacity/position with a visible
+// elastic overshoot, standing in for the blob separating. Lighter-damped than
+// SPRING_UI (a settled layout change) for that overshoot, but heavier than
+// SPRING_CLICK's tactile snap -- this is a slower, more deliberate motion than
+// a button-press acknowledgment.
+export const SPRING_SPLIT = { type: "spring", stiffness: 260, damping: 20, mass: 0.7 };

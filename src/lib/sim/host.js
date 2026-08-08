@@ -12,6 +12,7 @@
 
 import { FD, OUR_GOAL_X } from "./field.js";
 import { ballToRobot } from "./physics.js";
+import { computeBallPerception } from "./perception.js";
 import { selectInstance } from "./btxml.js";
 
 /** Struct field orders, from include/types.h. Used for brace initialisation. */
@@ -239,6 +240,12 @@ export class SimHost {
     this.portDefaults = portDefaults; // from brain_tree.h providedPorts()
     this.currentNode = null; // which node's ports getInput() should read
     this.currentDecision = null; // disambiguates sibling instances of the same node
+    // When true (the default), syncFromWorld() reports ground-truth ball position —
+    // the robot always knows exactly where the ball is. The run step's "Scope Robot's
+    // Vision" control flips this to false to switch on the FOV/range/confidence/
+    // jitter model in perceivedBall below; its cancel (X) flips it back to true.
+    this.usePreciseBall = true;
+    this.perceivedBall = null;
     this.missingPorts = new Set();
     this.missingConfig = new Set();
     this.missingBrainMethods = new Set();
@@ -319,12 +326,25 @@ export class SimHost {
         pitchToRobot: 0,
         confidence: 100,
         timePoint: makeTime(0),
+        // No vision pixel model in this sim, so the box is always degenerate --
+        // exactly the state a real robot's own bbox is in the instant ballDetected
+        // goes false (brain.cpp clears it that same tick). Read by TurnOnSpot's
+        // towards_ball branch, which is written to fall back to ball.yawToRobot
+        // whenever xmax<=xmin, i.e. always, here.
+        boundingBox: { xmin: 0, xmax: 0, ymin: 0, ymax: 0 },
         label: "Ball",
         name: "Ball",
       },
       tmBall: { posToField: { x: 0, y: 0, z: 0 }, range: 0 },
       robotPoseToField: { x: 0, y: 0, theta: 0 },
+      // No separate odometry drift is modelled -- odom and field pose are the same
+      // ground truth here. Read by RobotFindBall/TurnOnSpot to accumulate rotation
+      // via odometry deltas while searching.
+      robotPoseToOdom: { x: 0, y: 0, theta: 0 },
       robotBallAngleToField: 0,
+      // BrainData::loneGoalieAsStriker -- only ever true in a 1-robot-total match
+      // configuration this simulator doesn't model (always exactly one striker).
+      loneGoalieAsStriker: false,
       ballDetected: true,
       kickDir: 0,
       kickType: "shoot",
@@ -772,25 +792,55 @@ export class SimHost {
     const rel = ballToRobot(world);
     const d = this.data;
 
-    d.ball.posToRobot.x = rel.x;
-    d.ball.posToRobot.y = rel.y;
-    d.ball.posToField.x = world.ball.x;
-    d.ball.posToField.y = world.ball.y;
-    d.ball.range = rel.range;
-    d.ball.yawToRobot = rel.yaw;
-    d.ball.timePoint = makeTime(world.t);
-    d.ball.confidence = 100;
+    // Always computed, regardless of usePreciseBall -- this is what the run step's
+    // FOV-cone/perceived-marker debug overlay reads, whether or not it's what's
+    // actually driving the robot this tick.
+    this.perceivedBall = computeBallPerception(world);
 
     d.robotPoseToField.x = world.robot.x;
     d.robotPoseToField.y = world.robot.y;
     d.robotPoseToField.theta = world.robot.theta;
-    // Field-frame bearing from robot to ball (BrainData::robotBallAngleToField).
-    d.robotBallAngleToField = Math.atan2(world.ball.y - world.robot.y, world.ball.x - world.robot.x);
+    d.robotPoseToOdom.x = world.robot.x;
+    d.robotPoseToOdom.y = world.robot.y;
+    d.robotPoseToOdom.theta = world.robot.theta;
 
-    // Perfect perception, as chosen: the ball is always known.
-    d.ballDetected = true;
-    this.blackboard.ball_detected = true;
-    this.blackboard.ball_location_known = true;
+    if (this.usePreciseBall) {
+      // Ground truth passthrough -- the original "perfect perception" behavior,
+      // used for comparison via the run step's "Use Precise Ball Location" toggle.
+      d.ball.posToRobot.x = rel.x;
+      d.ball.posToRobot.y = rel.y;
+      d.ball.posToField.x = world.ball.x;
+      d.ball.posToField.y = world.ball.y;
+      d.ball.range = rel.range;
+      d.ball.yawToRobot = rel.yaw;
+      d.ball.timePoint = makeTime(world.t);
+      d.ball.confidence = 100;
+      d.robotBallAngleToField = Math.atan2(world.ball.y - world.robot.y, world.ball.x - world.robot.x);
+      d.ballDetected = true;
+      this.blackboard.ball_detected = true;
+      this.blackboard.ball_location_known = true;
+    } else if (this.perceivedBall.visible) {
+      const p = this.perceivedBall;
+      d.ball.posToRobot.x = p.robotFrame.x;
+      d.ball.posToRobot.y = p.robotFrame.y;
+      d.ball.posToField.x = p.fieldFrame.x;
+      d.ball.posToField.y = p.fieldFrame.y;
+      d.ball.range = p.robotFrame.range;
+      d.ball.yawToRobot = p.robotFrame.yaw;
+      d.ball.timePoint = makeTime(world.t);
+      d.ball.confidence = p.confidence;
+      d.robotBallAngleToField = Math.atan2(p.fieldFrame.y - world.robot.y, p.fieldFrame.x - world.robot.x);
+      d.ballDetected = true;
+      this.blackboard.ball_detected = true;
+      this.blackboard.ball_location_known = true;
+    } else {
+      // Out of the 120deg/10m cone this tick -- a real vision pipeline simply
+      // publishes nothing new, so d.ball.* stays at its last detected value.
+      d.ballDetected = false;
+      this.blackboard.ball_detected = false;
+      this.blackboard.ball_location_known = false;
+    }
+
     this.blackboard.player_role = this.role;
   }
 
@@ -860,7 +910,15 @@ export class SimHost {
       // --- rclcpp ---
       rclcpp: {
         Time: (sec) => makeTime(typeof sec === "number" ? sec / 1e9 : 0),
-        Duration: { from_seconds: (s) => makeDuration(s) },
+        // rclcpp::Duration is called both ways in real code: the constructor directly
+        // (rclcpp::Duration(seconds, nanoseconds), mirroring rclcpp's own two-arg ctor)
+        // and the static factory (rclcpp::Duration::from_seconds(x)) -- a function can
+        // carry its own property in JS, so this is both at once rather than needing two
+        // separate globals.
+        Duration: Object.assign(
+          (sec = 0, nanosec = 0) => makeDuration(sec + nanosec / 1e9),
+          { from_seconds: (s) => makeDuration(s) }
+        ),
         ok: () => true,
       },
       RCL_ROS_TIME: 0,

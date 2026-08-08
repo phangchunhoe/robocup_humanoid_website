@@ -8,10 +8,21 @@
 //   StrikerChase | GoalieChase        _while decision == 'chase'
 //   Adjust                            _while decision == 'adjust'
 //   Kick                              _while decision == 'kick' | 'cross'
-//   GoToGoalBlockingPosition          _while decision == 'retreat'
+//   subtree_find_ball.xml             _while decision == 'find', if pasted --
+//     GoBackInField, TurnOnSpot, RobotFindBall, GoToReadyPosition (CamFindBall is
+//     the subtree's head-sweep-only member and is not simulated -- see the
+//     WHITELIST comment in extract.js). See tickFindBall()'s own comment for the
+//     phase machine mirroring its Sequence-of-3-ReactiveSequences structure.
+//   GoalieZoneFindBall                _while decision == 'zone_find', if pasted --
+//     self-contained (its own internal ScanPhase state machine), dispatched
+//     onStart/onRunning like Kick above, no subtree composition needed.
+//   GoToGoalBlockingPosition          _while decision == 'retreat', if pasted
 //
-// Nodes the simulator does not model (FindBall, Assist, RLVisionKick, ...) stop the
-// robot and are reported in the readout rather than faked.
+// find/zone_find/retreat are optional: simulated when the paste includes their
+// node(s) (checked via `this.parsed.has(...)`), a held-position fallback otherwise.
+// Nodes genuinely out of scope for a single-robot, no-GameController sim (Assist,
+// RLVisionKick/auto_visual_kick, ...) always stop the robot and are reported in the
+// readout rather than faked.
 
 import {
   extractFunctions,
@@ -67,6 +78,17 @@ const NODE_KEY = {
   "Kick::onRunning": "Kick",
   "Kick::onHalted": "Kick",
   "CalcKickDir::tick": "CalcKickDir",
+  "RobotFindBall::onStart": "RobotFindBall",
+  "RobotFindBall::onRunning": "RobotFindBall",
+  "RobotFindBall::onHalted": "RobotFindBall",
+  "TurnOnSpot::onStart": "TurnOnSpot",
+  "TurnOnSpot::onRunning": "TurnOnSpot",
+  "TurnOnSpot::onHalted": "TurnOnSpot",
+  "GoBackInField::tick": "GoBackInField",
+  "GoToReadyPosition::tick": "GoToReadyPosition",
+  "GoalieZoneFindBall::onStart": "GoalieZoneFindBall",
+  "GoalieZoneFindBall::onRunning": "GoalieZoneFindBall",
+  "GoalieZoneFindBall::onHalted": "GoalieZoneFindBall",
   "GoToGoalBlockingPosition::tick": "GoToGoalBlockingPosition",
   TickChaseNode: "Chase",
 };
@@ -272,8 +294,18 @@ export class SimRuntime {
     this.seedFileScopeVars();
 
     this.kickPhase = "idle"; // idle | running
+    this.resetFindBall();
+    this.zoneFindBallStarted = false;
     this.lastDecision = "";
     this.telemetry = { decision: "", targetType: null, target: null, curve: null, kickDir: 0 };
+  }
+
+  /** Fresh state for the striker's FindBall subtree -- see tickFindBall()'s own comment. */
+  resetFindBall() {
+    this.findPhase = "reacquire"; // reacquire -> spin -> fallback -> sleep -> (loops to reacquire)
+    this.turnOnSpotStarted = false;
+    this.robotFindBallStarted = false;
+    this.findSleepUntil = null;
   }
 
   seedMembers() {
@@ -312,6 +344,8 @@ export class SimRuntime {
     this.logSeq = 0;
     this.unknownSymbols.length = 0;
     this.kickPhase = "idle";
+    this.resetFindBall();
+    this.zoneFindBallStarted = false;
     this.lastDecision = "";
     this.error = null;
     this.telemetry = { decision: "", targetType: null, target: null, curve: null, kickDir: 0 };
@@ -330,6 +364,91 @@ export class SimRuntime {
     this.interp.watched = {};
     const out = this.interp.invoke(ast, args, NODE_KEY[name] || nodeName);
     return { status: out, watched: this.interp.watched };
+  }
+
+  /**
+   * decision=='find' isn't one node -- it's subtree_find_ball.xml, a plain `Sequence` of
+   * three `ReactiveSequence` phases (quick_reacquire_turn, spin_and_scan, then a fallback
+   * to a ready position). A plain Sequence parks at whichever child last returned RUNNING
+   * and resumes ticking *only* that child -- it does not re-tick earlier, already-succeeded
+   * children -- so `this.findPhase` plays that role here. Each phase's own ReactiveSequence
+   * is emulated by ticking its auxiliary node (GoBackInField -- always returns SUCCESS, so
+   * it never gates anything, just applies its own side effect) followed by that phase's
+   * real StatefulActionNode; if the ReactiveSequence's last child completes, a plain
+   * Sequence would advance to the next phase within the very same BT tick rather than
+   * waiting a frame, so a completed phase here falls through into the next `if` block
+   * instead of returning. CamFindBall (the subtree's third member) is deliberately not
+   * ticked at all -- see the WHITELIST comment in extract.js for why.
+   *
+   * Every node here is optional and independently checked with `this.parsed.has(...)` --
+   * the caller only reaches this method once `RobotFindBall::onStart` (Phase 2's node, the
+   * one that actually spins the body) is known to be pasted; TurnOnSpot missing just skips
+   * straight to the spin, and GoToReadyPosition missing holds position instead of Phase 3.
+   */
+  tickFindBall() {
+    const watched = {};
+    if (this.parsed.has("GoBackInField::tick")) {
+      const out = this.call("GoBackInField::tick", "GoBackInField", [], "find");
+      Object.assign(watched, out ? out.watched : {});
+    }
+
+    if (this.findPhase === "reacquire") {
+      if (!this.parsed.has("TurnOnSpot::onStart")) {
+        this.findPhase = "spin";
+      } else {
+        const out = this.turnOnSpotStarted
+          ? this.call("TurnOnSpot::onRunning", "TurnOnSpot", [], "find")
+          : this.call("TurnOnSpot::onStart", "TurnOnSpot", [], "find");
+        this.turnOnSpotStarted = true;
+        Object.assign(watched, out ? out.watched : {});
+        if (!out || out.status === "RUNNING") return watched;
+        this.findPhase = "spin";
+      }
+    }
+
+    if (this.findPhase === "spin") {
+      if (!this.parsed.has("RobotFindBall::onStart")) {
+        this.findPhase = "fallback";
+      } else {
+        const out = this.robotFindBallStarted
+          ? this.call("RobotFindBall::onRunning", "RobotFindBall", [], "find")
+          : this.call("RobotFindBall::onStart", "RobotFindBall", [], "find");
+        this.robotFindBallStarted = true;
+        Object.assign(watched, out ? out.watched : {});
+        if (!out || out.status === "RUNNING") return watched;
+        this.findPhase = "fallback";
+      }
+    }
+
+    // Phase 3: two full spins with no result -- the ball is genuinely not visible from
+    // here. Walk to a strategic ready position and hold there for the XML's own
+    // `<Sleep msec="5000" />`, a BT.CPP library node rather than pasted C++, so it's a
+    // plain sim-time timer rather than a `this.parsed.has(...)`-gated call.
+    if (this.findPhase === "fallback") {
+      if (!this.parsed.has("GoToReadyPosition::tick")) {
+        this.host.client.setVelocity(0, 0, 0);
+        return watched;
+      }
+      const out = this.call("GoToReadyPosition::tick", "GoToReadyPosition", [], "find");
+      Object.assign(watched, out ? out.watched : {});
+      this.findSleepUntil = this.host.simTime + 5.0;
+      this.findPhase = "sleep";
+    }
+
+    if (this.findPhase === "sleep") {
+      if (this.findSleepUntil !== null && this.host.simTime < this.findSleepUntil) {
+        this.host.client.setVelocity(0, 0, 0);
+        return watched;
+      }
+      // The real Sequence would report SUCCESS to the SubTree's own caller here, which
+      // re-ticks it from the top on the next brain tick since decision=='find' still
+      // gates it -- go back to Phase 1 rather than sitting in "sleep" forever.
+      this.findPhase = "reacquire";
+      this.turnOnSpotStarted = false;
+      this.robotFindBallStarted = false;
+    }
+
+    return watched;
   }
 
   /**
@@ -365,6 +484,10 @@ export class SimRuntime {
         adjustWatched: null,
         kickWatched: null,
         simulatedNode: null,
+        // The robot's FOV/range/confidence/jitter view of the ball, always computed
+        // regardless of host.usePreciseBall -- see host.js's syncFromWorld and the run
+        // step's FOV-cone/perceived-marker debug overlay.
+        perceivedBall: host.perceivedBall,
       };
 
       if (decision === "chase") {
@@ -389,13 +512,35 @@ export class SimRuntime {
           t.kickWatched = out ? out.watched : {};
           if (out && out.status !== "RUNNING") this.kickPhase = "idle";
         }
+      } else if (decision === "find" && this.parsed.has("RobotFindBall::onStart")) {
+        // Reachable now that the robot's ball perception is FOV/range-limited (see
+        // perception.js) rather than always-on -- StrikerDecide can genuinely emit
+        // "find" once the ball actually leaves the cone. decision=='find' is
+        // subtree_find_ball.xml, not one node -- see tickFindBall()'s own comment
+        // for the phase machine that mirrors it.
+        if (this.lastDecision !== "find") this.resetFindBall();
+        t.simulatedNode = "FindBall";
+        t.findWatched = this.tickFindBall();
+      } else if (decision === "zone_find" && this.parsed.has("GoalieZoneFindBall::onStart")) {
+        // GoalieZoneFindBall is self-contained (a single StatefulActionNode with its
+        // own internal ScanPhase state machine), unlike the striker's find -- same
+        // onStart/onRunning dispatch as Kick above, no subtree composition needed.
+        const out = this.zoneFindBallStarted
+          ? this.call("GoalieZoneFindBall::onRunning", "GoalieZoneFindBall", [], decision)
+          : this.call("GoalieZoneFindBall::onStart", "GoalieZoneFindBall", [], decision);
+        this.zoneFindBallStarted = true;
+        t.simulatedNode = "GoalieZoneFindBall";
+        t.zoneFindWatched = out ? out.watched : {};
       } else if (decision === "retreat" && this.parsed.has("GoToGoalBlockingPosition::tick")) {
         const out = this.call("GoToGoalBlockingPosition::tick", "GoToGoalBlockingPosition", [], decision);
         t.simulatedNode = "GoToGoalBlockingPosition";
         t.retreatWatched = out ? out.watched : {};
       } else {
-        // find / assist / zone_find / auto_visual_kick: those subtrees are not part of
-        // what this page tests, so the robot holds position and says so.
+        // assist / auto_visual_kick, or find/zone_find/retreat without their node
+        // pasted: genuinely out of scope for a single-robot, no-GameController sim
+        // (assist needs teammates; auto_visual_kick needs a vision pipeline this sim
+        // doesn't model) or simply not provided, so the robot holds position and
+        // says so.
         host.client.setVelocity(0, 0, 0);
         t.simulatedNode = null;
       }
@@ -410,6 +555,23 @@ export class SimRuntime {
         if (this.parsed.has("Kick::onHalted")) {
           this.call("Kick::onHalted", "Kick", [], this.lastDecision);
         }
+      }
+      // Leaving 'find' while TurnOnSpot/RobotFindBall was mid-RUNNING halts whichever
+      // was actually started -- same onHalted contract as Kick above.
+      if (this.lastDecision === "find" && decision !== "find") {
+        if (this.turnOnSpotStarted && this.parsed.has("TurnOnSpot::onHalted")) {
+          this.call("TurnOnSpot::onHalted", "TurnOnSpot", [], "find");
+        }
+        if (this.robotFindBallStarted && this.parsed.has("RobotFindBall::onHalted")) {
+          this.call("RobotFindBall::onHalted", "RobotFindBall", [], "find");
+        }
+        this.resetFindBall();
+      }
+      if (this.lastDecision === "zone_find" && decision !== "zone_find") {
+        if (this.zoneFindBallStarted && this.parsed.has("GoalieZoneFindBall::onHalted")) {
+          this.call("GoalieZoneFindBall::onHalted", "GoalieZoneFindBall", [], "zone_find");
+        }
+        this.zoneFindBallStarted = false;
       }
       this.lastDecision = decision;
 

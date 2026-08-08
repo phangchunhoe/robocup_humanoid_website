@@ -473,7 +473,13 @@ class Parser {
       }
     }
     if (t.type === T.IDENT && t.value === "sizeof") {
-      throw new ParseError("sizeof is not supported by this interpreter", t);
+      // Only the sizeof(expr) form -- every real use in this codebase is the
+      // sizeof(arr) / sizeof(arr[0]) array-length idiom, never a bare sizeof(TypeName).
+      this.next();
+      this.expect("(");
+      const arg = this.parseExpression();
+      this.expect(")");
+      return { kind: "Sizeof", arg, pos: t.pos };
     }
     return this.parsePostfix();
   }

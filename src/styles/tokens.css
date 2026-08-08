@@ -158,6 +158,14 @@
      stay the shared tokens; this is the one deliberate divergence from
      .rs-back's fill. */
   --glass-fill-droplet-panel: color-mix(in srgb, var(--color-elevated-background) 20%, transparent);
+  /* A near-opaque off-white fill, for the run step's two ball-vision debug
+     toggles (field-of-vision, perceived-ball marker) alone — a deliberately
+     named exception to "saturation/lightness means interactive" so those two
+     controls read as a distinct, literal "white button" rather than more
+     glass chrome. Still color-mixed from --color-label rather than a raw
+     white, so the app keeps exactly one white. See CLAUDE.md -> Components ->
+     Glass button. */
+  --glass-fill-frost: color-mix(in srgb, var(--color-label) 88%, transparent);
   /* Opaque stand-ins for @supports not (backdrop-filter: …). */
   --glass-hud-fallback: color-mix(in srgb, var(--color-elevated-background) 95%, transparent);
   --glass-panel-fallback: color-mix(in srgb, var(--color-elevated-background) 94%, transparent);

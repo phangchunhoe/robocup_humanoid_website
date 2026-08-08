@@ -177,7 +177,8 @@ saturation rule already separates it, and it never appears as chrome. If a
 future change makes it more vivid, it has to move.
 
 The remaining decision colors (`--decision-chase`, `--decision-adjust`,
-`--decision-idle`) are untouched: none of them is near green.
+`--decision-find`, `--decision-idle`) are untouched: none of them is near
+green.
 
 **Contrast is checked against `--color-elevated-background`,** not the canvas.
 The panel is the lighter of the two grounds, so anything legible there is
@@ -715,22 +716,36 @@ There is no component library. Build from tokens, following Apple's patterns:
   controls). Its material (fill, filter, rim) is also what
   `<GlassSlider>`'s thumb is built from, below — read this entry first.
 
-  **Two fills, `variant="glass"` and `variant="accent"`, and they are the
-  only thing allowed to differ between instances** — never the structure, the
-  material, or the motion. `glass` is the translucent droplet fill above
-  (`--glass-fill-droplet`, secondary-label ink resting, accent ink on
-  hover); `accent` is the one opaque exception, a solid `--color-accent`
-  fill with `--color-on-accent` ink, reserved for the single dominant action
-  in a row — the run console's Play/Stop toggle, which stays this fill
-  regardless of which state it's showing, not the primary/secondary swap it
-  used to be. A `selected` prop adds an `.is-selected` state — an accent
-  hairline, ink and glow layered on the glass fill — for a GlassButton
-  standing in for a segmented control's active segment. Nothing on the run
-  console currently uses `selected` — the playback speed, its original
-  case, moved to `<GlassSlider>` once it needed to be one sliding thumb
-  rather than three independently-selected buttons — but the prop stays for
-  the next control shaped like that. Play never carries it, since it is a
-  single action, not one of a set.
+  **Three fills — `variant="glass"`, `variant="accent"`, `variant="frost"`
+  — and the fill is the only thing allowed to differ between instances** —
+  never the structure, the material, or the motion. `glass` is the
+  translucent droplet fill above (`--glass-fill-droplet`, secondary-label ink
+  resting, accent ink on hover); `accent` is the one opaque exception, a
+  solid `--color-accent` fill with `--color-on-accent` ink, reserved for the
+  single dominant action in a row — the run console's Play/Stop toggle,
+  which stays this fill regardless of which state it's showing, not the
+  primary/secondary swap it used to be. A `selected` prop adds an
+  `.is-selected` state — an accent hairline, ink and glow layered on the
+  glass fill — for a GlassButton standing in for a segmented control's
+  active segment. Nothing on the run console currently uses `selected` —
+  the playback speed, its original case, moved to `<GlassSlider>` once it
+  needed to be one sliding thumb rather than three independently-selected
+  buttons — but the prop stays for the next control shaped like that. Play
+  never carries it, since it is a single action, not one of a set.
+
+  **`frost` is a named, narrowly scoped exception to "saturation means
+  interactive"** — a near-opaque off-white fill (`--glass-fill-frost`,
+  color-mixed from `--color-label` at 88%, not a raw white — the app still
+  has exactly one white) with `--color-background` ink for contrast. It
+  exists for exactly two controls: the run step's "field of vision" and
+  "perceived ball location" debug toggles (the `Eye`/football-icon buttons
+  in the "Limit Ball Vision" cluster below `.rs-decision-pill`).
+  Those two needed to read as a literal, distinct "white button" rather
+  than more glass chrome sitting next to the pill and the cancel (✕)
+  button, which stay `glass`. Don't reach for `frost` on a new control just
+  because it wants to stand out — it is scoped to this one debug-panel
+  pair, reconsider before a third use the same way a new spring-motion case
+  would be (see Motion → Spring-based controls).
 
   **Reach/pull/strength/hoverScale/tapScale are props, not constants baked
   into the component**, because the right pull for a 44px circle (the back
@@ -1013,7 +1028,7 @@ There is no component library. Build from tokens, following Apple's patterns:
 - **Decision pill** (simulate step only) — a **named exception** to the status
   indicator's no-filled-background rule: `.rs-decision-pill` in
   `RobotSimulator.css`, a glass pill carrying the robot's current
-  chase/adjust/kick/idle state — a tinted translucent fill under a low-alpha
+  chase/adjust/kick/find/idle state — a tinted translucent fill under a low-alpha
   hairline, both `color-mix`ed from the decision's own color so the pill says
   which state it is by hue alone. It's exempt because it isn't a status in a
   list — it's the one always-visible headline of the stats card, playing the
@@ -1124,14 +1139,14 @@ system, and it is scoped narrowly rather than left to spread — a page
 should not have to guess which of two systems a given piece of motion
 belongs to.
 
-**Where it's used, and where it stops:** four independently-scoped cases —
-two on the robot-simulator landing step, two on the run step — all because
+**Where it's used, and where it stops:** five independently-scoped cases —
+two on the robot-simulator landing step, three on the run step — all because
 the reference-quality feel comes specifically from spring *physics* (a value
 that can overshoot slightly and settle, driven by stiffness/damping/mass)
 rather than from a fixed-duration curve, which `--ease-out` cannot produce.
 One of the run-step cases, `<GlassButton>`, is itself a reusable component
 with several instances rather than a single bespoke control — see below for
-why that doesn't count as a fifth case:
+why that doesn't count as its own extra case:
 
 - **`RoleToggle`** (`src/components/RoleToggle.jsx`) — the striker/
   goalkeeper toggle's sliding selected-state pill. The pill's `x`/`width`/
@@ -1195,15 +1210,35 @@ why that doesn't count as a fifth case:
   listener in `SimStep`, using the same `applyMagneticPull` helper every
   GlassButton instance calls from its own listener (`src/lib/
   magneticPull.js`) rather than a copy of the function.
+- **The run step's "Limit Ball Vision" split/recombine**
+  (`RobotSimulator.jsx`'s `SimStep`, the cluster next to `.rs-decision-pill`)
+  — the collapsed pill and, once clicked, its three round buttons (field-of-
+  vision, perceived-ball marker, cancel) animate in/out via `AnimatePresence`
+  plus a per-button `scale`/`opacity`/`x` stagger (~40ms apart), a fifth,
+  distinct feel from the other four: a slower, more deliberate "surface
+  separating into pieces" rather than a button's own hover/click feedback or
+  a measured-layout settle. This is a named **approximation**, not a true
+  liquid-blob morph — a real gooey SVG merge would have to composite on top
+  of `<GlassButton>`'s own turbulence-displacement filter and backdrop-blur,
+  and stacking two filters fighting the same pixels risked visual mush or
+  real compositor cost for a decorative transition. Uses its own
+  `SPRING_SPLIT` rather than reusing `SPRING_MAGNETIC`/`SPRING_CLICK`,
+  because neither of those is tuned for this: `SPRING_MAGNETIC` is a
+  continuous cursor-follow and `SPRING_CLICK` a fast tactile snap, where
+  this is a one-shot layout transition that should read as a settle with a
+  visible bounce, closer in spirit to `SPRING_UI` but deliberately
+  under-damped for that overshoot. Falls back to a hard `{ duration: 0 }`
+  swap under reduced motion, same as every other consumer below.
 
 **The spring config is named, shared where the *feel* is shared, and
-distinct where it isn't** — all three constants live in
+distinct where it isn't** — all four constants live in
 `src/lib/motionSpring.js`:
 
 ```js
 export const SPRING_UI = { type: "spring", stiffness: 500, damping: 40, mass: 0.8 };
 export const SPRING_MAGNETIC = { type: "spring", stiffness: 300, damping: 18, mass: 0.6 };
 export const SPRING_CLICK = { type: "spring", stiffness: 700, damping: 15, mass: 0.5 };
+export const SPRING_SPLIT = { type: "spring", stiffness: 260, damping: 20, mass: 0.7 };
 ```
 
 `SPRING_UI` is imported by `RoleToggle` and the two-stage button, unchanged:
@@ -1227,21 +1262,22 @@ than trying to express "no motion" as a spring with zero stiffness —
 entirely under reduced motion (no `x`/`y` style at
 all) and keep only a minimal, non-spring hover/tap scale.
 
-**Don't reach for this a fourth time without reconsidering — unless it's
+**Don't reach for this a sixth time without reconsidering — unless it's
 another `<GlassButton>` instance, which is exactly what the component is
-for.** Four named, scoped cases is a deliberate, audited exception, the same
+for.** Five named, scoped cases is a deliberate, audited exception, the same
 shape as `--shadow-hero` (one use) or `--glow-accent` (two named uses); it is
 not a general license to animate other page motion with springs instead of
 the token-driven CSS system above. `<GlassButton>` exists precisely so a new
-liquid-glass *button* doesn't need a fifth bespoke case — pass it tuned
+liquid-glass *button* doesn't need its own bespoke case — pass it tuned
 props and reuse `SPRING_MAGNETIC`/`SPRING_CLICK` through the component, the
 way the run console's Play and Reset do; `<GlassSlider>` shows that reuse
 extending a level further, pulling `SPRING_CLICK` and `PILL_TAP_SCALE` out
 of `GlassButton` for its own thumb rather than either duplicating the
 numbers or forcing the slider itself to be a `GlassButton`. A genuinely new
-*kind* of spring-driven motion — not a button, or not this same magnetic-
-droplet feel — should still extend this section explicitly rather than
-letting a new untracked spring config appear inline somewhere.
+*kind* of spring-driven motion — not a button, not this same magnetic-
+droplet feel, and not the ball-vision cluster's own split/recombine — should
+still extend this section explicitly rather than letting a new untracked
+spring config appear inline somewhere.
 
 ### Spring-physics tether — a third, named motion system
 
@@ -1553,14 +1589,19 @@ block at the top of its section in `RobotSimulator.css` (not the shared
   → *Green means three things*. `--turf-line` is now `color-mix`ed from
   `--color-label` rather than a raw `rgba()`, so the chalk is a transparency
   of the app's one white.
-- **The four-way decision legend** (chase/adjust/kick/idle,
-  `--decision-chase`/`--decision-adjust`/`--decision-kick`/`--decision-idle`)
-  keeps a fixed categorical palette distinct from status colors and the
-  accent. A legend needs more hues than the two-color status system provides;
-  these are never used for interactive chrome, same rule as
+- **The five-way decision legend** (chase/adjust/kick/find/idle,
+  `--decision-chase`/`--decision-adjust`/`--decision-kick`/`--decision-find`/
+  `--decision-idle`) keeps a fixed categorical palette distinct from status
+  colors and the accent. A legend needs more hues than the two-color status
+  system provides; these are never used for interactive chrome, same rule as
   success/error. `renderer.js`'s `DECISION_COLOR` map and the CSS legend/pill
-  both read from these same four custom properties, so they can't drift
+  both read from these same five custom properties, so they can't drift
   apart. `--decision-kick` was moved off green for the reason above.
+  `--decision-find` (~265°, violet) covers both `find` (striker) and
+  `zone_find` (goalkeeper) — the robot actively searching, which is real,
+  simulated motion (see `runtime.js`'s `tickFindBall()`/`GoalieZoneFindBall`
+  dispatch) and reads as its own state rather than bucketing under idle the
+  way `retreat`/`assist` still do.
 - **The ball colors** (`--ball-fill`/`--ball-stroke`) are now plain aliases of
   `--color-label` and `--color-background` rather than their own hex. A
   two-tone ball still reads against the pitch, and it can no longer drift

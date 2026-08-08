@@ -20,7 +20,33 @@ export const WHITELIST = [
   "GoalieDecide::tick",
   "Kick::onStart",
   "Kick::onRunning",
+  "Kick::onHalted",
   "CalcKickDir::tick",
+  // decision=='find' (striker) -- reachable now that ball perception is FOV/range-
+  // limited (see perception.js) rather than always-on. subtree_find_ball.xml, not one
+  // node: a Sequence of GoBackInField (an always-succeed side effect), TurnOnSpot
+  // (quick reacquire turn), RobotFindBall (the full spin), then GoToReadyPosition
+  // (fallback). All optional and independently checked, like GoToGoalBlockingPosition
+  // below -- see runtime.js's tickFindBall(). CamFindBall (the subtree's third member,
+  // a head-sweep-only SyncActionNode) is deliberately NOT here: its _cmdSequence table
+  // is populated in its own C++ constructor body, which this simulator has no mechanism
+  // to run (only tick()/onStart()/onRunning()/onHalted() bodies ever execute) -- ticking
+  // it would index into an unseeded array and crash. It has no effect on the 2D body
+  // simulation either way (this sim has no head/camera model to move), so it's left
+  // out rather than faked.
+  "GoBackInField::tick",
+  "TurnOnSpot::onStart",
+  "TurnOnSpot::onRunning",
+  "TurnOnSpot::onHalted",
+  "RobotFindBall::onStart",
+  "RobotFindBall::onRunning",
+  "RobotFindBall::onHalted",
+  "GoToReadyPosition::tick",
+  // decision=='zone_find' (goalkeeper) -- self-contained (its own internal ScanPhase
+  // state machine), dispatched onStart/onRunning like Kick above.
+  "GoalieZoneFindBall::onStart",
+  "GoalieZoneFindBall::onRunning",
+  "GoalieZoneFindBall::onHalted",
   // decision=='retreat' (goalkeeper only). Delegates the actual walk to
   // brain->client->moveToPoseOnField2(), a robot_client.cpp primitive implemented
   // natively in host.js -- see the note there for why that one is not extracted.

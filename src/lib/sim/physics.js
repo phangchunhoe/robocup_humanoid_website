@@ -37,8 +37,9 @@ export function makeRng(seed) {
   };
 }
 
-/** Box-Muller, using the supplied uniform generator. */
-function gaussian(rng) {
+/** Box-Muller, using the supplied uniform generator. Exported for perception.js's
+ *  ball-jitter noise, which draws from the same seeded stream as kick scatter. */
+export function gaussian(rng) {
   let u = 0;
   while (u === 0) u = rng();
   const v = rng();
@@ -47,7 +48,8 @@ function gaussian(rng) {
 
 export const DEFAULT_PHYSICS = {
   // Robot. The real config.yaml has vx_limit 1.2; the plan calls for a 1.0 m/s default
-  // walk speed, exposed as a slider.
+  // walk speed. No longer a drawer slider (see ballJitterIntensity below), but still
+  // the fixed cap stepWorld applies to the commanded velocity.
   maxWalkSpeed: 1.0, // m/s, caps the resultant of vx/vy after the brain's own caps
   maxAccel: 1.5, // m/s^2   (matches MAX_ACCEL_X/Y in TickChaseNode)
   maxAngAccel: 3.0, // rad/s^2 (matches MAX_ACCEL_THETA in TickChaseNode)
@@ -64,6 +66,11 @@ export const DEFAULT_PHYSICS = {
   kickDirBias: 0.06, // rad, systematic right-foot pull. CalcKickDir compensates for
   // exactly this with `kickDir -= 0.06` (brain_tree.cpp:3920).
   kickSpeedJitter: 0.2, // +/- 20% multiplicative on the outgoing speed
+
+  // Perception. Sigma (metres) of the perceived-ball position noise at long range —
+  // see perception.js's computeBallPerception, which ramps this from 0 near the robot
+  // up to ~this value by BALL_SIGHT_RANGE_M. Drawer slider: "Ball jitter intensity".
+  ballJitterIntensity: 0.15,
   seed: 12345,
 };
 

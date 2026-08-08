@@ -35,6 +35,44 @@ function matchBrace(cleaned, openIdx) {
   return -1;
 }
 
+/** Top-level comma split of a brace-init list's contents, respecting nested braces. */
+function splitTopLevel(inner) {
+  const parts = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < inner.length; i += 1) {
+    const c = inner[i];
+    if (c === "{") depth += 1;
+    else if (c === "}") depth -= 1;
+    else if (c === "," && depth === 0) {
+      parts.push(inner.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(inner.slice(start));
+  return parts.map((p) => p.trim()).filter((p) => p.length > 0);
+}
+
+/**
+ * `{0.45, 1.1}` or `{{0.45, 1.1}, {0.45, 0.0}, ...}` -- a fixed C array's brace-init,
+ * to any nesting depth. Each leaf goes through the same coerceLiteral() a scalar member
+ * initialiser does; undefined anywhere in the list bails the whole thing out rather than
+ * seeding a partially-real array (0::_cmdSequence[3] silently being `undefined` is worse
+ * than the array not being seeded at all -- see the bareRe/memberRe passes below).
+ */
+function parseArrayLiteral(text) {
+  const t = text.trim();
+  if (!t.startsWith("{") || !t.endsWith("}")) return undefined;
+  const parts = splitTopLevel(t.slice(1, -1));
+  const out = [];
+  for (const p of parts) {
+    const v = p.startsWith("{") ? parseArrayLiteral(p) : coerceLiteral(p);
+    if (v === undefined) return undefined;
+    out.push(v);
+  }
+  return out;
+}
+
 /**
  * @returns {{ portDefaults: Record<string, Record<string, any>>,
  *             members: Record<string, Record<string, any>>,
@@ -95,6 +133,26 @@ export function parseNodeHeader(headerText) {
       const value = parts ? coerceLiteral(parts[1]) : undefined;
       if (value !== undefined) mem[mm[1]] = value;
     }
+
+    // Third, fixed-array members with a brace-init default, e.g.
+    // `double _cmdSequence[7][2] = {{0.45, 1.1}, {0.45, 0.0}, ...};` (GoalieZoneFindBall,
+    // CamFindBall's own analog is populated in its constructor body instead, which this
+    // header-only parser has no way to see -- that one stays unseeded). Without this, the
+    // member falls through to the bareRe/generic "unknown identifier" 0 default and any
+    // later `_cmdSequence[i][j]` read throws indexing a number instead of an array.
+    const arrayRe =
+      /\b(?:double|float|int|bool|string|long|short|size_t)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:\[[^;=[\]]*\])+\s*=\s*/g;
+    let arm;
+    while ((arm = arrayRe.exec(bodyCleaned)) !== null) {
+      const braceStart = arm.index + arm[0].length;
+      if (bodyCleaned[braceStart] !== "{") continue;
+      const braceEnd = matchBrace(bodyCleaned, braceStart);
+      if (braceEnd < 0) continue;
+      const value = parseArrayLiteral(body.slice(braceStart, braceEnd + 1));
+      if (value !== undefined) mem[arm[1]] = value;
+      arrayRe.lastIndex = braceEnd + 1;
+    }
+
     if (Object.keys(mem).length) members[className] = mem;
   }
 

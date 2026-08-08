@@ -83,6 +83,22 @@
   background: var(--color-accent-hover);
 }
 
+/* --------------------------------------------------------------- frost fill */
+/* A named, scoped exception to the app's one-accent-color rule: the run
+   step's two ball-vision debug toggles (field-of-vision, perceived-ball
+   marker) alone. See --glass-fill-frost in tokens.css and CLAUDE.md ->
+   Components -> Glass button. Dark ink for contrast on the light fill —
+   deliberately not --color-on-accent, which is calibrated for the accent
+   fill's own lightness, not this one. */
+.glass-btn--frost {
+  background: var(--glass-fill-frost);
+  color: var(--color-background);
+}
+
+.glass-btn--frost:hover {
+  color: var(--color-background);
+}
+
 /* Shared hover response for both fills — the rim keeps defining the edge,
    --glow-accent adds the same reply every other glass control on the app
    gives a pointer. */
@@ -109,6 +125,9 @@
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-btn--glass {
     background: var(--glass-fill-droplet-fallback);
+  }
+  .glass-btn--frost {
+    background: color-mix(in srgb, var(--color-label) 96%, transparent);
   }
 }
 

@@ -107,6 +107,39 @@ function defaultForType(typeName, structLayouts) {
   return makeOpaqueStruct();
 }
 
+/**
+ * Resolve a `A::B::C`-style qualified name against the host's globals table.
+ *
+ * Most qualified host built-ins are flattened to their bare tail at registration
+ * (`std::max` -> a top-level `max`), which is what the two call sites' own
+ * `globals[name.split("::").pop()]` check was written for. A genuine namespace
+ * object — `rclcpp: { Time, Duration: { from_seconds }, ok }` in host.js — isn't
+ * flattened, so a plain call to `rclcpp::Time(...)` or `rclcpp::Duration::
+ * from_seconds(...)` needs the full path walked one segment at a time instead of
+ * just the last one. Returns `{ parent, key }` (so a caller can both read and,
+ * if it ever needs to, write the resolved slot) or `null` if any segment along
+ * the way is missing.
+ */
+// A namespace segment may itself be callable (rclcpp::Duration is both a constructor
+// and, via a property on that same function, the home of ::from_seconds), so "is this
+// a container worth descending into" has to accept functions alongside plain objects.
+function isNamespaceLike(v) {
+  return v !== null && (typeof v === "object" || typeof v === "function");
+}
+
+function resolveQualifiedGlobal(globals, name) {
+  const parts = name.split("::");
+  let parent = globals;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const seg = isNamespaceLike(parent) ? parent[parts[i]] : undefined;
+    if (!isNamespaceLike(seg)) return null;
+    parent = seg;
+  }
+  const key = parts[parts.length - 1];
+  if (!isNamespaceLike(parent) || !(key in parent)) return null;
+  return { parent, key };
+}
+
 function isPlainData(v) {
   if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
   for (const k of Object.keys(v)) {
@@ -427,7 +460,11 @@ export class Interpreter {
       const t = (declNode.typeName || "")
         .replace(/\b(const|constexpr|static|mutable|volatile|inline)\b/g, "")
         .trim();
-      const ctor = this.globals[t] || this.globals[t.split("::").pop()];
+      let ctor = this.globals[t] || this.globals[t.split("::").pop()];
+      if (typeof ctor !== "function" && t.includes("::")) {
+        const hit = resolveQualifiedGlobal(this.globals, t);
+        if (hit) ctor = hit.parent[hit.key];
+      }
       if (typeof ctor === "function" && !this.structLayouts[t]) return ctor();
       return defaultForType(t, this.structLayouts);
     }
@@ -462,7 +499,11 @@ export class Interpreter {
   }
 
   construct(typeName, args, pos) {
-    const ctor = this.globals[typeName] || this.globals[typeName.split("::").pop()];
+    let ctor = this.globals[typeName] || this.globals[typeName.split("::").pop()];
+    if (typeof ctor !== "function" && typeName.includes("::")) {
+      const hit = resolveQualifiedGlobal(this.globals, typeName);
+      if (hit) ctor = hit.parent[hit.key];
+    }
     if (typeof ctor === "function") return ctor(...args);
     const layout = this.structLayouts[typeName] || this.structLayouts[typeName.split("::").pop()];
     if (layout) {
@@ -550,6 +591,19 @@ export class Interpreter {
         if (/\bbool\b/.test(t)) return truthy(v);
         if (/\b(double|float)\b/.test(t)) return Number(v);
         return v;
+      }
+
+      case "Sizeof": {
+        // No real byte sizes are tracked (everything is a JS number/array/object), so
+        // this can't reproduce sizeof's actual value -- but the only pattern this
+        // codebase ever uses it for is the classic C array-length idiom,
+        // `sizeof(arr) / sizeof(arr[0])`. A fixed C array is modelled as a plain JS
+        // array here, so counting scalar leaves recursively makes that specific ratio
+        // come out to the element count regardless of nesting depth: for a 7x2 array,
+        // sizeof(arr) -> 14, sizeof(arr[0]) -> 2, 14/2 -> 7.
+        const v = this.eval(node.arg, scope, fnKey);
+        const countLeaves = (x) => (Array.isArray(x) ? x.reduce((sum, e) => sum + countLeaves(e), 0) : 1);
+        return countLeaves(v);
       }
 
       case "Lambda": {
@@ -812,6 +866,12 @@ export class Interpreter {
       if (Object.prototype.hasOwnProperty.call(this.globals, tail)) {
         const g = this.globals;
         return { get: () => g[tail], set: (v) => { g[tail] = v; } };
+      }
+      // A genuine namespace object rather than a flattened tail (rclcpp::Time,
+      // rclcpp::Duration::from_seconds, rclcpp::ok) — walk the full path.
+      const hit = resolveQualifiedGlobal(this.globals, name);
+      if (hit) {
+        return { get: () => hit.parent[hit.key], set: (v) => { hit.parent[hit.key] = v; } };
       }
     }
 
