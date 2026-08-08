@@ -25,15 +25,24 @@ export const SPRING_MAGNETIC = { type: "spring", stiffness: 300, damping: 18, ma
 // touch less damping so the overshoot reads as a tactile bounce.
 export const SPRING_CLICK = { type: "spring", stiffness: 700, damping: 15, mass: 0.5 };
 
-// A fifth, explicitly scoped case: the run step's "Use Precise Ball Location"
+// A fifth, explicitly scoped case: the run step's "Limit Ball Vision"
 // control splitting into its three round buttons (and recombining on cancel).
 // The ask was a liquid-droplet split; a true gooey SVG-blob morph would have to
 // composite on top of GlassButton's own turbulence-displacement filter and
 // backdrop-blur, and stacking two filters fighting for the same pixels risked
 // visual mush or real compositor cost for a decorative transition -- so this is
-// the named approximation instead: scale/opacity/position with a visible
-// elastic overshoot, standing in for the blob separating. Lighter-damped than
-// SPRING_UI (a settled layout change) for that overshoot, but heavier than
-// SPRING_CLICK's tactile snap -- this is a slower, more deliberate motion than
-// a button-press acknowledgment.
-export const SPRING_SPLIT = { type: "spring", stiffness: 260, damping: 20, mass: 0.7 };
+// the named approximation instead: scale/opacity/position (each circle's `x`
+// converging on/emerging from the pill's own measured centre — see
+// PILL_SPLIT_ORIGIN in RobotSimulator.jsx) with a visible elastic overshoot,
+// standing in for the blob separating.
+//
+// Expressed with framer-motion's duration/bounce spring syntax rather than
+// stiffness/damping/mass, unlike this file's other springs: a first pass at
+// stiffness 260/damping 20/mass 0.7 settled in ~280ms, which read as a snappy
+// layout settle (in the SPRING_UI/SPRING_CLICK family) rather than the slower,
+// fluid "liquid separating" motion this transition is standing in for.
+// duration is picked to land in --duration-slow's (1000ms) territory — the
+// same "deliberate, not snappy" pace the page's own entrance motion uses —
+// and bounce keeps a real but restrained overshoot rather than a cartoonish
+// wobble.
+export const SPRING_SPLIT = { type: "spring", duration: 0.9, bounce: 0.32 };

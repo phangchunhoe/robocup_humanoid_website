@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useSpring } from "framer-motion";
 import { CircleCheck, RefreshCw, Eye, X } from "lucide-react";
 import Header from "../components/Header.jsx";
@@ -1532,6 +1532,20 @@ const LEGEND_PULL_PX = 6;
 const LEGEND_PULL_STRENGTH = 0.18;
 const LEGEND_TAP_SCALE = 1.05;
 
+// Geometry for the "Limit Ball Vision" split/recombine (see SPRING_SPLIT in
+// motionSpring.js) — plain numbers rather than read CSS custom properties,
+// the same carve-out category as DRAWER_REVEAL_PX above. Each of the three
+// circles is the same 44px tap-target family as .rs-trail-toggle-btn, spaced
+// by --space-3 (12px); BALL_VISION_CENTERS_PX is each circle's own centre-x
+// within the cluster, left to right (fov, perceived, cancel), which the split
+// animation needs to compute how far each circle travels from the pill's own
+// measured centre (see pillCenterPxRef in SimStep).
+const BALL_VISION_CIRCLE_PX = 44; // matches --tap-target-min
+const BALL_VISION_GAP_PX = 12; // matches --space-3
+const BALL_VISION_CENTERS_PX = [0, 1, 2].map(
+  (i) => i * (BALL_VISION_CIRCLE_PX + BALL_VISION_GAP_PX) + BALL_VISION_CIRCLE_PX / 2
+); // [22, 78, 134]
+
 function SimStep(props) {
   const {
     svgRef, decisionState, readoutRef, detailRef, notesRef, logRef, running, onTogglePlay, onReset, onSpeed,
@@ -1560,6 +1574,23 @@ function SimStep(props) {
   const [ballVisionExpanded, setBallVisionExpanded] = useState(false);
   const [showFov, setShowFov] = useState(false);
   const [showPerceivedBall, setShowPerceivedBall] = useState(false);
+
+  // The pill's own measured centre-x, in local coordinates shared with the
+  // three-circle cluster it splits into/recombines from (both are rendered at
+  // the same left edge of .rs-decision-row — see the AnimatePresence below).
+  // Measured once via useLayoutEffect rather than on click: "Limit Ball
+  // Vision" is static text, so its rendered width never changes, and the
+  // split/recombine's own initial/exit values need this before the very
+  // first click can fire. pillRef sits on the wrapping motion.div rather than
+  // the GlassButton itself (GlassButton forwards no DOM ref) — a flex item
+  // with no explicit width still shrinks to its content, so the div's
+  // measured width matches the button's. Falls back to the cluster's own
+  // centre (its middle circle) if measured before layout for any reason.
+  const pillRef = useRef(null);
+  const pillCenterPxRef = useRef(BALL_VISION_CENTERS_PX[1]);
+  useLayoutEffect(() => {
+    if (pillRef.current) pillCenterPxRef.current = pillRef.current.offsetWidth / 2;
+  }, []);
 
   const collapseBallVision = useCallback(() => {
     if (runtimeRef.current) runtimeRef.current.host.usePreciseBall = true;
@@ -1964,13 +1995,20 @@ function SimStep(props) {
                     and -> Components -> Glass button for the frost fill's
                     white-background exception, both scoped to this one
                     control. */}
-                <AnimatePresence mode="wait" initial={false}>
+                {/* mode="popLayout" (not "wait"): the exiting side is pulled out of
+                    .rs-decision-row's flex flow the instant the other mounts, so both
+                    animate concurrently instead of the old fade-out-then-fade-in
+                    sequencing. .rs-decision-row itself carries position: relative so
+                    that pop lands correctly rather than against some further-up
+                    ancestor. */}
+                <AnimatePresence mode="popLayout" initial={false}>
                   {!ballVisionExpanded ? (
                     <motion.div
                       key="collapsed"
-                      initial={reduceMotion ? false : { opacity: 0, scale: 0.7 }}
+                      ref={pillRef}
+                      initial={reduceMotion ? false : { opacity: 0, scale: 0.4 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.7 }}
+                      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.4 }}
                       transition={reduceMotion ? { duration: 0 } : SPRING_SPLIT}
                     >
                       <GlassButton
@@ -2053,19 +2091,47 @@ function SimStep(props) {
                             </GlassButton>
                           ),
                         },
-                      ].map(({ key, node }, i) => (
-                        <motion.div
-                          key={key}
-                          initial={reduceMotion ? false : { opacity: 0, scale: 0.4, x: -16 }}
-                          animate={{ opacity: 1, scale: 1, x: 0 }}
-                          exit={reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.4, x: -16 }}
-                          transition={
-                            reduceMotion ? { duration: 0 } : { ...SPRING_SPLIT, delay: i * 0.04 }
-                          }
-                        >
-                          {node}
-                        </motion.div>
-                      ))}
+                      ].map(({ key, node }, i) => {
+                        // How far this circle sits, in local x, from the pill's own
+                        // measured centre — its own centre-x (BALL_VISION_CENTERS_PX[i])
+                        // minus the pill's centre, negated so it reads as "where this
+                        // circle starts relative to its own resting flex position".
+                        // Expanding, all three start at this offset (converged on the
+                        // pill's centre) and animate to x: 0 (their natural, separated
+                        // flex position) — so they visually emerge from one point, the
+                        // same droplet, rather than fading in already apart. Collapsing
+                        // reverses it: they travel back to that same point and vanish
+                        // there, right as the pill reappears in its place.
+                        const originX = pillCenterPxRef.current - BALL_VISION_CENTERS_PX[i];
+                        // Expand stagger runs eye -> football -> cancel (left to right,
+                        // the order they end up in); collapse reverses it — cancel
+                        // gathers in first, eye last — so the recombine reads as the
+                        // opposite motion of the split rather than the same order twice.
+                        const stagger = i * 0.06;
+                        const reverseStagger = (BALL_VISION_CENTERS_PX.length - 1 - i) * 0.06;
+                        return (
+                          <motion.div
+                            key={key}
+                            initial={reduceMotion ? false : { opacity: 0, scale: 0.3, x: originX }}
+                            animate={{
+                              opacity: 1,
+                              scale: 1,
+                              x: 0,
+                              transition: reduceMotion ? { duration: 0 } : { ...SPRING_SPLIT, delay: stagger },
+                            }}
+                            exit={{
+                              opacity: 0,
+                              scale: 0.3,
+                              x: originX,
+                              transition: reduceMotion
+                                ? { duration: 0 }
+                                : { ...SPRING_SPLIT, delay: reverseStagger },
+                            }}
+                          >
+                            {node}
+                          </motion.div>
+                        );
+                      })}
                     </motion.div>
                   )}
                 </AnimatePresence>

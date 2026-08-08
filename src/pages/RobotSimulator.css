@@ -2276,12 +2276,18 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
    real legibility weight rather than read as the resting/background state. */
 /* Holds the decision pill and the "Limit Ball Vision" cluster side by
    side — align-self moved here from .rs-decision-pill itself now that the
-   pill's direct parent is this row rather than .rs-console-face. */
+   pill's direct parent is this row rather than .rs-console-face.
+   position: relative so the AnimatePresence mode="popLayout" split/recombine
+   below pops its exiting element to position: absolute against *this* row —
+   without a positioned ancestor here, it would resolve against whatever
+   positioned ancestor is next up the tree (the HUD console), landing the
+   exiting pill/circles somewhere else on screen entirely. */
 .robot-simulator-page .rs-decision-row {
   align-self: center;
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  position: relative;
 }
 
 .robot-simulator-page .rs-decision-pill {

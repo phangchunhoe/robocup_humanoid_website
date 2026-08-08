@@ -1213,22 +1213,66 @@ why that doesn't count as its own extra case:
 - **The run step's "Limit Ball Vision" split/recombine**
   (`RobotSimulator.jsx`'s `SimStep`, the cluster next to `.rs-decision-pill`)
   — the collapsed pill and, once clicked, its three round buttons (field-of-
-  vision, perceived-ball marker, cancel) animate in/out via `AnimatePresence`
-  plus a per-button `scale`/`opacity`/`x` stagger (~40ms apart), a fifth,
-  distinct feel from the other four: a slower, more deliberate "surface
-  separating into pieces" rather than a button's own hover/click feedback or
-  a measured-layout settle. This is a named **approximation**, not a true
-  liquid-blob morph — a real gooey SVG merge would have to composite on top
-  of `<GlassButton>`'s own turbulence-displacement filter and backdrop-blur,
-  and stacking two filters fighting the same pixels risked visual mush or
-  real compositor cost for a decorative transition. Uses its own
-  `SPRING_SPLIT` rather than reusing `SPRING_MAGNETIC`/`SPRING_CLICK`,
-  because neither of those is tuned for this: `SPRING_MAGNETIC` is a
-  continuous cursor-follow and `SPRING_CLICK` a fast tactile snap, where
-  this is a one-shot layout transition that should read as a settle with a
-  visible bounce, closer in spirit to `SPRING_UI` but deliberately
-  under-damped for that overshoot. Falls back to a hard `{ duration: 0 }`
-  swap under reduced motion, same as every other consumer below.
+  vision, perceived-ball marker, cancel) animate in/out via `AnimatePresence`,
+  a fifth, distinct feel from the other four: a slower, more deliberate
+  "surface separating into pieces" rather than a button's own hover/click
+  feedback or a measured-layout settle. This is a named **approximation**,
+  not a true liquid-blob morph — a real gooey SVG merge (`feGaussianBlur` +
+  `feColorMatrix` contrast) would have to composite on top of
+  `<GlassButton>`'s own turbulence-displacement filter, translucent frost
+  fill and backdrop-blur. Concretely tried and rejected for two reasons, not
+  just a theoretical clash: the goo technique's contrast step thresholds
+  alpha to either fully opaque or fully transparent, which would flatten the
+  frost fill's own deliberate translucency (`--glass-fill-frost`) into a
+  solid card for the whole transition; and wrapping already
+  `backdrop-filter`-ed elements in a further CSS-`filter`-ed ancestor forces
+  the browser to rasterize them into an isolated offscreen buffer first,
+  which risks breaking their own backdrop sampling of the live field behind
+  them (the same category of ancestor trap as the transform-breaks-
+  position:fixed one documented under Migration status, just for
+  backdrop-filter instead of position). So this stays the named
+  approximation instead:
+  - `AnimatePresence mode="popLayout"`, not `"wait"` — `"wait"` (the
+    original implementation) fully finishes the exiting side's animation
+    before mounting the entering side at all, which is what read as a flat
+    fade-out-then-fade-in rather than one continuous motion. `popLayout`
+    pulls the exiting side out of `.rs-decision-row`'s flex flow immediately
+    so both sides animate concurrently; `.rs-decision-row` itself needs its
+    own `position: relative` for that pop to land against *this* row rather
+    than the next positioned ancestor up the tree.
+  - **Each circle's `x` is anchored to the pill's own measured centre**,
+    not a flat per-item offset. `BALL_VISION_CENTERS_PX` (`RobotSimulator.jsx`,
+    `[22, 78, 134]`, derived from the same 44px tap-target-circle plus
+    `--space-3` gap the three buttons already lay out with) is each circle's
+    own resting centre-x within the cluster; `pillCenterPxRef` is the pill's
+    own rendered half-width, measured once via `useLayoutEffect` off a ref on
+    its wrapping `motion.div` (the static "Limit Ball Vision" text never
+    reflows, so one measurement holds). Each circle's `initial`/`exit` `x` is
+    `pillCenterPxRef.current - BALL_VISION_CENTERS_PX[i]` — the offset that
+    places it exactly at the pill's centre — animating to `x: 0` (its natural
+    flex position) on entry. All three therefore visually emerge from one
+    point (the pill's own centre) and separate outward to their real
+    positions, rather than fading in already apart.
+  - **The stagger reverses direction between split and recombine.** Expanding
+    delays each circle by `i * 0.06`s (eye first, cancel last — left to
+    right, the order they end up in); collapsing delays by
+    `(2 - i) * 0.06`s (cancel gathers in first, eye last), so the recombine
+    reads as the true reverse of the split rather than the same left-to-right
+    order playing twice.
+
+  Uses its own `SPRING_SPLIT` rather than reusing `SPRING_MAGNETIC`/
+  `SPRING_CLICK`, because neither of those is tuned for this: `SPRING_MAGNETIC`
+  is a continuous cursor-follow and `SPRING_CLICK` a fast tactile snap, where
+  this is a one-shot transition that should read as a slow, fluid liquid
+  separation rather than either. Expressed with framer-motion's
+  duration/bounce spring syntax (`{ type: "spring", duration: 0.9, bounce:
+  0.32 }`) rather than stiffness/damping/mass like this file's other springs
+  — an earlier stiffness-260/damping-20/mass-0.7 pass settled in ~280ms,
+  which read as a snappy layout settle (the `SPRING_UI`/`SPRING_CLICK`
+  family) rather than the deliberate, `--duration-slow`-territory pace this
+  transition is standing in for a liquid one. Falls back to a hard
+  `{ duration: 0 }` swap under reduced motion, same as every other consumer
+  below.
 
 **The spring config is named, shared where the *feel* is shared, and
 distinct where it isn't** — all four constants live in
@@ -1238,8 +1282,14 @@ distinct where it isn't** — all four constants live in
 export const SPRING_UI = { type: "spring", stiffness: 500, damping: 40, mass: 0.8 };
 export const SPRING_MAGNETIC = { type: "spring", stiffness: 300, damping: 18, mass: 0.6 };
 export const SPRING_CLICK = { type: "spring", stiffness: 700, damping: 15, mass: 0.5 };
-export const SPRING_SPLIT = { type: "spring", stiffness: 260, damping: 20, mass: 0.7 };
+export const SPRING_SPLIT = { type: "spring", duration: 0.9, bounce: 0.32 };
 ```
+
+`SPRING_SPLIT` is the one config expressed as duration/bounce rather than
+stiffness/damping/mass — deliberately, so its settle time is legible
+directly in seconds against `--duration-slow` rather than backed out of a
+physics triple, the same reasoning `easedApproach.js` reads `--duration-base`
+via `getComputedStyle` for its own time constant rather than inventing one.
 
 `SPRING_UI` is imported by `RoleToggle` and the two-stage button, unchanged:
 tuned heavier on damping than framer-motion's own default so it settles
