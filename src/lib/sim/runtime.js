@@ -302,7 +302,7 @@ export class SimRuntime {
 
   /** Fresh state for the striker's FindBall subtree -- see tickFindBall()'s own comment. */
   resetFindBall() {
-    this.findPhase = "reacquire"; // reacquire -> spin -> fallback -> sleep -> (loops to reacquire)
+    this.findPhase = "reacquire"; // reacquire -> spin -> fallback (loops back to reacquire after 5s)
     this.turnOnSpotStarted = false;
     this.robotFindBallStarted = false;
     this.findSleepUntil = null;
@@ -387,6 +387,12 @@ export class SimRuntime {
    */
   tickFindBall() {
     const watched = {};
+    // Which sub-node is actually driving the robot's command this tick -- reported back
+    // to the caller for the readout's "node" field, same as chase/adjust/kick already do.
+    // Defaults to the subtree's own name for the (rare) case every phase is skipped
+    // because none of its nodes were pasted.
+    let node = "FindBall";
+
     if (this.parsed.has("GoBackInField::tick")) {
       const out = this.call("GoBackInField::tick", "GoBackInField", [], "find");
       Object.assign(watched, out ? out.watched : {});
@@ -401,7 +407,7 @@ export class SimRuntime {
           : this.call("TurnOnSpot::onStart", "TurnOnSpot", [], "find");
         this.turnOnSpotStarted = true;
         Object.assign(watched, out ? out.watched : {});
-        if (!out || out.status === "RUNNING") return watched;
+        if (!out || out.status === "RUNNING") return { watched, node: "TurnOnSpot" };
         this.findPhase = "spin";
       }
     }
@@ -415,40 +421,41 @@ export class SimRuntime {
           : this.call("RobotFindBall::onStart", "RobotFindBall", [], "find");
         this.robotFindBallStarted = true;
         Object.assign(watched, out ? out.watched : {});
-        if (!out || out.status === "RUNNING") return watched;
+        if (!out || out.status === "RUNNING") return { watched, node: "RobotFindBall" };
         this.findPhase = "fallback";
       }
     }
 
     // Phase 3: two full spins with no result -- the ball is genuinely not visible from
-    // here. Walk to a strategic ready position and hold there for the XML's own
-    // `<Sleep msec="5000" />`, a BT.CPP library node rather than pasted C++, so it's a
-    // plain sim-time timer rather than a `this.parsed.has(...)`-gated call.
+    // here. `<ReactiveSequence><GoToReadyPosition vx_limit="0.7" /><Sleep msec="5000" />
+    // </ReactiveSequence>` -- a ReactiveSequence re-ticks EVERY child from the top on
+    // every single tick, not just once. GoToReadyPosition::tick() always returns SUCCESS,
+    // but that status isn't the point: each call issues a fresh moveToPoseOnField2(...)
+    // command (the same per-tick-recomputed-velocity primitive TickChaseNode/Adjust use),
+    // so it has to be re-ticked every frame for the robot to actually keep walking there
+    // -- calling it once and then holding still for Sleep's 5s would only produce one
+    // tick's worth of motion. Sleep itself is a BT.CPP library node, not pasted C++, so
+    // it's a plain sim-time timer rather than a `this.parsed.has(...)`-gated call.
     if (this.findPhase === "fallback") {
       if (!this.parsed.has("GoToReadyPosition::tick")) {
         this.host.client.setVelocity(0, 0, 0);
-        return watched;
+        return { watched, node };
       }
+      node = "GoToReadyPosition";
+      if (this.findSleepUntil === null) this.findSleepUntil = this.host.simTime + 5.0;
       const out = this.call("GoToReadyPosition::tick", "GoToReadyPosition", [], "find");
       Object.assign(watched, out ? out.watched : {});
-      this.findSleepUntil = this.host.simTime + 5.0;
-      this.findPhase = "sleep";
-    }
-
-    if (this.findPhase === "sleep") {
-      if (this.findSleepUntil !== null && this.host.simTime < this.findSleepUntil) {
-        this.host.client.setVelocity(0, 0, 0);
-        return watched;
-      }
-      // The real Sequence would report SUCCESS to the SubTree's own caller here, which
-      // re-ticks it from the top on the next brain tick since decision=='find' still
-      // gates it -- go back to Phase 1 rather than sitting in "sleep" forever.
+      if (this.host.simTime < this.findSleepUntil) return { watched, node };
+      // Sleep elapsed: the real Sequence would report SUCCESS to the SubTree's own
+      // caller here, which re-ticks it from the top on the next brain tick since
+      // decision=='find' still gates it -- go back to Phase 1 rather than sitting here.
       this.findPhase = "reacquire";
       this.turnOnSpotStarted = false;
       this.robotFindBallStarted = false;
+      this.findSleepUntil = null;
     }
 
-    return watched;
+    return { watched, node };
   }
 
   /**
@@ -519,8 +526,9 @@ export class SimRuntime {
         // subtree_find_ball.xml, not one node -- see tickFindBall()'s own comment
         // for the phase machine that mirrors it.
         if (this.lastDecision !== "find") this.resetFindBall();
-        t.simulatedNode = "FindBall";
-        t.findWatched = this.tickFindBall();
+        const findOut = this.tickFindBall();
+        t.simulatedNode = findOut.node;
+        t.findWatched = findOut.watched;
       } else if (decision === "zone_find" && this.parsed.has("GoalieZoneFindBall::onStart")) {
         // GoalieZoneFindBall is self-contained (a single StatefulActionNode with its
         // own internal ScanPhase state machine), unlike the striker's find -- same

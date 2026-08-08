@@ -102,18 +102,20 @@ export function createRenderer(svg) {
   svg.appendChild(perceivedBallMark);
 
   const robotG = svgEl("g", { class: "sim-robot" });
-  // The robot's 120deg/10m ball-sight cone — a static wedge in the robot's own
-  // local frame (symmetric about local +x, so it needs no heading-sign math: the
-  // same translate/rotate transform update() already applies to robotG each
-  // frame carries this along for free, the same trick robotHeading/footL/footR
-  // below rely on). Debug-only, off by default — see opts.showFov in update().
-  const fovRangePx = BALL_SIGHT_RANGE_M * PXPM;
-  const fovX = fovRangePx * Math.cos(BALL_FOV_HALF_ANGLE_RAD);
-  const fovY = fovRangePx * Math.sin(BALL_FOV_HALF_ANGLE_RAD);
+  // The robot's 120deg ball-sight cone — a wedge in the robot's own local frame
+  // (symmetric about local +x, so it needs no heading-sign math: the same
+  // translate/rotate transform update() already applies to robotG each frame
+  // carries this along for free, the same trick robotHeading/footL/footR below
+  // rely on). Debug-only, off by default — see opts.showFov in update(). Its radius
+  // tracks world.physics.ballSightRangeM (the "Field of vision radius" drawer
+  // slider) live, so its own `d` is computed there each frame rather than once
+  // here — this initial path carries no `d` yet, which is fine since it starts hidden.
+  // Fill is the page's own near-black canvas token, not the hairline --color-separator
+  // this used before — that read as a barely-there grey tint against the turf. At a much
+  // higher opacity it reads as a real dimmed cone rather than a hint of one.
   const fovCone = svgEl("path", {
-    d: `M 0 0 L ${fovX.toFixed(1)} ${(-fovY).toFixed(1)} A ${fovRangePx.toFixed(1)} ${fovRangePx.toFixed(1)} 0 0 1 ${fovX.toFixed(1)} ${fovY.toFixed(1)} Z`,
-    fill: "var(--color-separator)",
-    "fill-opacity": 0.18,
+    fill: "var(--color-background)",
+    "fill-opacity": 0.3,
     stroke: "none",
     visibility: "hidden",
   });
@@ -159,6 +161,19 @@ export function createRenderer(svg) {
     robotBody.setAttribute("fill", color);
     robotHeading.setAttribute("fill", color);
     fovCone.setAttribute("visibility", showFov ? "visible" : "hidden");
+    if (showFov) {
+      // Recomputed every visible frame (not once at creation) so the cone tracks the
+      // "Field of vision radius" drawer slider live, the same value computeBallPerception
+      // itself reads off world.physics.ballSightRangeM — see perception.js.
+      const sightRange = (world.physics && world.physics.ballSightRangeM) || BALL_SIGHT_RANGE_M;
+      const fovRangePx = sightRange * PXPM;
+      const fovX = fovRangePx * Math.cos(BALL_FOV_HALF_ANGLE_RAD);
+      const fovY = fovRangePx * Math.sin(BALL_FOV_HALF_ANGLE_RAD);
+      fovCone.setAttribute(
+        "d",
+        `M 0 0 L ${fovX.toFixed(1)} ${(-fovY).toFixed(1)} A ${fovRangePx.toFixed(1)} ${fovRangePx.toFixed(1)} 0 0 1 ${fovX.toFixed(1)} ${fovY.toFixed(1)} Z`
+      );
+    }
 
     const [bx, by] = toSvg(b.x, b.y);
     ballG.setAttribute("transform", `translate(${bx.toFixed(2)} ${by.toFixed(2)})`);

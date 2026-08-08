@@ -59,16 +59,16 @@ const INITIAL_PLACEMENT = {
 const SLIDERS = [
   { key: "ballJitterIntensity", label: "Ball jitter intensity", min: 0, max: 0.5, step: 0.02, unit: "m",
     note: "perceived-ball noise σ at long range; decays exponentially near the ball" },
-  { key: "ballDecel", label: "Ball rolling decel", min: 0.2, max: 2.5, step: 0.05, unit: "m/s²",
-    note: "turf, μ ≈ 0.08" },
+  { key: "ballSightRangeM", label: "Field of vision radius", min: 2, max: 15, step: 0.5, unit: "m",
+    note: "120° cone; ball perception range cutoff" },
   { key: "kickGain", label: "Kick gain", min: 1.0, max: 6.0, step: 0.1, unit: "×",
     note: "ball speed ÷ foot closing speed" },
   { key: "kickDirSigmaDeg", label: "Kick scatter σ", min: 0, max: 25, step: 0.5, unit: "°",
     note: "Gaussian, per strike" },
-  { key: "kickDirBias", label: "Right-foot bias", min: -0.3, max: 0.3, step: 0.01, unit: "rad",
-    note: "CalcKickDir compensates with kickDir -= 0.06" },
   { key: "kickSpeedJitter", label: "Speed jitter", min: 0, max: 0.6, step: 0.02, unit: "±",
     note: "multiplicative on outgoing speed" },
+  { key: "ballDecel", label: "Ball rolling decel", min: 0.2, max: 2.5, step: 0.05, unit: "m/s²",
+    note: "turf, μ ≈ 0.08" },
 ];
 
 // Matches a wanted relative path (e.g. "include/brain_tree.h") against every file the
@@ -182,11 +182,22 @@ export default function RobotSimulator() {
   // usePreciseBall default.
   const showFovRef = useRef(false);
   const showPerceivedRef = useRef(false);
+  // Holds the latest onRender (defined further down, after the engine/renderer
+  // refs it closes over) so these two toggles — and the physics-slider effect
+  // below — can force an immediate repaint without waiting on onRender's own
+  // declaration order. onRender's identity is stable ([] deps), so this is set
+  // once and never needs to change; see the effect that assigns it.
+  const onRenderRef = useRef(null);
   const onSetShowFov = useCallback((v) => {
     showFovRef.current = v;
+    // The rAF loop only calls onRender while playing (engine.js's frame()) — paused,
+    // toggling this would otherwise sit invisible until Resume or Step. Force one
+    // repaint now so the FOV cone appears (or disappears) the instant it's clicked.
+    if (engineRef.current && !engineRef.current.isRunning()) onRenderRef.current?.();
   }, []);
   const onSetShowPerceivedBall = useCallback((v) => {
     showPerceivedRef.current = v;
+    if (engineRef.current && !engineRef.current.isRunning()) onRenderRef.current?.();
   }, []);
 
   useEffect(() => {
@@ -399,6 +410,13 @@ export default function RobotSimulator() {
     setOverrun(true);
   }, []);
 
+  // Keep onRenderRef pointed at the current onRender — see its declaration next to
+  // showFovRef/showPerceivedRef above for why the toggles and the physics-slider
+  // effect need it rather than calling onRender directly.
+  useEffect(() => {
+    onRenderRef.current = onRender;
+  }, [onRender]);
+
   // Build the SVG scene once we are on the simulation step. onStep/onRender/onOverrun
   // all have empty dependency lists, so this effect runs once per step change and the
   // engine is never rebuilt underneath a running simulation.
@@ -421,6 +439,11 @@ export default function RobotSimulator() {
   useEffect(() => {
     if (worldRef.current) {
       worldRef.current.physics = { ...physics, stanceBias: CONFIG_DEFAULTS.stance_bias };
+      // While playing, the rAF loop repaints within the next frame anyway. Paused,
+      // nothing else calls onRender — so without this, dragging a slider (the FOV
+      // radius one especially, since its cone geometry is physics-derived) would sit
+      // stale on screen until Resume or Step. Force one repaint now instead.
+      if (engineRef.current && !engineRef.current.isRunning()) onRenderRef.current?.();
     }
   }, [physics]);
 

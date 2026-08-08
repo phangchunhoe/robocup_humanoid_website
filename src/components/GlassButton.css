@@ -96,6 +96,7 @@
 }
 
 .glass-btn--frost:hover {
+  background: var(--glass-fill-frost-hover);
   color: var(--color-background);
 }
 
