@@ -10,6 +10,8 @@ import Notice from "../components/Notice.jsx";
 import GlassButton, { GlassButtonFilter } from "../components/GlassButton.jsx";
 import GlassSlider from "../components/GlassSlider.jsx";
 import ViewTabs from "../components/ViewTabs.jsx";
+import TestCard from "../components/TestCard.jsx";
+import testDefinitions from "../content/testDefinitions.js";
 import { SPRING_UI, SPRING_MAGNETIC, SPRING_CLICK, SPRING_SPLIT } from "../lib/motionSpring.js";
 import { applyMagneticPull } from "../lib/magneticPull.js";
 import { TABS, INTRO, CONFIG_NOTE, expectedRelPath } from "../content/simulatorPasteGuide.js";
@@ -1930,10 +1932,11 @@ function SimStep(props) {
               .rs-console-group is the one deliberate zero-gap pairing here:
               ViewTabs and the console sit flush, no gap, so the active tab
               reads as punching through the panel's own top edge rather than
-              floating above it as a separate control. Only "Single Robot"
-              has real content; the other two are placeholders until
-              multi-robot simulation and test reporting exist (see
-              .rs-console-face below — both stay mounted and cross-fade
+              floating above it as a separate control. "Multi Robot" is
+              still a stub until multi-robot simulation exists; "Testing"
+              renders TestCard against placeholder data from
+              src/content/testDefinitions.js until real test runs exist (see
+              .rs-console-face below — all three stay mounted and cross-fade
               rather than swapping in and out, since the Single Robot face
               carries the refs the simulation frame loop paints into). */}
           <div className="rs-console-group">
@@ -2213,14 +2216,16 @@ function SimStep(props) {
               </div>
             </div>
 
-            <div className={`rs-console-face${consoleView !== "single" ? " is-active" : ""}`}>
+            <div className={`rs-console-face${consoleView === "multi" ? " is-active" : ""}`}>
               <div className="rs-console-placeholder">
                 <Notice tone="muted" title="Coming soon">
-                  {consoleView === "multi"
-                    ? "Multi-robot simulation isn't built yet — this tab will host coordinated multi-robot runs."
-                    : "Testing simulation aren't built yet — this tab will hold recorded run history and pass/fail summaries."}
+                  Multi-robot simulation isn't built yet — this tab will host coordinated multi-robot runs.
                 </Notice>
               </div>
+            </div>
+
+            <div className={`rs-console-face${consoleView === "reports" ? " is-active" : ""}`}>
+              <TestCard tests={testDefinitions} />
             </div>
             </aside>
           </div>

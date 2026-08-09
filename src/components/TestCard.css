@@ -1,0 +1,205 @@
+/* The Testing tab's card list. Tokens only — see CLAUDE.md. */
+
+.test-card-list {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.test-card-ul {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Same box treatment as SelectableCard's own .card (radius-control,
+   separator hairline, elevated-background fill) rather than glass — this
+   list sits inside .rs-run-console, which is already a blurred .rs-hud
+   surface, and a second nested backdrop-filter would blur an already-blurred
+   backdrop for nothing (CLAUDE.md -> Surfaces -> "Avoid stacking two
+   backdrop-filters"). */
+.test-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: var(--tap-target-min);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-separator);
+  background: var(--color-elevated-background);
+  cursor: pointer;
+  transition: background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+
+.test-card:hover {
+  background: var(--color-elevated-background-hover);
+}
+
+.test-card:active {
+  transform: scale(0.98);
+}
+
+.test-card:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.test-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.test-card-title {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-callout);
+  font-weight: 600;
+  color: var(--color-label);
+}
+
+.test-card-sm {
+  margin: 0;
+  font-size: var(--text-caption);
+  color: var(--color-secondary-label);
+}
+
+/* A smaller, transparent-at-rest variant of the shared glass pill — same
+   material/motion as every other GlassButton, just its own fill. Compound
+   selectors (.glass-btn--glass.test-card-start, not .test-card-start alone)
+   deliberately match the base rule's own specificity plus one, so this wins
+   outright regardless of CSS insertion order rather than relying on the
+   cascade — the exact "equal specificity" gotcha .rs-reset-btn's own
+   comment already flags in RobotSimulator.css. Height stays at
+   --tap-target-min (CLAUDE.md's 44px minimum tap target is unconditional);
+   only the padding and type shrink, which is enough to read as a visibly
+   smaller pill. */
+.test-card-start {
+  flex: none;
+}
+
+.glass-btn--glass.test-card-start {
+  padding: 0 var(--space-4);
+  font-size: var(--text-caption);
+  color: var(--color-label);
+  background: transparent;
+}
+
+.glass-btn--glass.test-card-start:hover {
+  color: var(--color-label);
+  background: var(--glass-chrome-hover);
+}
+
+/* -------------------------------------------------------------- modal */
+
+/* Fixed, viewport-level overlay — outside .rs-run-console entirely, so this
+   is legitimate glass (not a second blur nested inside the HUD's own). The
+   scrim is the same fade-in/out CSS transitions use elsewhere on this page,
+   just driven by framer-motion since it mounts/unmounts with the modal. */
+.test-card-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  background: color-mix(in srgb, var(--color-background) 70%, transparent);
+}
+
+/* The physics drawer's own material: a compact rounded glass card floating
+   on the pitch (CLAUDE.md -> Surfaces -> ".rs-glass"). */
+.test-card-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(420px, 100%);
+  max-height: calc(100vh - var(--space-12));
+  overflow-y: auto;
+  padding: var(--space-6);
+  border-radius: var(--radius-panel);
+  box-sizing: border-box;
+}
+
+.test-card-modal-close {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-secondary-label);
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+
+.test-card-modal-close:hover {
+  color: var(--color-accent);
+  background: var(--color-elevated-background-hover);
+}
+
+.test-card-modal-close:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.test-card-modal-close svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
+.test-card-modal-title {
+  margin: 0;
+  padding-right: var(--tap-target-min);
+  font-family: var(--font-sans);
+  font-size: var(--text-title);
+  font-weight: var(--text-title-weight);
+  letter-spacing: var(--text-title-tracking);
+  color: var(--color-label);
+}
+
+.test-card-modal-sm {
+  margin: 0;
+  font-size: var(--text-callout);
+  color: var(--color-secondary-label);
+}
+
+.test-card-modal-description {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--line-height-base);
+  color: var(--color-secondary-label);
+}
+
+.test-card-modal .test-card-start {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .test-card {
+    transition: none;
+  }
+  .test-card:active {
+    transform: none;
+  }
+  .test-card-modal-close {
+    transition: none;
+  }
+}

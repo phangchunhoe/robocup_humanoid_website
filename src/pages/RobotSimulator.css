@@ -2186,9 +2186,9 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   overflow: hidden;
 }
 
-/* The Multi Robot / Test Reports placeholder — same footprint .rs-run-info
-   fills in the Single Robot view, so switching tabs doesn't change the
-   console's own height. */
+/* The Multi Robot placeholder — same footprint .rs-run-info fills in the
+   Single Robot view, so switching tabs doesn't change the console's own
+   height. */
 .robot-simulator-page .rs-console-placeholder {
   flex: 1 1 auto;
   min-height: 280px;
