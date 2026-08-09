@@ -11,7 +11,9 @@ import GlassButton, { GlassButtonFilter } from "../components/GlassButton.jsx";
 import GlassSlider from "../components/GlassSlider.jsx";
 import ViewTabs from "../components/ViewTabs.jsx";
 import TestCard from "../components/TestCard.jsx";
+import ApproachKickTestFlow from "../components/ApproachKickTestFlow.jsx";
 import testDefinitions from "../content/testDefinitions.js";
+import SLIDERS from "../content/physicsSliders.js";
 import { SPRING_UI, SPRING_MAGNETIC, SPRING_CLICK, SPRING_SPLIT } from "../lib/motionSpring.js";
 import { applyMagneticPull } from "../lib/magneticPull.js";
 import { TABS, INTRO, CONFIG_NOTE, expectedRelPath } from "../content/simulatorPasteGuide.js";
@@ -57,21 +59,6 @@ const INITIAL_PLACEMENT = {
   striker: { robot: { x: -2, y: 0, theta: 0 }, ball: { x: 2, y: 0 } },
   goal_keeper: { robot: { x: -6.5, y: 0, theta: 0 }, ball: { x: -5, y: 0.8 } },
 };
-
-const SLIDERS = [
-  { key: "ballJitterIntensity", label: "Ball jitter intensity", min: 0, max: 0.5, step: 0.02, unit: "m",
-    note: "perceived-ball noise σ at long range; decays exponentially near the ball" },
-  { key: "ballSightRangeM", label: "Field of vision radius", min: 2, max: 15, step: 0.5, unit: "m",
-    note: "120° cone; ball perception range cutoff" },
-  { key: "kickGain", label: "Kick gain", min: 1.0, max: 6.0, step: 0.1, unit: "×",
-    note: "ball speed ÷ foot closing speed" },
-  { key: "kickDirSigmaDeg", label: "Kick scatter σ", min: 0, max: 25, step: 0.5, unit: "°",
-    note: "Gaussian, per strike" },
-  { key: "kickSpeedJitter", label: "Speed jitter", min: 0, max: 0.6, step: 0.02, unit: "±",
-    note: "multiplicative on outgoing speed" },
-  { key: "ballDecel", label: "Ball rolling decel", min: 0.2, max: 2.5, step: 0.05, unit: "m/s²",
-    note: "turf, μ ≈ 0.08" },
-];
 
 // Matches a wanted relative path (e.g. "include/brain_tree.h") against every file the
 // user's folder picker returned, by suffix — the user may have opened the repo root, just
@@ -119,6 +106,14 @@ export default function RobotSimulator() {
   const [buildError, setBuildError] = useState(null);
   const [selfTest, setSelfTest] = useState(null);
   const [running, setRunning] = useState(false);
+  // The Approach & Kick Time test flow (ApproachKickTestFlow) and the
+  // navigation-blocking it needs while its 108 headless runs are in
+  // flight — see the effects below and the .rs-back/ViewTabs gating in
+  // SimStep. Owned here rather than inside the flow component itself
+  // because blocking the back button, the view tabs, and browser
+  // navigation all require reaching outside that component.
+  const [testFlowOpen, setTestFlowOpen] = useState(false);
+  const [testRunning, setTestRunning] = useState(false);
   // Mirrors `running` for the drag handlers below: those pointer listeners
   // are attached once per step/onRender change, not once per render, so
   // reading `running` directly would close over a stale value.
@@ -219,6 +214,38 @@ export default function RobotSimulator() {
   useEffect(() => {
     physicsRef.current = physics;
   }, [physics]);
+
+  // ---------------------------------------------------- test navigation lock
+
+  // Blocks in-app back/forward while the Approach & Kick Time test is
+  // running. HashRouter (App.jsx) is not a data router, so react-router's
+  // useBlocker (which requires createBrowserRouter) isn't available here —
+  // this re-pushes the current location the instant a popstate fires mid-test,
+  // the standard non-data-router pattern. Combined with disabling .rs-back
+  // and the view tabs (SimStep, below) and the beforeunload guard right
+  // after this effect, these are the only real navigation vectors: the run
+  // step renders no site header/nav of its own to worry about.
+  useEffect(() => {
+    if (!testRunning) return undefined;
+    window.history.pushState(null, "", window.location.href);
+    const onPopState = () => {
+      window.history.pushState(null, "", window.location.href);
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [testRunning]);
+
+  // Tab close/refresh while the test is running — triggers the browser's
+  // own native confirmation prompt.
+  useEffect(() => {
+    if (!testRunning) return undefined;
+    const onBeforeUnload = (evt) => {
+      evt.preventDefault();
+      evt.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [testRunning]);
 
   // ------------------------------------------------------------- folder open
 
@@ -578,6 +605,15 @@ export default function RobotSimulator() {
     onRender();
   };
 
+  // TestCard's Start button (both the collapsed row's and the expanded
+  // description modal's — see TestCard.jsx) calls this with the clicked
+  // test definition. Only "Approach & Kick Time" has a real flow behind it
+  // today; every other test id is still a placeholder (testDefinitions.js)
+  // and this is a no-op for those, same as before this feature existed.
+  const handleTestStart = (test) => {
+    if (test.id === "approach-kick-time") setTestFlowOpen(true);
+  };
+
   // Mutates world.trailTracking directly rather than routing through a ref
   // read by the render loop: unlike the old visibility toggle, this has
   // nothing to repaint immediately (a paused sim only draws new points once
@@ -822,12 +858,30 @@ export default function RobotSimulator() {
               runtimeRef={runtimeRef}
               onSetShowFov={onSetShowFov}
               onSetShowPerceivedBall={onSetShowPerceivedBall}
+              onTestStart={handleTestStart}
+              testRunning={testRunning}
               onBack={() => {
+                if (testRunning) return;
                 setRunning(false);
                 setStep("edit");
               }}
             />
           )}
+
+          {/* Portaled to <body> via GlassModal (see that component), so its
+              position in this tree doesn't matter for layout — rendered here
+              rather than inside SimStep because it needs sources/physics
+              straight from this component's own state, and because closing
+              it over testRunning/setTestRunning is what actually drives the
+              navigation lock above and the .rs-back/ViewTabs gating in
+              SimStep. */}
+          <ApproachKickTestFlow
+            isOpen={testFlowOpen}
+            onClose={() => setTestFlowOpen(false)}
+            sources={sources}
+            physics={physics}
+            onRunningChange={setTestRunning}
+          />
         </div>
       </div>
     </>
@@ -1580,6 +1634,7 @@ function SimStep(props) {
     trailTracking, onToggleTrail, onClearTrail,
     physics, setPhysics, overrun, runtimeError, role, onRoleChange, onBack,
     runtimeRef, onSetShowFov, onSetShowPerceivedBall,
+    onTestStart, testRunning,
   } = props;
 
   const [speedId, setSpeedId] = useState("1");
@@ -1757,6 +1812,7 @@ function SimStep(props) {
             variant="glass"
             className="rs-back"
             onClick={onBack}
+            disabled={testRunning}
             aria-label="Back to editor"
             reach={BACK_BUTTON_REACH_PX}
             pull={BACK_BUTTON_PULL_PX}
@@ -1964,12 +2020,19 @@ function SimStep(props) {
               src/content/testDefinitions.js until real test runs exist (see
               .rs-console-face below — all three stay mounted and cross-fade
               rather than swapping in and out, since the Single Robot face
-              carries the refs the simulation frame loop paints into). */}
+              carries the refs the simulation frame loop paints into).
+              onChange is gated on testRunning rather than passing setConsoleView
+              directly — ViewTabs has no disabled concept of its own, and
+              switching away from Testing mid-run is one of the navigation
+              vectors the Approach & Kick Time test has to block (see
+              RobotSimulator's own nav-lock effects). */}
           <div className="rs-console-group">
             <ViewTabs
               tabs={CONSOLE_VIEWS}
               value={consoleView}
-              onChange={setConsoleView}
+              onChange={(id) => {
+                if (!testRunning) setConsoleView(id);
+              }}
               ariaLabel="Console view"
             />
 
@@ -2251,7 +2314,7 @@ function SimStep(props) {
             </div>
 
             <div className={`rs-console-face${consoleView === "reports" ? " is-active" : ""}`}>
-              <TestCard tests={testDefinitions} />
+              <TestCard tests={testDefinitions} onStart={onTestStart} />
             </div>
             </aside>
           </div>

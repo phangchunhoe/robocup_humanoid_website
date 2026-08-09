@@ -1,0 +1,59 @@
+/* The app's one glass modal shell. Tokens only — see CLAUDE.md. */
+
+/* Fixed, viewport-level overlay. Deliberately not a scrim: no background of
+   its own, so whatever is behind stays fully visible — the modal's own
+   translucent glass is what separates it, not a darkened backdrop. Still the
+   full-viewport click-catcher (outside click closes, when closable) and the
+   flex centering context for the modal. */
+.glass-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-6);
+  /* Always mounted (see GlassModal.jsx's own comment on why), so this has to
+     stay click-through until actually open — otherwise this full-viewport
+     box permanently sits over the whole page and swallows every click.
+     `inert` handles focus/assistive-tech while closed; this handles hit
+     testing. */
+  pointer-events: none;
+}
+
+.glass-modal-overlay.is-open {
+  pointer-events: auto;
+}
+
+/* The physics drawer's own material (CLAUDE.md -> Surfaces -> Exception 4),
+   not the flatter .rs-glass nested-panel fill: a droplet of liquid glass
+   wobbled by the same turbulence filter, not just a similarly-tinted blur.
+   Reuses the drawer's own filter — url(#rs-drawer-glass), rendered once by
+   <DrawerGlassFilter /> in RobotSimulator.jsx's SimStep, the only page this
+   component is ever mounted on. */
+.glass-modal {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  width: min(640px, 100%);
+  max-height: calc(100vh - var(--space-12));
+  overflow-y: auto;
+  padding: var(--space-5);
+  border: none;
+  border-radius: var(--radius-panel);
+  background: var(--glass-fill-droplet-panel);
+  backdrop-filter: var(--blur-hud) url("#rs-drawer-glass");
+  -webkit-backdrop-filter: var(--blur-hud) url("#rs-drawer-glass");
+  box-shadow: var(--shadow-glass-rim-panel);
+  box-sizing: border-box;
+}
+
+/* Without backdrop-filter a translucent fill just reveals whatever's behind
+   through the text — the same near-opaque droplet fallback the drawer and
+   .rs-back use, so legibility never depends on the effect landing. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass-modal {
+    background: var(--glass-fill-droplet-fallback);
+  }
+}
