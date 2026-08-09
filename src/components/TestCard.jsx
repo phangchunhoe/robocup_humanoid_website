@@ -22,7 +22,10 @@ const START_BUTTON_PULL_STRENGTH = 0.18;
  * it from what's behind it, and it just fades and rises into place — the
  * same "fade + slight upward movement" recipe every other click-triggered
  * overlay in this app uses (InfoHint's own popover; CLAUDE.md -> Motion ->
- * Entrance), at --duration-base/--ease-out rather than a spring.
+ * Entrance), at --ease-out rather than a spring. Its own duration runs a
+ * little longer than --duration-base (450ms, not 300ms) — this card is a
+ * lot bigger and more central than InfoHint's small popover, so the same
+ * timing that reads as a quick, incidental reveal there read as abrupt here.
  *
  * The overlay is portaled straight to <body> once, unconditionally, rather
  * than mounted/unmounted per open — see the comment above it for why: a
@@ -114,7 +117,7 @@ export default function TestCard({ tests, onStart = () => {} }) {
             className="test-card-modal"
             initial={false}
             animate={isOpen ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
-            transition={reduceMotion ? { duration: 0 } : { duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+            transition={reduceMotion ? { duration: 0 } : { duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
             role="dialog"
             aria-modal={isOpen}
             aria-label={shownTest?.title}
