@@ -123,6 +123,26 @@
   border-color: var(--border-accent-strong);
 }
 
+/* Frost's selected state stands in for "toggled on", not a segmented
+   control's active segment — the ball-vision debug toggles (field-of-vision,
+   perceived-ball marker) have no set of siblings to be "active" among, just
+   an on/off state each. So instead of layering the shared accent hairline
+   and ink on top (which would reintroduce the one-accent ambiguity the frost
+   fill is a deliberate, named exception to — see --glass-fill-frost above),
+   a selected frost button simply keeps the fill it already shows on hover:
+   clicking it reads as "lit up and staying lit," not as joining a segmented
+   set. Declared after .is-selected above so it wins on equal specificity. */
+.glass-btn--frost.is-selected {
+  background: var(--glass-fill-frost-hover);
+  border-color: transparent;
+  color: var(--color-background);
+}
+
+.glass-btn--frost.is-selected:hover {
+  background: var(--glass-fill-frost-hover);
+  border-color: transparent;
+}
+
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .glass-btn--glass {
     background: var(--glass-fill-droplet-fallback);

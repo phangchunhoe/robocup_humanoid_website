@@ -308,22 +308,30 @@ function resolveContact(world, dt) {
   void dt;
 }
 
-function checkTermination(world) {
-  if (world.result) return;
+/**
+ * Pure read of the ball's own position: "goal" | "own_goal" | "out" | null,
+ * with no side effects. Exported so a caller outside the tick loop (the run
+ * step's drag handler, RobotSimulator.jsx) can ask "is this placement itself
+ * terminal" without going through checkTermination's own event-log write.
+ */
+export function terminalResultFor(world) {
   const b = world.ball;
   const hl = FD.length / 2;
   const hw = FD.width / 2;
   const inMouth = Math.abs(b.y) < FD.goalWidth / 2;
 
-  if (b.x > hl && inMouth) {
-    world.result = "goal";
-  } else if (b.x < -hl && inMouth) {
-    world.result = "own_goal";
-  } else if (Math.abs(b.x) > hl + BALL_RADIUS || Math.abs(b.y) > hw + BALL_RADIUS) {
-    world.result = "out";
-  }
-  if (world.result) {
-    world.events.push({ t: world.t, type: world.result });
+  if (b.x > hl && inMouth) return "goal";
+  if (b.x < -hl && inMouth) return "own_goal";
+  if (Math.abs(b.x) > hl + BALL_RADIUS || Math.abs(b.y) > hw + BALL_RADIUS) return "out";
+  return null;
+}
+
+function checkTermination(world) {
+  if (world.result) return;
+  const result = terminalResultFor(world);
+  if (result) {
+    world.result = result;
+    world.events.push({ t: world.t, type: result });
   }
 }
 

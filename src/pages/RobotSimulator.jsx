@@ -16,7 +16,7 @@ import { SPRING_UI, SPRING_MAGNETIC, SPRING_CLICK, SPRING_SPLIT } from "../lib/m
 import { applyMagneticPull } from "../lib/magneticPull.js";
 import { TABS, INTRO, CONFIG_NOTE, expectedRelPath } from "../content/simulatorPasteGuide.js";
 import { buildProgram } from "../lib/sim/runtime.js";
-import { createWorld, stepWorld, DEFAULT_PHYSICS } from "../lib/sim/physics.js";
+import { createWorld, stepWorld, DEFAULT_PHYSICS, terminalResultFor } from "../lib/sim/physics.js";
 import { createEngine, FIXED_DT } from "../lib/sim/engine.js";
 import { createRenderer } from "../lib/sim/renderer.js";
 import { VIEW_W, VIEW_H, toField } from "../lib/sim/field.js";
@@ -119,6 +119,13 @@ export default function RobotSimulator() {
   const [buildError, setBuildError] = useState(null);
   const [selfTest, setSelfTest] = useState(null);
   const [running, setRunning] = useState(false);
+  // Mirrors `running` for the drag handlers below: those pointer listeners
+  // are attached once per step/onRender change, not once per render, so
+  // reading `running` directly would close over a stale value.
+  const runningRef = useRef(running);
+  useEffect(() => {
+    runningRef.current = running;
+  }, [running]);
   const [physics, setPhysics] = useState({ ...DEFAULT_PHYSICS, stanceBias: CONFIG_DEFAULTS.stance_bias });
   const [placement, setPlacement] = useState(INITIAL_PLACEMENT.striker);
   const [overrun, setOverrun] = useState(false);
@@ -390,9 +397,10 @@ export default function RobotSimulator() {
     // onStep's own guard — it never stopped the engine itself, so the rAF
     // loop kept running in the background (engine.isRunning() stayed true,
     // Stop stayed the button's label) even though nothing was visibly
-    // moving. Dragging the robot or ball afterward clears world.result (see
-    // the drag effect below) so a repositioned episode can continue — but
-    // with the loop still alive underneath, that clear immediately
+    // moving. Dragging the ball back in bounds afterward clears world.result
+    // (see the drag effect below, which recomputes it from the ball's own
+    // position rather than nulling it blindly) so a repositioned episode can
+    // continue — but with the loop still alive underneath, that clear immediately
     // unblocked onStep again on the very next frame, silently resuming real
     // physics stepping (and whatever velocity the ball still had from the
     // kick) the instant you let go of the robot. Stopping the engine here,
@@ -636,11 +644,18 @@ export default function RobotSimulator() {
       // dragged the ball along with it. Comparing normalized distances
       // means the handle whose hit zone the click is deepest inside is the
       // one that responds, regardless of which check happens to run first.
+      // While the engine is running, the robot's position and heading are
+      // being written every tick by the behaviour tree itself — a drag
+      // grabbing either handle would fight the sim for ownership of them.
+      // The ball has no such owner while running, so it stays draggable in
+      // both states.
       const candidates = [
         { kind: "heading", ratio: dHeading / 0.28 },
         { kind: "ball", ratio: dBall / 0.3 },
         { kind: "robot", ratio: dRobot / 0.35 },
-      ].filter((c) => c.ratio < 1);
+      ]
+        .filter((c) => c.ratio < 1)
+        .filter((c) => !runningRef.current || c.kind === "ball");
       if (candidates.length === 0) return;
       candidates.sort((a, b) => a.ratio - b.ratio);
       dragging = candidates[0].kind;
@@ -666,7 +681,18 @@ export default function RobotSimulator() {
       } else if (dragging === "heading") {
         world.robot.theta = Math.atan2(fy - world.robot.y, fx - world.robot.x);
       }
-      world.result = null;
+      // Re-derive world.result from the ball's own new position rather than
+      // blindly clearing it: a goal/out leaves the ball resting right where
+      // it crossed the line, and dragging the robot back does nothing to
+      // move it off that spot. Nulling result unconditionally here used to
+      // make Play look dead afterward — the engine would start, checkTermination
+      // would immediately see the same out-of-bounds ball on the very first
+      // tick, and onRender's own guard would stop it again before anything
+      // visibly moved, with a duplicate event silently appended to the log
+      // each time. Recomputing means dragging only the robot correctly
+      // leaves the episode over (ball still off-field), while dragging the
+      // ball back in bounds is what actually lets Play resume.
+      world.result = terminalResultFor(world);
       // The robot or ball just moved to a placement runtime.telemetry knows
       // nothing about yet — keep the planned curve/target hidden (onRender,
       // via telemetryStaleRef) until a real tick recomputes them, rather
