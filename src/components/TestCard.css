@@ -100,11 +100,14 @@
 
 /* -------------------------------------------------------------- modal */
 
-/* Fixed, viewport-level overlay — outside .rs-run-console entirely, so this
-   is legitimate glass (not a second blur nested inside the HUD's own). The
-   scrim is the same fade-in/out CSS transitions use elsewhere on this page,
-   just driven by framer-motion since it mounts/unmounts with the modal. */
-.test-card-scrim {
+/* Fixed, viewport-level overlay — outside .rs-run-console entirely, so the
+   modal's own backdrop-filter has the live field to blur, same as the
+   physics drawer's. Deliberately not a scrim: no background of its own, so
+   the field and console stay fully visible behind the card — the card's own
+   translucent glass is what separates it, not a darkened backdrop. Still the
+   full-viewport click-catcher (outside click closes) and the flex centering
+   context for the card. */
+.test-card-overlay {
   position: fixed;
   inset: 0;
   z-index: 20;
@@ -112,22 +115,54 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-6);
-  background: color-mix(in srgb, var(--color-background) 70%, transparent);
+  /* Always mounted (see TestCard.jsx's own comment on why), so this has to
+     stay click-through until actually open — otherwise this full-viewport
+     box permanently sits over the whole page and swallows every click.
+     `inert` handles focus/assistive-tech while closed; this handles hit
+     testing. */
+  pointer-events: none;
 }
 
-/* The physics drawer's own material: a compact rounded glass card floating
-   on the pitch (CLAUDE.md -> Surfaces -> ".rs-glass"). */
+.test-card-overlay.is-open {
+  pointer-events: auto;
+}
+
+/* The physics drawer's own material (CLAUDE.md -> Surfaces -> Exception 4),
+   not the flatter .rs-glass nested-panel fill: a droplet of liquid glass
+   wobbled by the same turbulence filter, not just a similarly-tinted blur.
+   Reuses the drawer's own filter — url(#rs-drawer-glass), rendered once by
+   <DrawerGlassFilter /> in RobotSimulator.jsx's SimStep, the only page this
+   component is ever mounted on — rather than a third copy of it, the same
+   way every GlassButton instance points at one shared
+   url(#glass-button-noise) instead of carrying its own filter. The drawer's
+   own panel-scaled tokens, not .rs-back's 44px-circle ones: at this card's
+   size --glass-fill-droplet reads too solid and --shadow-glass-rim too
+   negligible a sliver (see both tokens' own comments in tokens.css). */
 .test-card-modal {
   position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  width: min(420px, 100%);
+  width: min(640px, 100%);
   max-height: calc(100vh - var(--space-12));
   overflow-y: auto;
-  padding: var(--space-6);
+  padding: var(--space-5);
+  border: none;
   border-radius: var(--radius-panel);
+  background: var(--glass-fill-droplet-panel);
+  backdrop-filter: var(--blur-hud) url("#rs-drawer-glass");
+  -webkit-backdrop-filter: var(--blur-hud) url("#rs-drawer-glass");
+  box-shadow: var(--shadow-glass-rim-panel);
   box-sizing: border-box;
+}
+
+/* Without backdrop-filter a translucent fill just reveals the field through
+   the text — the same near-opaque droplet fallback the drawer and .rs-back
+   use, so legibility never depends on the effect landing. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .test-card-modal {
+    background: var(--glass-fill-droplet-fallback);
+  }
 }
 
 .test-card-modal-close {
