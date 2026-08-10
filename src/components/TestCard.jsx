@@ -76,7 +76,13 @@ export default function TestCard({ tests, onStart = () => {} }) {
               reach={START_BUTTON_REACH_PX}
               pull={START_BUTTON_PULL_PX}
               strength={START_BUTTON_PULL_STRENGTH}
-              onClick={() => onStart(shownTest)}
+              onClick={() => {
+                // Starting a test from inside the description modal hands off
+                // to that test's own flow (e.g. ApproachKickTestFlow) — this
+                // modal has to close first, or the two would sit stacked.
+                close();
+                onStart(shownTest);
+              }}
             >
               Start
             </GlassButton>

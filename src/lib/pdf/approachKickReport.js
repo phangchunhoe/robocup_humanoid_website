@@ -16,6 +16,25 @@ import SLIDERS from "../../content/physicsSliders.js";
 const CHART_PX_W = 900;
 const CHART_PX_H = 420;
 const CHART_MARGIN = { top: 24, right: 24, bottom: 48, left: 64 };
+// Physical pixels are CHART_PX_W/H * CHART_SCALE; every draw call below still
+// works in the original 900x420 logical space via ctx.scale(), so raising
+// this is the only thing needed for a sharper embedded PNG. 3x produced a
+// ~10MB PDF for one simple line chart (PNG encodes the anti-aliased line/text
+// edges poorly at that pixel count) — 2x is still a real resolution increase
+// over the original 1x without that file-size cliff.
+const CHART_SCALE = 2;
+// The chart's x-axis convention: 0° = directly in front, +/-180° = directly
+// behind, rather than the JSON's own 0-350 sweep order. This only affects
+// how the chart plots/labels angles — angleDeg in the JSON/PDF-adjacent data
+// stays 0-350, the stable shape agreed for that output.
+const CHART_MIN_ANGLE = -180;
+const CHART_MAX_ANGLE = 180;
+const CHART_X_TICK_STEP = 60;
+
+/** Maps the JSON's 0-350 angleDeg onto the chart's -180..180 convention. */
+function toChartAngle(angleDeg) {
+  return angleDeg > 180 ? angleDeg - 360 : angleDeg;
+}
 
 function readAccentColor() {
   if (typeof document === "undefined") return "#10b981";
@@ -41,9 +60,10 @@ function niceMax(value) {
  * chart. Returns nothing — mutates the canvas in place.
  */
 export function drawAngleTimeChart(canvas, results) {
-  canvas.width = CHART_PX_W;
-  canvas.height = CHART_PX_H;
+  canvas.width = CHART_PX_W * CHART_SCALE;
+  canvas.height = CHART_PX_H * CHART_SCALE;
   const ctx = canvas.getContext("2d");
+  ctx.scale(CHART_SCALE, CHART_SCALE);
 
   const bg = "#ffffff";
   const ink = "#1a1f26";
@@ -59,13 +79,21 @@ export function drawAngleTimeChart(canvas, results) {
   const plotX0 = CHART_MARGIN.left;
   const plotY0 = CHART_MARGIN.top;
 
-  const angles = results.map((r) => r.angleDeg);
-  const minAngle = Math.min(...angles);
-  const maxAngle = Math.max(...angles);
+  // Plotted left-to-right on the -180..180 "directly behind to directly
+  // behind" convention rather than the JSON's own 0-350 sweep order — sort a
+  // working copy by the remapped angle so the line is drawn in the right
+  // order (0, 10, ..., 180 then wraps to -170, -160, ..., -10 in sweep
+  // order, which is not left-to-right once remapped).
+  const chartResults = results
+    .map((r) => ({ ...r, chartAngle: toChartAngle(r.angleDeg) }))
+    .sort((a, b) => a.chartAngle - b.chartAngle);
+
+  const minAngle = CHART_MIN_ANGLE;
+  const maxAngle = CHART_MAX_ANGLE;
   const values = results.map((r) => r.avgTimeSec).filter((v) => v !== null && v !== undefined);
   const maxValue = niceMax(values.length > 0 ? Math.max(...values) : 1);
 
-  const xForAngle = (angleDeg) => plotX0 + ((angleDeg - minAngle) / (maxAngle - minAngle || 1)) * plotW;
+  const xForAngle = (chartAngle) => plotX0 + ((chartAngle - minAngle) / (maxAngle - minAngle || 1)) * plotW;
   const yForValue = (value) => plotY0 + plotH - (value / maxValue) * plotH;
 
   // Axes + gridlines.
@@ -89,8 +117,7 @@ export function drawAngleTimeChart(canvas, results) {
 
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  const xTickStepDeg = 30;
-  for (let angleDeg = minAngle; angleDeg <= maxAngle; angleDeg += xTickStepDeg) {
+  for (let angleDeg = minAngle; angleDeg <= maxAngle; angleDeg += CHART_X_TICK_STEP) {
     const x = xForAngle(angleDeg);
     ctx.fillText(`${angleDeg}°`, x, plotY0 + plotH + 10);
   }
@@ -120,12 +147,12 @@ export function drawAngleTimeChart(canvas, results) {
   ctx.lineWidth = 2.5;
   ctx.lineJoin = "round";
   let drawing = false;
-  for (const r of results) {
+  for (const r of chartResults) {
     if (r.avgTimeSec === null || r.avgTimeSec === undefined) {
       drawing = false;
       continue;
     }
-    const x = xForAngle(r.angleDeg);
+    const x = xForAngle(r.chartAngle);
     const y = yForValue(r.avgTimeSec);
     if (!drawing) {
       ctx.beginPath();
@@ -139,9 +166,9 @@ export function drawAngleTimeChart(canvas, results) {
 
   // Data points, drawn after the line so they sit on top.
   ctx.fillStyle = lineColor;
-  for (const r of results) {
+  for (const r of chartResults) {
     if (r.avgTimeSec === null || r.avgTimeSec === undefined) continue;
-    const x = xForAngle(r.angleDeg);
+    const x = xForAngle(r.chartAngle);
     const y = yForValue(r.avgTimeSec);
     ctx.beginPath();
     ctx.arc(x, y, 3, 0, Math.PI * 2);
@@ -157,10 +184,11 @@ function describePhysicsConstant(key, value) {
 
 /**
  * Builds the full report as a jsPDF document (does not save/download it —
- * the caller decides when, e.g. on a button click). `testResult` is exactly
- * the object approachKickTest.js's runApproachKickTest() resolves to (plus
- * the run's own name/inputs/timestamp), so this and the in-page JSON block
- * read the same shape.
+ * the caller decides when, e.g. on a button click): title/subheading, the
+ * angle/time chart, and the physics constants in effect. The structured JSON
+ * results are deliberately NOT included here — they're shown in-page instead
+ * (copyable and separately downloadable as a .json file, see
+ * ApproachKickTestFlow.jsx), via buildResultsJson() below.
  */
 export function buildApproachKickPdf({
   testName,
@@ -221,44 +249,18 @@ export function buildApproachKickPdf({
     doc.text(line, margin, y);
     y += 14;
   }
-  y += 14;
-
-  // Structured JSON results — same shape the in-page copyable block shows.
-  const jsonPayload = buildResultsJson({ testName, radiusM, ballX, ballY, repeats, physicsSnapshot, generatedAt, results });
-  const jsonText = JSON.stringify(jsonPayload, null, 2);
-
-  if (y > doc.internal.pageSize.getHeight() - margin - 40) {
-    doc.addPage();
-    y = margin;
-  }
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(13);
-  doc.text("Structured results (JSON)", margin, y);
-  y += 18;
-
-  doc.setFont("courier", "normal");
-  doc.setFontSize(8);
-  const jsonLines = doc.splitTextToSize(jsonText, pageWidth - margin * 2);
-  for (const line of jsonLines) {
-    if (y > doc.internal.pageSize.getHeight() - margin) {
-      doc.addPage();
-      y = margin;
-    }
-    doc.text(line, margin, y);
-    y += 10;
-  }
 
   return doc;
 }
 
 /**
- * The stable, parseable JSON shape shown in the UI's copy block and embedded
- * in the PDF — one object, read by both, so they can never drift apart.
- * Matches the literal shape from the feature spec (testName/radius/
- * ballPosition/repeats/results[]), plus two additive fields a naive parser
- * reading those keys still ignores safely: timedOutCount per angle, and a
- * meta block carrying what a future "compare two tests" feature would need
- * beyond the bare numbers.
+ * The stable, parseable JSON shape shown in the UI's copy block and its
+ * separate .json download (ApproachKickTestFlow.jsx) — one object, read by
+ * both, so they can never drift apart. Matches the literal shape from the
+ * feature spec (testName/radius/ballPosition/repeats/results[]), plus two
+ * additive fields a naive parser reading those keys still ignores safely:
+ * timedOutCount per angle, and a meta block carrying what a future "compare
+ * two tests" feature would need beyond the bare numbers.
  */
 export function buildResultsJson({ testName, radiusM, ballX, ballY, repeats, physicsSnapshot, generatedAt, results }) {
   return {

@@ -132,6 +132,17 @@ export default function ApproachKickTestFlow({ isOpen, onClose, sources, physics
     });
   };
 
+  const handleDownloadJson = () => {
+    if (!jsonText) return;
+    const blob = new Blob([jsonText], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `approach-kick-time-${Date.now()}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <GlassModal
       isOpen={isOpen}
@@ -237,9 +248,14 @@ export default function ApproachKickTestFlow({ isOpen, onClose, sources, physics
           <div className="akt-json-wrap">
             <div className="akt-json-header">
               <span className="akt-field-label">Structured results (JSON)</span>
-              <button type="button" className="akt-copy-btn" onClick={handleCopyJson}>
-                {copied ? "Copied!" : "Copy"}
-              </button>
+              <div className="akt-json-actions">
+                <button type="button" className="akt-copy-btn" onClick={handleCopyJson}>
+                  {copied ? "Copied!" : "Copy"}
+                </button>
+                <button type="button" className="akt-copy-btn" onClick={handleDownloadJson}>
+                  Download .json
+                </button>
+              </div>
             </div>
             <pre className="akt-json-block">{jsonText}</pre>
           </div>
