@@ -1,0 +1,337 @@
+/* Compare Results flow — tokens only, see CLAUDE.md. */
+
+/* Wider modal for the chart stage */
+.cr-modal {
+  width: min(580px, 100%);
+}
+
+.cr-modal--wide {
+  width: min(700px, 100%);
+}
+
+/* ── Header ── */
+.cr-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-right: var(--tap-target-min); /* make room for close button */
+}
+
+.cr-header-icon {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  color: var(--color-accent);
+}
+
+/* ── Upload body ── */
+.cr-upload-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.cr-slots {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* ── Individual file slot ── */
+.cr-slot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-separator);
+  border-radius: var(--radius-control);
+  background: var(--color-field-background);
+}
+
+.cr-slot-heading {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-secondary-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── Drop zone ── */
+.cr-dropzone {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 72px;
+  padding: var(--space-4) var(--space-3);
+  border: 1.5px dashed var(--color-field-border);
+  border-radius: var(--radius-field);
+  background: transparent;
+  color: var(--color-secondary-label);
+  cursor: pointer;
+  transition: border-color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out),
+    color var(--duration-base) var(--ease-out);
+  text-align: center;
+}
+
+.cr-dropzone:hover,
+.cr-dropzone:focus-visible {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  color: var(--color-accent);
+  outline: none;
+}
+
+.cr-dropzone--has-file {
+  border-style: solid;
+  border-color: var(--color-control-border);
+  color: var(--color-label);
+}
+
+.cr-dropzone--has-file:hover,
+.cr-dropzone--has-file:focus-visible {
+  border-color: var(--color-accent);
+}
+
+.cr-dropzone-icon {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.cr-dropzone-hint {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+}
+
+.cr-dropzone-filename {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  word-break: break-all;
+}
+
+/* Hidden native file input — click is forwarded from the drop zone */
+.cr-file-input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+}
+
+/* ── Confirm button row ── */
+.cr-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* ── Chart body ── */
+.cr-chart-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── SVG chart wrapper ── */
+.cr-chart-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.cr-chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+  border-radius: var(--radius-field);
+  background: var(--color-field-background);
+  border: 1px solid var(--color-separator);
+  padding: 4px;
+  box-sizing: border-box;
+  cursor: crosshair;
+}
+
+/* SVG element classes — filled with currentColor-like approach using
+   inline styles where colours are dataset-dependent, and CSS for
+   structural/decorative elements. */
+
+.cr-grid-line {
+  stroke: var(--color-separator);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+}
+
+.cr-axis-line {
+  stroke: var(--color-secondary-label);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.cr-axis-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--color-secondary-label);
+}
+
+.cr-axis-label--y {
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+
+.cr-axis-label--x {
+  text-anchor: middle;
+  dominant-baseline: auto;
+}
+
+.cr-axis-title {
+  font-family: var(--font-sans);
+  font-size: 11px;
+  fill: var(--color-secondary-label);
+}
+
+.cr-axis-title--x {
+  text-anchor: middle;
+  dominant-baseline: auto;
+}
+
+.cr-axis-title--y {
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+.cr-data-line {
+  opacity: 0.9;
+}
+
+.cr-dot {
+  opacity: 0.85;
+}
+
+.cr-tooltip-line {
+  stroke: var(--color-secondary-label);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+
+/* ── Tooltip card (HTML overlay, not SVG) ── */
+.cr-tooltip {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-separator);
+  border-radius: var(--radius-control);
+  background: var(--color-elevated-background);
+  pointer-events: none;
+  z-index: 1;
+  min-width: 140px;
+}
+
+.cr-tooltip-angle {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  font-weight: 600;
+  color: var(--color-label);
+}
+
+.cr-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cr-tooltip-swatch {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cr-tooltip-label {
+  flex: 1;
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--color-secondary-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cr-tooltip-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-label);
+  white-space: nowrap;
+}
+
+/* ── Legend ── */
+.cr-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+}
+
+.cr-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.cr-legend-swatch {
+  flex-shrink: 0;
+  width: 12px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.cr-legend-label {
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  color: var(--color-secondary-label);
+}
+
+/* ── Empty state ── */
+.cr-chart-empty {
+  margin: 0;
+  padding: var(--space-5);
+  font-family: var(--font-sans);
+  font-size: var(--text-body);
+  color: var(--color-secondary-label);
+  text-align: center;
+}
+
+/* ── Back button ── */
+.cr-back-btn {
+  align-self: flex-start;
+}
+
+/* Reuse glass start-button pill style to match TestCard's "Start" pill */
+.glass-btn--glass.cr-back-btn {
+  padding: 0 var(--space-4);
+  font-size: var(--text-caption);
+  color: var(--color-label);
+  background: transparent;
+}
+
+.glass-btn--glass.cr-back-btn:hover {
+  color: var(--color-label);
+  background: var(--glass-chrome-hover);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cr-dropzone {
+    transition: none;
+  }
+}

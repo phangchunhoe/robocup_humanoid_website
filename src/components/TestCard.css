@@ -86,6 +86,14 @@
   flex: none;
 }
 
+/* Action button group on the tile row — Compare Results + Start side by side */
+.test-card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
 .glass-btn--glass.test-card-start {
   padding: 0 var(--space-4);
   font-size: var(--text-caption);
@@ -161,9 +169,18 @@
   color: var(--color-secondary-label);
 }
 
-.test-card-modal .test-card-start {
-  align-self: flex-start;
+/* Action button group inside the expanded modal */
+.test-card-modal-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
   margin-top: var(--space-2);
+}
+
+.test-card-modal .test-card-start {
+  align-self: auto;
+  margin-top: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

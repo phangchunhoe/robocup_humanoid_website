@@ -12,6 +12,7 @@ import GlassSlider from "../components/GlassSlider.jsx";
 import ViewTabs from "../components/ViewTabs.jsx";
 import TestCard from "../components/TestCard.jsx";
 import ApproachKickTestFlow from "../components/ApproachKickTestFlow.jsx";
+import CompareResultsFlow from "../components/CompareResultsFlow.jsx";
 import testDefinitions from "../content/testDefinitions.js";
 import SLIDERS from "../content/physicsSliders.js";
 import { SPRING_UI, SPRING_MAGNETIC, SPRING_CLICK, SPRING_SPLIT } from "../lib/motionSpring.js";
@@ -114,6 +115,7 @@ export default function RobotSimulator() {
   // navigation all require reaching outside that component.
   const [testFlowOpen, setTestFlowOpen] = useState(false);
   const [testRunning, setTestRunning] = useState(false);
+  const [compareFlowOpen, setCompareFlowOpen] = useState(false);
   // Mirrors `running` for the drag handlers below: those pointer listeners
   // are attached once per step/onRender change, not once per render, so
   // reading `running` directly would close over a stale value.
@@ -614,6 +616,10 @@ export default function RobotSimulator() {
     if (test.id === "approach-kick-time") setTestFlowOpen(true);
   };
 
+  const handleTestCompare = (test) => {
+    if (test.id === "approach-kick-time") setCompareFlowOpen(true);
+  };
+
   // Mutates world.trailTracking directly rather than routing through a ref
   // read by the render loop: unlike the old visibility toggle, this has
   // nothing to repaint immediately (a paused sim only draws new points once
@@ -859,6 +865,7 @@ export default function RobotSimulator() {
               onSetShowFov={onSetShowFov}
               onSetShowPerceivedBall={onSetShowPerceivedBall}
               onTestStart={handleTestStart}
+              onTestCompare={handleTestCompare}
               testRunning={testRunning}
               onBack={() => {
                 if (testRunning) return;
@@ -881,6 +888,10 @@ export default function RobotSimulator() {
             sources={sources}
             physics={physics}
             onRunningChange={setTestRunning}
+          />
+          <CompareResultsFlow
+            isOpen={compareFlowOpen}
+            onClose={() => setCompareFlowOpen(false)}
           />
         </div>
       </div>
@@ -1634,7 +1645,7 @@ function SimStep(props) {
     trailTracking, onToggleTrail, onClearTrail,
     physics, setPhysics, overrun, runtimeError, role, onRoleChange, onBack,
     runtimeRef, onSetShowFov, onSetShowPerceivedBall,
-    onTestStart, testRunning,
+    onTestStart, testRunning, onTestCompare,
   } = props;
 
   const [speedId, setSpeedId] = useState("1");
@@ -2314,7 +2325,7 @@ function SimStep(props) {
             </div>
 
             <div className={`rs-console-face${consoleView === "reports" ? " is-active" : ""}`}>
-              <TestCard tests={testDefinitions} onStart={onTestStart} />
+              <TestCard tests={testDefinitions} onStart={onTestStart} onCompare={onTestCompare} />
             </div>
             </aside>
           </div>

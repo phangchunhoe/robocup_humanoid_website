@@ -34,7 +34,7 @@ const START_BUTTON_PULL_STRENGTH = 0.18;
  * modal always has real content sitting inside it to paint, even while
  * closed, instead of an empty box.
  */
-export default function TestCard({ tests, onStart = () => {} }) {
+export default function TestCard({ tests, onStart = () => {}, onCompare = () => {} }) {
   const [activeId, setActiveId] = useState(null);
   const [lastId, setLastId] = useState(tests[0]?.id ?? null);
   const isOpen = activeId !== null;
@@ -55,6 +55,7 @@ export default function TestCard({ tests, onStart = () => {} }) {
             test={test}
             onOpen={() => open(test.id)}
             onStart={() => onStart(test)}
+            onCompare={test.id === "approach-kick-time" ? () => onCompare(test) : null}
           />
         ))}
       </ul>
@@ -70,22 +71,39 @@ export default function TestCard({ tests, onStart = () => {} }) {
             <p className="test-card-modal-sm">{shownTest.sm}</p>
             <p className="test-card-modal-description">{shownTest.description}</p>
 
-            <GlassButton
-              variant="glass"
-              className="test-card-start"
-              reach={START_BUTTON_REACH_PX}
-              pull={START_BUTTON_PULL_PX}
-              strength={START_BUTTON_PULL_STRENGTH}
-              onClick={() => {
-                // Starting a test from inside the description modal hands off
-                // to that test's own flow (e.g. ApproachKickTestFlow) — this
-                // modal has to close first, or the two would sit stacked.
-                close();
-                onStart(shownTest);
-              }}
-            >
-              Start
-            </GlassButton>
+            <div className="test-card-modal-actions">
+              <GlassButton
+                variant="glass"
+                className="test-card-start"
+                reach={START_BUTTON_REACH_PX}
+                pull={START_BUTTON_PULL_PX}
+                strength={START_BUTTON_PULL_STRENGTH}
+                onClick={() => {
+                  // Starting a test from inside the description modal hands off
+                  // to that test's own flow (e.g. ApproachKickTestFlow) — this
+                  // modal has to close first, or the two would sit stacked.
+                  close();
+                  onStart(shownTest);
+                }}
+              >
+                Start
+              </GlassButton>
+              {shownTest.id === "approach-kick-time" ? (
+                <GlassButton
+                  variant="glass"
+                  className="test-card-start"
+                  reach={START_BUTTON_REACH_PX}
+                  pull={START_BUTTON_PULL_PX}
+                  strength={START_BUTTON_PULL_STRENGTH}
+                  onClick={() => {
+                    close();
+                    onCompare(shownTest);
+                  }}
+                >
+                  Compare Results
+                </GlassButton>
+              ) : null}
+            </div>
           </>
         ) : null}
       </GlassModal>
@@ -93,7 +111,7 @@ export default function TestCard({ tests, onStart = () => {} }) {
   );
 }
 
-function TestListItem({ test, onOpen, onStart }) {
+function TestListItem({ test, onOpen, onStart, onCompare }) {
   const onKeyDown = (evt) => {
     if (evt.key === "Enter" || evt.key === " ") {
       evt.preventDefault();
@@ -107,19 +125,36 @@ function TestListItem({ test, onOpen, onStart }) {
         <h3 className="test-card-title">{test.title}</h3>
         <p className="test-card-sm">{test.sm}</p>
       </div>
-      <GlassButton
-        variant="glass"
-        className="test-card-start"
-        reach={START_BUTTON_REACH_PX}
-        pull={START_BUTTON_PULL_PX}
-        strength={START_BUTTON_PULL_STRENGTH}
-        onClick={(evt) => {
-          evt.stopPropagation();
-          onStart();
-        }}
-      >
-        Start
-      </GlassButton>
+      <div className="test-card-actions">
+        {onCompare ? (
+          <GlassButton
+            variant="glass"
+            className="test-card-start"
+            reach={START_BUTTON_REACH_PX}
+            pull={START_BUTTON_PULL_PX}
+            strength={START_BUTTON_PULL_STRENGTH}
+            onClick={(evt) => {
+              evt.stopPropagation();
+              onCompare();
+            }}
+          >
+            Compare Results
+          </GlassButton>
+        ) : null}
+        <GlassButton
+          variant="glass"
+          className="test-card-start"
+          reach={START_BUTTON_REACH_PX}
+          pull={START_BUTTON_PULL_PX}
+          strength={START_BUTTON_PULL_STRENGTH}
+          onClick={(evt) => {
+            evt.stopPropagation();
+            onStart();
+          }}
+        >
+          Start
+        </GlassButton>
+      </div>
     </li>
   );
 }
