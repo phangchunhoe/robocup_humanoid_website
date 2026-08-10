@@ -9,10 +9,13 @@ const testDefinitions = [
     id: "approach-kick-time",
     title: "Approach & Kick Time",
     sm: "Approach and kick timing across starting positions.",
+    // Only used as a fallback (e.g. for assistive tech reading order before
+    // the rich content mounts) — the modal itself renders
+    // <ApproachKickTimeExplainer> for this id instead of this plain string,
+    // see TestCard.jsx.
     description:
-      "Placeholder description — measures how long the robot takes to " +
-      "approach the ball and execute a kick, repeated from a range of " +
-      "different starting positions on the pitch.",
+      "Measures how fast the striker approaches and kicks the ball, swept " +
+      "across 36 starting angles around it.",
   },
   {
     id: "time-to-find-ball",

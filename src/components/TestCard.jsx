@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import GlassButton from "./GlassButton.jsx";
 import GlassModal from "./GlassModal.jsx";
+import ApproachKickTimeExplainer from "./ApproachKickTimeExplainer.jsx";
 import "./TestCard.css";
 
 // A named, scoped magnetic-pull tuning for the Start button's own shape
@@ -68,7 +69,11 @@ export default function TestCard({ tests, onStart = () => {}, onCompare = () => 
 
             <h3 className="test-card-modal-title">{shownTest.title}</h3>
             <p className="test-card-modal-sm">{shownTest.sm}</p>
-            <p className="test-card-modal-description">{shownTest.description}</p>
+            {shownTest.id === "approach-kick-time" ? (
+              <ApproachKickTimeExplainer />
+            ) : (
+              <p className="test-card-modal-description">{shownTest.description}</p>
+            )}
 
             <div className="test-card-modal-actions">
               <GlassButton
