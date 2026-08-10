@@ -55,7 +55,6 @@ export default function TestCard({ tests, onStart = () => {}, onCompare = () => 
             test={test}
             onOpen={() => open(test.id)}
             onStart={() => onStart(test)}
-            onCompare={test.id === "approach-kick-time" ? () => onCompare(test) : null}
           />
         ))}
       </ul>
@@ -111,7 +110,7 @@ export default function TestCard({ tests, onStart = () => {}, onCompare = () => 
   );
 }
 
-function TestListItem({ test, onOpen, onStart, onCompare }) {
+function TestListItem({ test, onOpen, onStart }) {
   const onKeyDown = (evt) => {
     if (evt.key === "Enter" || evt.key === " ") {
       evt.preventDefault();
@@ -125,36 +124,19 @@ function TestListItem({ test, onOpen, onStart, onCompare }) {
         <h3 className="test-card-title">{test.title}</h3>
         <p className="test-card-sm">{test.sm}</p>
       </div>
-      <div className="test-card-actions">
-        {onCompare ? (
-          <GlassButton
-            variant="glass"
-            className="test-card-start"
-            reach={START_BUTTON_REACH_PX}
-            pull={START_BUTTON_PULL_PX}
-            strength={START_BUTTON_PULL_STRENGTH}
-            onClick={(evt) => {
-              evt.stopPropagation();
-              onCompare();
-            }}
-          >
-            Compare Results
-          </GlassButton>
-        ) : null}
-        <GlassButton
-          variant="glass"
-          className="test-card-start"
-          reach={START_BUTTON_REACH_PX}
-          pull={START_BUTTON_PULL_PX}
-          strength={START_BUTTON_PULL_STRENGTH}
-          onClick={(evt) => {
-            evt.stopPropagation();
-            onStart();
-          }}
-        >
-          Start
-        </GlassButton>
-      </div>
+      <GlassButton
+        variant="glass"
+        className="test-card-start"
+        reach={START_BUTTON_REACH_PX}
+        pull={START_BUTTON_PULL_PX}
+        strength={START_BUTTON_PULL_STRENGTH}
+        onClick={(evt) => {
+          evt.stopPropagation();
+          onStart();
+        }}
+      >
+        Start
+      </GlassButton>
     </li>
   );
 }

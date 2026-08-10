@@ -1,8 +1,10 @@
 import { useRef, useState } from "react";
-import { X, Upload, BarChart2 } from "lucide-react";
+import { X, Upload, BarChart2, FileDown } from "lucide-react";
+import { jsPDF } from "jspdf";
 import GlassModal from "./GlassModal.jsx";
 import GlassButton from "./GlassButton.jsx";
 import Notice from "./Notice.jsx";
+import SLIDERS from "../content/physicsSliders.js";
 import "./CompareResultsFlow.css";
 
 // Magnetic-pull tuning matching TestCard's START_BUTTON_* constants.
@@ -56,6 +58,344 @@ function nice(v, up) {
   if (v === 0) return 0;
   const mag = Math.pow(10, Math.floor(Math.log10(Math.abs(v))));
   return up ? Math.ceil(v / mag) * mag : Math.floor(v / mag) * mag;
+}
+
+// Hex colour string → [r, g, b] 0-255 for jsPDF setDrawColor / setFillColor.
+function hexToRgb(hex) {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+
+// A printed/exported PDF page is conventionally light — same call as
+// src/lib/pdf/approachKickReport.js's chart, and the same four colours, so
+// the app's two PDF outputs read as one document family rather than two
+// independently-chosen palettes.
+const PDF_BG = "#ffffff";
+const PDF_INK = "#1a1f26";
+const PDF_GRID = "#d8dde3";
+const PDF_MUTED_INK = "#5b6470";
+const PDF_DIFF_HIGHLIGHT = "#fff4e6"; // pale amber — a settings row that differs
+const PDF_DIFF_INK = "#b4451a";
+
+// Two dataset colours distinguishable on a *white* page — the on-screen
+// cyan/pink pair (COLORS, above) is tuned for dark glass and reads as
+// near-invisible pastel on paper.
+const PDF_DATA_COLORS = ["#10b981", "#2563eb"]; // accent emerald, blue
+
+/**
+ * Flattens a dataset's `settings` (radius/ball position/repeats/physics
+ * snapshot — the same fields src/lib/pdf/approachKickReport.js's
+ * buildResultsJson() writes into each exported results.json) into one
+ * ordered list of {label, values: [a, b]} rows for the PDF's settings
+ * table. Any field missing from a file (an older export, or one built by
+ * hand) renders as "—" rather than throwing, so a comparison never fails
+ * just because one side is missing optional metadata.
+ */
+function buildSettingsRows(datasets) {
+  const settings = datasets.map((d) => d.settings || {});
+
+  const fmt = (v, unit = "") => (v === null || v === undefined || v === "" ? "—" : `${v}${unit}`);
+
+  const rows = [
+    { label: "Test name", values: settings.map((s) => fmt(s.testName)) },
+    { label: "Radius", values: settings.map((s) => fmt(s.radiusM, " m")) },
+    {
+      label: "Ball position",
+      values: settings.map((s) =>
+        s.ballX !== undefined && s.ballY !== undefined && s.ballX !== null && s.ballY !== null
+          ? `(${s.ballX}, ${s.ballY})`
+          : "—",
+      ),
+    },
+    { label: "Repeats per angle", values: settings.map((s) => fmt(s.repeats)) },
+    { label: "Generated at", values: settings.map((s) => fmt(s.generatedAt)) },
+  ];
+
+  // Physics constants — known sliders first (in their defined order, with
+  // proper label/unit via SLIDERS), then anything else present in the JSON
+  // that isn't a recognised slider key, so an unrecognised field still shows
+  // rather than silently disappearing from the comparison.
+  const physicsKeys = new Set(settings.flatMap((s) => Object.keys(s.physics || {})));
+  for (const slider of SLIDERS) {
+    if (!physicsKeys.has(slider.key)) continue;
+    physicsKeys.delete(slider.key);
+    rows.push({
+      label: slider.label,
+      values: settings.map((s) => fmt(s.physics?.[slider.key], slider.unit)),
+    });
+  }
+  for (const key of physicsKeys) {
+    rows.push({ label: key, values: settings.map((s) => fmt(s.physics?.[key])) });
+  }
+
+  return rows;
+}
+
+/**
+ * Draws the settings-comparison table (one row per setting/physics
+ * constant, one column per dataset) onto a fresh portrait page appended to
+ * `doc`. Rows whose two values differ are tinted and flagged with "≠", so a
+ * skim of the page surfaces exactly what changed between the two runs.
+ */
+function drawSettingsTable(doc, datasets, rows) {
+  doc.addPage("a4", "portrait");
+  const PW = doc.internal.pageSize.getWidth();
+  const PH = doc.internal.pageSize.getHeight();
+  const margin = 48;
+
+  doc.setFillColor(...hexToRgb(PDF_BG));
+  doc.rect(0, 0, PW, PH, "F");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(...hexToRgb(PDF_INK));
+  doc.text("Settings Comparison", margin, 44);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...hexToRgb(PDF_MUTED_INK));
+  doc.text(`Generated: ${new Date().toLocaleString()}`, margin, 58);
+
+  const tableW = PW - margin * 2;
+  const labelColW = 190;
+  const valueColW = (tableW - labelColW) / datasets.length;
+  const headerH = 26;
+  const rowH = 22;
+  let y = 86;
+
+  const drawRowDivider = (top, height) => {
+    doc.setDrawColor(...hexToRgb(PDF_GRID));
+    doc.setLineWidth(0.5);
+    doc.line(margin + labelColW, top, margin + labelColW, top + height);
+    for (let i = 1; i < datasets.length; i++) {
+      const x = margin + labelColW + valueColW * i;
+      doc.line(x, top, x, top + height);
+    }
+  };
+
+  const drawHeader = () => {
+    doc.setFillColor(...hexToRgb(PDF_GRID));
+    doc.rect(margin, y, tableW, headerH, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(...hexToRgb(PDF_INK));
+    doc.text("Setting", margin + 8, y + headerH / 2, { baseline: "middle" });
+    datasets.forEach((ds, i) => {
+      doc.text(ds.label, margin + labelColW + valueColW * i + 8, y + headerH / 2, {
+        baseline: "middle",
+      });
+    });
+    drawRowDivider(y, headerH);
+    y += headerH;
+  };
+
+  drawHeader();
+
+  for (const row of rows) {
+    if (y + rowH > PH - margin) {
+      doc.addPage("a4", "portrait");
+      doc.setFillColor(...hexToRgb(PDF_BG));
+      doc.rect(0, 0, PW, PH, "F");
+      y = margin;
+      drawHeader();
+    }
+
+    const differs = new Set(row.values).size > 1;
+
+    if (differs) {
+      doc.setFillColor(...hexToRgb(PDF_DIFF_HIGHLIGHT));
+      doc.rect(margin, y, tableW, rowH, "F");
+    }
+
+    doc.setDrawColor(...hexToRgb(PDF_GRID));
+    doc.setLineWidth(0.5);
+    doc.rect(margin, y, tableW, rowH);
+    drawRowDivider(y, rowH);
+
+    doc.setFont("helvetica", differs ? "bold" : "normal");
+    doc.setFontSize(9.5);
+    doc.setTextColor(...hexToRgb(differs ? PDF_DIFF_INK : PDF_INK));
+    doc.text(row.label, margin + 8, y + rowH / 2, { baseline: "middle" });
+    row.values.forEach((v, i) => {
+      doc.text(String(v), margin + labelColW + valueColW * i + 8, y + rowH / 2, {
+        baseline: "middle",
+      });
+    });
+
+    y += rowH;
+  }
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(...hexToRgb(PDF_DIFF_INK));
+  doc.text("Highlighted rows differ between result sets.", margin, y + 18);
+}
+
+/**
+ * Draws the angle/time comparison chart onto the current (first) page of
+ * `doc`. Split out from buildCompareChartPdf() so the chart page and the
+ * settings-table page (drawSettingsTable(), above) are two independent
+ * drawing passes on the same document.
+ */
+function drawComparisonChartPage(doc, datasets) {
+  const PW = doc.internal.pageSize.getWidth();   // 841.89 pt
+  const PH = doc.internal.pageSize.getHeight();  // 595.28 pt
+
+  // ── Background ──────────────────────────────────────────────────────────
+  doc.setFillColor(...hexToRgb(PDF_BG));
+  doc.rect(0, 0, PW, PH, "F");
+
+  // ── Title block ──────────────────────────────────────────────────────────
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(16);
+  doc.setTextColor(...hexToRgb(PDF_INK));
+  doc.text("Approach & Kick Time — Results Comparison", 48, 44);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(...hexToRgb(PDF_MUTED_INK));
+  doc.text(`Generated: ${new Date().toLocaleString()}`, 48, 58);
+
+  // ── Chart area ───────────────────────────────────────────────────────────
+  const cPad = { top: 90, right: 48, bottom: 72, left: 72 };
+  const cW = PW - cPad.left - cPad.right;   // usable chart width
+  const cH = PH - cPad.top - cPad.bottom;   // usable chart height
+
+  const allAngles = [
+    ...new Set(datasets.flatMap((d) => d.results.map((r) => r.angleDeg))),
+  ].sort((a, b) => a - b);
+  const allY = datasets.flatMap((d) =>
+    d.results.map((r) => r.avgTimeSec).filter((v) => v !== null && v !== undefined),
+  );
+
+  if (allAngles.length < 2 || allY.length === 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(11);
+    doc.setTextColor(...hexToRgb(PDF_MUTED_INK));
+    doc.text("Not enough data to draw chart.", PW / 2, PH / 2, { align: "center" });
+    return;
+  }
+
+  const xMin = allAngles[0];
+  const xMax = allAngles[allAngles.length - 1];
+  const yRawMin = Math.min(...allY);
+  const yRawMax = Math.max(...allY);
+  const ySpan = yRawMax - yRawMin || yRawMax * 0.2 || 1;
+  const yMin = nice(Math.max(0, yRawMin - ySpan * 0.12), false);
+  const yMax = nice(yRawMax + ySpan * 0.18, true) || 1;
+
+  // Map data → PDF coordinates (pt)
+  const px = (angle) => cPad.left + ((angle - xMin) / (xMax - xMin)) * cW;
+  const py = (t) => cPad.top + cH - ((t - yMin) / (yMax - yMin)) * cH;
+
+  // Grid lines
+  const Y_TICKS = 5;
+  const yTicks = Array.from({ length: Y_TICKS }, (_, i) => yMin + ((yMax - yMin) * i) / (Y_TICKS - 1));
+  doc.setDrawColor(...hexToRgb(PDF_GRID));
+  doc.setLineWidth(0.5);
+  for (const t of yTicks) {
+    doc.setLineDashPattern([3, 3], 0);
+    doc.line(cPad.left, py(t), cPad.left + cW, py(t));
+  }
+  doc.setLineDashPattern([], 0);
+
+  // Y-axis tick labels
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...hexToRgb(PDF_MUTED_INK));
+  for (const t of yTicks) {
+    doc.text(t.toFixed(2), cPad.left - 5, py(t), { align: "right", baseline: "middle" });
+  }
+
+  // X-axis tick labels
+  const anglesPerTick = allAngles.length > 18 ? 30 : allAngles.length > 9 ? 45 : 1;
+  const xTicks = allAngles.filter(
+    (a, i) => i === 0 || i === allAngles.length - 1 || (a - xMin) % anglesPerTick === 0,
+  );
+  for (const a of xTicks) {
+    doc.text(`${a}°`, px(a), cPad.top + cH + 14, { align: "center" });
+  }
+
+  // Axis lines
+  doc.setDrawColor(...hexToRgb(PDF_INK));
+  doc.setLineWidth(1);
+  doc.line(cPad.left, cPad.top, cPad.left, cPad.top + cH); // Y-axis
+  doc.line(cPad.left, cPad.top + cH, cPad.left + cW, cPad.top + cH); // X-axis
+
+  // Axis titles
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...hexToRgb(PDF_MUTED_INK));
+  // X title
+  doc.text("Approach Angle (°)", cPad.left + cW / 2, cPad.top + cH + 30, { align: "center" });
+  // Y title (rotated)
+  doc.saveGraphicsState();
+  doc.text("Avg Time (s)", -(cPad.top + cH / 2), 16, { angle: 90, align: "center" });
+  doc.restoreGraphicsState();
+
+  // Data lines and dots
+  for (let di = 0; di < datasets.length; di++) {
+    const ds = datasets[di];
+    const rgb = hexToRgb(PDF_DATA_COLORS[di % PDF_DATA_COLORS.length]);
+    const pts = ds.results
+      .filter((r) => r.avgTimeSec !== null && r.avgTimeSec !== undefined)
+      .sort((a, b) => a.angleDeg - b.angleDeg);
+
+    if (pts.length < 2) continue;
+
+    // Line
+    doc.setDrawColor(...rgb);
+    doc.setLineWidth(1.8);
+    for (let i = 1; i < pts.length; i++) {
+      doc.line(
+        px(pts[i - 1].angleDeg), py(pts[i - 1].avgTimeSec),
+        px(pts[i].angleDeg),     py(pts[i].avgTimeSec),
+      );
+    }
+
+    // Dots
+    doc.setFillColor(...rgb);
+    doc.setDrawColor(...rgb);
+    doc.setLineWidth(0);
+    for (const r of pts) {
+      doc.circle(px(r.angleDeg), py(r.avgTimeSec), 2.2, "F");
+    }
+  }
+
+  // ── Legend ──────────────────────────────────────────────────────────────
+  let lx = cPad.left;
+  const ly = PH - 22;
+  for (let di = 0; di < datasets.length; di++) {
+    const rgb = hexToRgb(PDF_DATA_COLORS[di % PDF_DATA_COLORS.length]);
+    doc.setFillColor(...rgb);
+    doc.rect(lx, ly - 5, 18, 4, "F");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...hexToRgb(PDF_INK));
+    doc.text(datasets[di].label, lx + 22, ly, { baseline: "middle" });
+    lx += 22 + doc.getTextWidth(datasets[di].label) + 28;
+  }
+}
+
+/**
+ * Build and return a jsPDF document comparing two Approach & Kick Time
+ * result sets: a chart page (drawComparisonChartPage(), a white/light page
+ * regardless of the app's own dark theme — same convention as
+ * src/lib/pdf/approachKickReport.js) followed by a settings-comparison
+ * table page (drawSettingsTable()) covering radius/ball position/repeats
+ * and the physics constants each run recorded. Drawn with jsPDF primitives
+ * so the output is vector-clean and independent of CSS variables.
+ */
+function buildCompareChartPdf(datasets) {
+  const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+  drawComparisonChartPage(doc, datasets);
+
+  const rows = buildSettingsRows(datasets);
+  if (rows.length > 0) {
+    drawSettingsTable(doc, datasets, rows);
+  }
+
+  return doc;
 }
 
 function CompareLineChart({ datasets }) {
@@ -438,6 +778,15 @@ export default function CompareResultsFlow({ isOpen, onClose }) {
         parsed.map((data, i) => ({
           label: names[i].trim(),
           results: data.results,
+          settings: {
+            testName: data.testName ?? null,
+            radiusM: data.radius ?? null,
+            ballX: data.ballPosition?.x ?? null,
+            ballY: data.ballPosition?.y ?? null,
+            repeats: data.repeats ?? null,
+            generatedAt: data.meta?.generatedAt ?? null,
+            physics: data.meta?.physics ?? {},
+          },
         })),
       );
       setStage("chart");
@@ -452,6 +801,12 @@ export default function CompareResultsFlow({ isOpen, onClose }) {
     setStage("upload");
     setDatasets(null);
     setGlobalError(null);
+  };
+
+  const handleDownloadPdf = () => {
+    if (!datasets) return;
+    const doc = buildCompareChartPdf(datasets);
+    doc.save(`approach-kick-compare-${Date.now()}.pdf`);
   };
 
   return (
@@ -527,16 +882,28 @@ export default function CompareResultsFlow({ isOpen, onClose }) {
 
           <CompareLineChart datasets={datasets} />
 
-          <GlassButton
-            variant="glass"
-            reach={BTN_REACH_PX}
-            pull={BTN_PULL_PX}
-            strength={BTN_PULL_STRENGTH}
-            className="cr-back-btn"
-            onClick={handleBack}
-          >
-            ← Upload different files
-          </GlassButton>
+          <div className="cr-chart-footer">
+            <GlassButton
+              variant="accent"
+              reach={BTN_REACH_PX}
+              pull={BTN_PULL_PX}
+              strength={BTN_PULL_STRENGTH}
+              onClick={handleDownloadPdf}
+            >
+              <FileDown className="cr-btn-icon" aria-hidden="true" />
+              Download PDF
+            </GlassButton>
+            <GlassButton
+              variant="glass"
+              reach={BTN_REACH_PX}
+              pull={BTN_PULL_PX}
+              strength={BTN_PULL_STRENGTH}
+              className="cr-back-btn"
+              onClick={handleBack}
+            >
+              ← Upload different files
+            </GlassButton>
+          </div>
         </div>
       ) : null}
     </GlassModal>

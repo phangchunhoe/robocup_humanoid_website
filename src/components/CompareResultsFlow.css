@@ -312,6 +312,23 @@
   text-align: center;
 }
 
+/* ── Chart footer (download + back) ── */
+.cr-chart-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* Leading icon on the Download PDF button — same 16px inline-icon step as
+   the run step's stage-button checkmark (RobotSimulator.css
+   .rs-stage-btn-icon), stroke-only and currentColor so it inherits the
+   button's own ink. */
+.cr-btn-icon {
+  width: var(--space-4);
+  height: var(--space-4);
+  flex: none;
+}
+
 /* ── Back button ── */
 .cr-back-btn {
   align-self: flex-start;

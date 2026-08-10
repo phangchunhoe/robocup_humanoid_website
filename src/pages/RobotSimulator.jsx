@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useSpring } from "framer-motion";
 import { CircleCheck, RefreshCw, Eye, X } from "lucide-react";
-import Header from "../components/Header.jsx";
 import StatusIndicator from "../components/StatusIndicator.jsx";
 import InfoHint from "../components/InfoHint.jsx";
 import RoleToggle from "../components/RoleToggle.jsx";
@@ -783,10 +782,9 @@ export default function RobotSimulator() {
 
   return (
     <>
-      {/* The site nav and this page's own headline belong to the landing/edit
-          step only — the run step is a full-viewport, edge-to-edge view with
-          no chrome above it, so neither renders once a simulation starts. */}
-      {step === "edit" ? <Header /> : null}
+      {/* This page carries no site nav — the landing/edit step's own headline
+          is its only chrome above the setup card, and the run step is a
+          full-viewport, edge-to-edge view with no chrome above it either. */}
       <div className="robot-simulator-page">
         {/* Atmospheric hero element — decorative, so it is hidden from
             assistive tech, and it belongs to the landing step only. It sits
