@@ -60,6 +60,17 @@ function nice(v, up) {
   return up ? Math.ceil(v / mag) * mag : Math.floor(v / mag) * mag;
 }
 
+// The sweep records angleDeg as 0..350 (see approachKickTest.js's generateTestPlan).
+// Both charts display that as a signed bearing instead -- 0 straight ahead, positive
+// left, negative right, wrapping at +/-180 rather than at 360 -- so recentre it here
+// once and have every chart (on-screen and PDF) read off the same conversion.
+function toSignedAngle(angleDeg) {
+  const wrapped = ((angleDeg % 360) + 360) % 360;
+  return wrapped > 180 ? wrapped - 360 : wrapped;
+}
+const CHART_X_MIN = -180;
+const CHART_X_MAX = 180;
+
 // Hex colour string → [r, g, b] 0-255 for jsPDF setDrawColor / setFillColor.
 function hexToRgb(hex) {
   const n = parseInt(hex.replace("#", ""), 16);
@@ -263,7 +274,9 @@ function drawComparisonChartPage(doc, datasets) {
 
   const allAngles = [
     ...new Set(datasets.flatMap((d) => d.results.map((r) => r.angleDeg))),
-  ].sort((a, b) => a - b);
+  ]
+    .map((raw) => ({ raw, signed: toSignedAngle(raw) }))
+    .sort((a, b) => a.signed - b.signed);
   const allY = datasets.flatMap((d) =>
     d.results.map((r) => r.avgTimeSec).filter((v) => v !== null && v !== undefined),
   );
@@ -276,15 +289,16 @@ function drawComparisonChartPage(doc, datasets) {
     return;
   }
 
-  const xMin = allAngles[0];
-  const xMax = allAngles[allAngles.length - 1];
+  const xMin = CHART_X_MIN;
+  const xMax = CHART_X_MAX;
   const yRawMin = Math.min(...allY);
   const yRawMax = Math.max(...allY);
   const ySpan = yRawMax - yRawMin || yRawMax * 0.2 || 1;
   const yMin = nice(Math.max(0, yRawMin - ySpan * 0.12), false);
   const yMax = nice(yRawMax + ySpan * 0.18, true) || 1;
 
-  // Map data → PDF coordinates (pt)
+  // Map data → PDF coordinates (pt). `angle` here is always the signed -180..180
+  // bearing (toSignedAngle's output), matching the on-screen chart's domain.
   const px = (angle) => cPad.left + ((angle - xMin) / (xMax - xMin)) * cW;
   const py = (t) => cPad.top + cH - ((t - yMin) / (yMax - yMin)) * cH;
 
@@ -307,11 +321,11 @@ function drawComparisonChartPage(doc, datasets) {
     doc.text(t.toFixed(2), cPad.left - 5, py(t), { align: "right", baseline: "middle" });
   }
 
-  // X-axis tick labels
-  const anglesPerTick = allAngles.length > 18 ? 30 : allAngles.length > 9 ? 45 : 1;
-  const xTicks = allAngles.filter(
-    (a, i) => i === 0 || i === allAngles.length - 1 || (a - xMin) % anglesPerTick === 0,
-  );
+  // X-axis tick labels: fixed nice-round ticks across the whole -180..180 domain,
+  // matching the on-screen chart's xTicks rather than filtering actual data angles.
+  const xTickStep = allAngles.length > 18 ? 30 : allAngles.length > 9 ? 45 : 60;
+  const xTicks = [];
+  for (let a = xMin; a <= xMax; a += xTickStep) xTicks.push(a);
   for (const a of xTicks) {
     doc.text(`${a}°`, px(a), cPad.top + cH + 14, { align: "center" });
   }
@@ -339,7 +353,8 @@ function drawComparisonChartPage(doc, datasets) {
     const rgb = hexToRgb(PDF_DATA_COLORS[di % PDF_DATA_COLORS.length]);
     const pts = ds.results
       .filter((r) => r.avgTimeSec !== null && r.avgTimeSec !== undefined)
-      .sort((a, b) => a.angleDeg - b.angleDeg);
+      .map((r) => ({ ...r, signed: toSignedAngle(r.angleDeg) }))
+      .sort((a, b) => a.signed - b.signed);
 
     if (pts.length < 2) continue;
 
@@ -348,8 +363,8 @@ function drawComparisonChartPage(doc, datasets) {
     doc.setLineWidth(1.8);
     for (let i = 1; i < pts.length; i++) {
       doc.line(
-        px(pts[i - 1].angleDeg), py(pts[i - 1].avgTimeSec),
-        px(pts[i].angleDeg),     py(pts[i].avgTimeSec),
+        px(pts[i - 1].signed), py(pts[i - 1].avgTimeSec),
+        px(pts[i].signed),     py(pts[i].avgTimeSec),
       );
     }
 
@@ -358,7 +373,7 @@ function drawComparisonChartPage(doc, datasets) {
     doc.setDrawColor(...rgb);
     doc.setLineWidth(0);
     for (const r of pts) {
-      doc.circle(px(r.angleDeg), py(r.avgTimeSec), 2.2, "F");
+      doc.circle(px(r.signed), py(r.avgTimeSec), 2.2, "F");
     }
   }
 
@@ -401,7 +416,9 @@ function buildCompareChartPdf(datasets) {
 function CompareLineChart({ datasets }) {
   const allAngles = [
     ...new Set(datasets.flatMap((d) => d.results.map((r) => r.angleDeg))),
-  ].sort((a, b) => a - b);
+  ]
+    .map((raw) => ({ raw, signed: toSignedAngle(raw) }))
+    .sort((a, b) => a.signed - b.signed);
   const allY = datasets.flatMap((d) =>
     d.results.map((r) => r.avgTimeSec).filter((v) => v !== null && v !== undefined),
   );
@@ -410,8 +427,8 @@ function CompareLineChart({ datasets }) {
     return <p className="cr-chart-empty">Not enough data points to draw a graph.</p>;
   }
 
-  const xMin = allAngles[0];
-  const xMax = allAngles[allAngles.length - 1];
+  const xMin = CHART_X_MIN;
+  const xMax = CHART_X_MAX;
   const yRawMin = Math.min(...allY);
   const yRawMax = Math.max(...allY);
   const ySpan = yRawMax - yRawMin || yRawMax * 0.2 || 1;
@@ -427,16 +444,18 @@ function CompareLineChart({ datasets }) {
     (_, i) => yMin + ((yMax - yMin) * i) / (Y_TICKS - 1),
   );
 
-  const anglesPerTick = allAngles.length > 18 ? 30 : allAngles.length > 9 ? 45 : 1;
-  const xTicks = allAngles.filter(
-    (a, i) => i === 0 || i === allAngles.length - 1 || (a - xMin) % anglesPerTick === 0,
-  );
+  // Fixed nice-round ticks across the whole -180..180 domain, rather than filtering
+  // actual data angles -- the domain no longer tracks the data's own min/max.
+  const xTickStep = allAngles.length > 18 ? 30 : allAngles.length > 9 ? 45 : 60;
+  const xTicks = [];
+  for (let a = xMin; a <= xMax; a += xTickStep) xTicks.push(a);
 
   const polylines = datasets.map((ds, di) => {
     const pts = ds.results
       .filter((r) => r.avgTimeSec !== null && r.avgTimeSec !== undefined)
-      .sort((a, b) => a.angleDeg - b.angleDeg)
-      .map((r) => `${cx(r.angleDeg).toFixed(2)},${cy(r.avgTimeSec).toFixed(2)}`)
+      .map((r) => ({ ...r, signed: toSignedAngle(r.angleDeg) }))
+      .sort((a, b) => a.signed - b.signed)
+      .map((r) => `${cx(r.signed).toFixed(2)},${cy(r.avgTimeSec).toFixed(2)}`)
       .join(" ");
     return { pts, color: COLORS[di] };
   });
@@ -451,7 +470,7 @@ function CompareLineChart({ datasets }) {
     let best = null;
     let bestDist = Infinity;
     for (const angle of allAngles) {
-      const d = Math.abs(cx(angle) - mouseX);
+      const d = Math.abs(cx(angle.signed) - mouseX);
       if (d < bestDist) {
         bestDist = d;
         best = angle;
@@ -462,10 +481,10 @@ function CompareLineChart({ datasets }) {
       return;
     }
     const values = datasets.map((ds) => {
-      const r = ds.results.find((x) => x.angleDeg === best);
+      const r = ds.results.find((x) => x.angleDeg === best.raw);
       return { label: ds.label, value: r?.avgTimeSec ?? null };
     });
-    setTooltip({ angle: best, values, x: cx(best) });
+    setTooltip({ angle: best.signed, values, x: cx(best.signed) });
   };
 
   return (
@@ -565,7 +584,7 @@ function CompareLineChart({ datasets }) {
             .map((r, ri) => (
               <circle
                 key={`${di}-${ri}`}
-                cx={cx(r.angleDeg)}
+                cx={cx(toSignedAngle(r.angleDeg))}
                 cy={cy(r.avgTimeSec)}
                 r={3.5}
                 fill={COLORS[di]}
