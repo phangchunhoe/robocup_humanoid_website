@@ -24,6 +24,20 @@
   color: #6fb8de;
 }
 
+.site-header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.site-header-artifacts-btn.glass-btn {
+  min-height: 28px;
+  height: 28px;
+  width: 28px;
+  padding: 0;
+  border-radius: var(--radius-pill);
+}
+
 .site-header-improve-btn {
   font-family: inherit;
   font-size: 12.5px;

@@ -14,15 +14,29 @@
   margin-top: var(--space-2);
 }
 
-/* Run-simulation CTA: GlassButton's own accent fill (already the app's one
-   green) with a squarish shape instead of a pill, per this control's own
-   divergence — same "shape/position diverges, material/motion doesn't"
-   pattern .rs-back follows relative to the base component. */
+/* Run-simulation CTA: a smaller, squarish, translucent glass button — the
+   glass variant's own droplet material, with its fill overridden to
+   --glass-chrome/--glass-chrome-hover (the same accent-tinted translucent
+   tokens the segmented control's active segment already uses) so it reads
+   as green without ever going opaque; ink stays --color-label (white)
+   rather than the fill's own accent ink for contrast against the tint.
+   Shape and fill diverge from the base component here; material and motion
+   don't — same pattern .rs-back follows relative to GlassButton. */
 .home-run-btn.glass-btn {
-  border-radius: var(--radius-panel);
-  padding: var(--space-5) var(--space-8);
-  font-size: var(--text-body);
+  min-height: 36px;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-control);
+  font-size: var(--text-callout);
   font-weight: 600;
+  background: var(--glass-chrome);
+  color: var(--color-label);
+  border-color: var(--border-accent-subtle);
+}
+
+.home-run-btn.glass-btn:hover {
+  background: var(--glass-chrome-hover);
+  border-color: var(--border-accent-strong);
+  color: var(--color-label);
 }
 
 .home-resources {
