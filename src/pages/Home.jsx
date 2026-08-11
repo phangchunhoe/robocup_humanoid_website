@@ -1,9 +1,13 @@
-import { useEffect } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { PanelRight, Play } from "lucide-react";
 import Header from "../components/Header.jsx";
+import GlassButton, { GlassButtonFilter } from "../components/GlassButton.jsx";
+import ArtifactsDrawer, { ArtifactsDrawerFilter } from "../components/ArtifactsDrawer.jsx";
 import "../components/CardList.css";
+import "./Home.css";
 
-const sections = [
+const artifacts = [
   {
     to: "/striker-strategy",
     title: "Striker Strategy",
@@ -32,29 +36,49 @@ const sections = [
 ];
 
 export default function Home() {
+  const navigate = useNavigate();
+  const [drawerOpen, setDrawerOpen] = useState(false);
+
   useEffect(() => {
-    document.title = "Strategy Artifacts";
+    document.title = "Home";
   }, []);
 
   return (
     <div className="card-page">
+      <GlassButtonFilter />
+      <ArtifactsDrawerFilter />
       <Header />
       <div className="card-shell">
         <div className="card-shell-inner">
           <span className="card-eyebrow">brain_tree.cpp</span>
-          <h1>Strategy Artifacts</h1>
-          <ul className="card-grid">
-            {sections.map((s) => (
-              <li key={s.to}>
-                <Link className="card" to={s.to}>
-                  <span className="card-title">{s.title}</span>
-                  <span className="card-desc">{s.desc}</span>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <h1>Home</h1>
+          <p className="home-lede">Quick links and resources live here.</p>
+          <div className="home-actions">
+            <GlassButton
+              onClick={() => setDrawerOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={drawerOpen}
+            >
+              <PanelRight aria-hidden="true" size={16} />
+              View Artifacts
+            </GlassButton>
+            <GlassButton
+              variant="accent"
+              className="home-run-btn"
+              onClick={() => navigate("/robot-simulator")}
+            >
+              <Play aria-hidden="true" size={16} />
+              Run Robot Simulation
+            </GlassButton>
+          </div>
+          <p className="home-resources">More quick links and resources coming soon.</p>
         </div>
       </div>
+      <ArtifactsDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        items={artifacts}
+      />
     </div>
   );
 }
