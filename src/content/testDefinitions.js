@@ -14,8 +14,9 @@ const testDefinitions = [
     // <ApproachKickTimeExplainer> for this id instead of this plain string,
     // see TestCard.jsx.
     description:
-      "Measures how fast the striker approaches and kicks the ball, swept " +
-      "across 36 starting angles around it.",
+      "Simulates all 36 strikers moving from their testing spot to their " +
+      "kick position. The distance between striker and ball, x, is an " +
+      "unknown the user determines before the test runs.",
   },
   {
     id: "time-to-find-ball",

@@ -21,6 +21,22 @@
   overflow: visible;
 }
 
+/* Goal, at the top of the diagram -- a plain line-art frame, the same
+   "object" language as the ball (solid stroke) rather than the ring's
+   dashed "guide" language. */
+.akt-explain-goal {
+  fill: none;
+  stroke: var(--color-secondary-label);
+  stroke-width: 1.5;
+}
+
+/* Faint net lines inside the frame -- just enough texture to read as a net
+   rather than an empty box. */
+.akt-explain-goal-net {
+  stroke: var(--color-tertiary-label);
+  stroke-width: 1;
+}
+
 .akt-explain-ring {
   fill: none;
   stroke: var(--color-separator);
@@ -38,50 +54,55 @@
   stroke-width: 1.5;
 }
 
-.akt-explain-face-line {
+/* The one shared kicking point, immediately behind the ball -- same dashed
+   "guide" language as the outer ring, one size down. */
+.akt-explain-kick-spot {
+  fill: none;
   stroke: var(--color-tertiary-label);
   stroke-width: 1;
-  stroke-dasharray: 2 3;
+  stroke-dasharray: 1 2;
 }
 
-/* The kick vector — the one accent-tinted element in the diagram, diluted
-   back toward the neutral ramp exactly like the landing hero's own shot
-   trajectory (CLAUDE.md -> Components -> Hero artwork): this is quoting the
-   same kind of predicted-path vector, not decorating the diagram. */
-.akt-explain-kick-line {
-  stroke: color-mix(in srgb, var(--color-accent) 55%, var(--color-tertiary-label));
-  stroke-width: 1.5;
+/* Short connector from the ball down to the kicking point, so the marker
+   above doesn't float ambiguously. */
+.akt-explain-kick-tick {
+  stroke: var(--color-tertiary-label);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
 }
 
-.akt-explain-arrowhead-fill {
-  fill: color-mix(in srgb, var(--color-accent) 55%, var(--color-tertiary-label));
-}
-
-.akt-explain-robot {
-  fill: var(--color-accent);
-}
-
-/* The robot's position, facing line and kick vector move together as one
-   rigid body about the ball — sweeping the ring is what the real test does
-   between runs, and rotating one group keeps "always facing the ball"
-   correct at every angle for free rather than recomputed per frame. */
-.akt-explain-robot-group {
-  transform-box: view-box;
-  transform-origin: 84px 84px;
-  animation: akt-explain-orbit var(--akt-explain-orbit-duration, 9s) linear infinite;
-}
-
-/* A continuous ambient loop, not a UI state transition — deliberately
-   outside the --duration-* scale (CLAUDE.md's tokens are tuned for
-   discrete hover/press/entrance transitions, not a looping illustration),
-   the same kind of narrow, explicitly-named exception as --turf or
+/* Each of the 36 (sampled to 12) strikers -- slides from its own ring
+   position (radius x) in to the one shared kicking point and back out
+   again, via the --akt-approach-dx/dy custom properties set per-dot in
+   ApproachKickTimeExplainer.jsx (a different vector per dot, since they all
+   travel to the same fixed point from different places on the ring, not
+   radially toward their own ring centre). Every dot runs the identical,
+   unstaggered keyframes below, so all of them converge and diverge together
+   rather than one robot bouncing back and forth on a single line -- the
+   diagram is illustrating the batch of 36 the real test places, all kicking
+   toward the same goal, not one robot swept angle by angle. Same named,
+   scoped exception as the reduced-motion note below: a continuous ambient
+   illustration loop, deliberately outside the --duration-* scale (CLAUDE.md's
+   tokens are tuned for discrete hover/press/entrance transitions, not a
+   looping illustration), the same kind of narrow exception as --turf or
    --decision-kick. Scoped to this one diagram. */
-@keyframes akt-explain-orbit {
-  from {
-    transform: rotate(0deg);
+.akt-explain-dot-approach {
+  transform-box: view-box;
+  animation: akt-explain-approach var(--akt-explain-approach-duration, 3s) ease-in-out infinite;
+}
+
+@keyframes akt-explain-approach {
+  0%,
+  10% {
+    transform: translate(0, 0);
   }
-  to {
-    transform: rotate(360deg);
+  45%,
+  55% {
+    transform: translate(var(--akt-approach-dx), var(--akt-approach-dy));
+  }
+  90%,
+  100% {
+    transform: translate(0, 0);
   }
 }
 
@@ -138,7 +159,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .akt-explain-robot-group {
+  .akt-explain-dot-approach {
     animation: none;
   }
 }

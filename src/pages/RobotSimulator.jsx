@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence, useReducedMotion, useMotionValue, useSpring } from "framer-motion";
 import { CircleCheck, RefreshCw, Eye, X } from "lucide-react";
 import StatusIndicator from "../components/StatusIndicator.jsx";
@@ -88,6 +89,7 @@ function loadStored() {
 }
 
 export default function RobotSimulator() {
+  const navigate = useNavigate();
   const stored = useMemo(loadStored, []);
 
   const [step, setStep] = useState("edit");
@@ -784,7 +786,8 @@ export default function RobotSimulator() {
     <>
       {/* This page carries no site nav — the landing/edit step's own headline
           is its only chrome above the setup card, and the run step is a
-          full-viewport, edge-to-edge view with no chrome above it either. */}
+          full-viewport, edge-to-edge view with no chrome above it either. The
+          only in-page route back to the home page is .rs-home-back, below. */}
       <div className="robot-simulator-page">
         {/* Atmospheric hero element — decorative, so it is hidden from
             assistive tech, and it belongs to the landing step only. It sits
@@ -797,6 +800,38 @@ export default function RobotSimulator() {
           <div className="rs-hero-clip" aria-hidden="true">
             <HeroField kick={heroKick} />
           </div>
+        ) : null}
+
+        {/* Back to the home page — the landing step's own equivalent of the
+            run step's .rs-back, same GlassButton material/motion (droplet
+            fill, shared turbulence filter, magnetic pull, click bounce; see
+            CLAUDE.md -> Components -> Glass button) and the same tuned
+            BACK_BUTTON_* reach/pull/scale for this 44px-circle shape class.
+            A sibling of .rs-hero-clip, not nested inside .rs-shell/
+            .rs-init-col, for the same position: fixed reliability reason
+            documented on .rs-hero-clip above -- fixed so it stays reachable
+            at any scroll position on this ordinary scrolling page, rather
+            than .rs-back's position: absolute, which anchors it to the run
+            step's own fixed, non-scrolling field panel instead. Renders its
+            own GlassButtonFilter since the run step's copy (inside SimStep)
+            isn't mounted while this step is. */}
+        {step === "edit" ? (
+          <>
+            <GlassButtonFilter />
+            <GlassButton
+              variant="glass"
+              className="rs-home-back"
+              onClick={() => navigate("/")}
+              aria-label="Back to home"
+              reach={BACK_BUTTON_REACH_PX}
+              pull={BACK_BUTTON_PULL_PX}
+              strength={BACK_BUTTON_PULL_STRENGTH}
+              hoverScale={BACK_BUTTON_HOVER_SCALE}
+              tapScale={BACK_BUTTON_TAP_SCALE}
+            >
+              <BackIcon />
+            </GlassButton>
+          </>
         ) : null}
 
         <div className="rs-shell">

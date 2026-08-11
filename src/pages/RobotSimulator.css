@@ -195,6 +195,45 @@ body:has(.rs-run-layout)::-webkit-scrollbar-thumb:hover {
   z-index: 0;
 }
 
+/* The landing/edit step's own way back to the home page — same corner-icon
+   GlassButton treatment as the run step's .rs-back (see CLAUDE.md ->
+   Components -> Glass button / Corner icon button): the base class already
+   supplies the material (droplet fill, turbulence wobble, rim shadow), the
+   hover/focus states and the magnetic-pull/click-bounce motion, so this rule
+   is only the position/shape override, identical to .rs-back's own except
+   for one thing -- FIXED to the viewport rather than ABSOLUTE within the
+   field panel. .rs-back can be absolute because the run step's field panel
+   is itself a fixed, non-scrolling surface it's positioned against; this
+   step is an ordinary scrolling page, so the button needs to stay reachable
+   at any scroll position the same way .rs-hero-clip does above. z-index
+   comfortably above .rs-hero-clip's 0 and .rs-init-col's 1-2. */
+.robot-simulator-page .rs-home-back {
+  position: fixed;
+  top: var(--space-6);
+  left: var(--space-6);
+  z-index: 5;
+  width: var(--tap-target-min);
+  height: var(--tap-target-min);
+  padding: 0;
+  border-radius: 50%;
+  /* Same resting-fill override as .rs-back — see the EXPERIMENT comment on
+     that rule for why 20% rather than the base glass-btn--glass fill. */
+  background: color-mix(in srgb, var(--color-elevated-background) 20%, transparent);
+}
+
+/* Same specificity fix as .rs-back:hover, and for the same reason: this
+   selector and .glass-btn--glass:hover carry equal specificity (two classes
+   apiece), so without restating it here the plain resting-fill rule above
+   would win by bundle order and silently cancel the hover fill. */
+.robot-simulator-page .rs-home-back:hover {
+  background: var(--glass-chrome-hover);
+}
+
+.robot-simulator-page .rs-home-back svg {
+  width: var(--space-4);
+  height: var(--space-4);
+}
+
 .robot-simulator-page .rs-hero {
   padding: var(--space-12) 0;
 }
