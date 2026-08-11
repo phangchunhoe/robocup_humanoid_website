@@ -3,27 +3,9 @@ import { useNavigate } from "react-router-dom";
 import { Play, ExternalLink } from "lucide-react";
 import Header from "../components/Header.jsx";
 import GlassButton from "../components/GlassButton.jsx";
+import { resources } from "../content/homeLinks.js";
 import "../components/CardList.css";
 import "./Home.css";
-
-const resources = [
-  {
-    href: "https://docs.google.com/document/d/13cbOsrrpbda6AEIXvTP2FbEsTQtcizNVtjevQsKpgEk/edit?tab=t.0",
-    title: "2026 Technical Description Paper",
-  },
-  {
-    href: "https://github.com/RoboCup-HumanoidSoccerLeague/HSL-Rules/blob/main/Rules.pdf",
-    title: "RoboCup HSL Rules",
-  },
-  {
-    href: "https://github.com/r3dspar0w/Robocup-Humanoid-",
-    title: "Our GitHub Repository",
-  },
-  {
-    href: "https://booster.feishu.cn/wiki/XY6Kwrq1bizif4kq7X9c14twnle",
-    title: "Development Guide",
-  },
-];
 
 export default function Home() {
   const navigate = useNavigate();
