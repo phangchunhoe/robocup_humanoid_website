@@ -1,14 +1,31 @@
 import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { X } from "lucide-react";
 import GlassModal from "./GlassModal.jsx";
 import GlassButton from "./GlassButton.jsx";
+import GlassSwitch from "./GlassSwitch.jsx";
 import ProgressBar from "./ProgressBar.jsx";
 import Notice from "./Notice.jsx";
 import { runApproachKickTest } from "../lib/sim/approachKickTest.js";
 import { buildApproachKickPdf, buildResultsJson } from "../lib/pdf/approachKickReport.js";
+import { DEFAULT_PHYSICS } from "../lib/sim/physics.js";
+import SLIDERS from "../content/physicsSliders.js";
 import "./ApproachKickTestFlow.css";
 
 const TOTAL_RUNS = 108;
+// Same slider metadata (min/max/step/label/unit/note) the physics drawer and
+// the PDF report already read, so this form's own copy can't drift from
+// theirs -- see physicsSliders.js's own comment.
+const JITTER_SLIDER = SLIDERS.find((s) => s.key === "ballJitterIntensity");
+// Mirrors --ease-in-out from tokens.css (cubic-bezier(0.4, 0, 0.2, 1)) --
+// framer-motion transitions take a literal easing curve rather than a CSS
+// custom property, the same reason the two-stage button's own AnimatePresence
+// crossfade (RobotSimulator.jsx) hardcodes its transition instead of reading
+// one. Slightly longer than GlassSwitch's own 300ms thumb glide (GlassSwitch.css)
+// so the box's reveal reads as the tail of the same motion, not a second,
+// separately-timed animation.
+const JITTER_BOX_EASE = [0.4, 0, 0.2, 1];
+const JITTER_BOX_DURATION = 0.35;
 
 function formatTimestamp(date) {
   return date.toLocaleString(undefined, {
@@ -31,10 +48,18 @@ function formatTimestamp(date) {
  * decides its own closability; it doesn't touch navigation itself.
  */
 export default function ApproachKickTestFlow({ isOpen, onClose, sources, physics, onRunningChange }) {
+  const reduceMotion = useReducedMotion();
   const [stage, setStage] = useState("setup");
   const [radiusInput, setRadiusInput] = useState("2.0");
   const [ballXInput, setBallXInput] = useState("");
   const [ballYInput, setBallYInput] = useState("");
+  // Off by default -- SimHost's ground-truth ball tracking, so the sweep
+  // measures pure approach/kick timing with no vision noise unless asked
+  // for. Flipping this on switches the robot onto the same 120°-cone
+  // FOV/range/confidence/jitter model the run step's "Limit Ball Vision"
+  // pill switches on, at a user-set intensity (see approachKickTest.js).
+  const [jitterEnabled, setJitterEnabled] = useState(false);
+  const [jitterIntensity, setJitterIntensity] = useState(DEFAULT_PHYSICS.ballJitterIntensity);
   const [formError, setFormError] = useState(null);
   const [progress, setProgress] = useState({ completed: 0, total: TOTAL_RUNS });
   const [testResult, setTestResult] = useState(null); // { report } on failure
@@ -80,7 +105,11 @@ export default function ApproachKickTestFlow({ isOpen, onClose, sources, physics
     }
     setFormError(null);
 
-    const physicsSnapshot = { ...physics };
+    // The drawer's own ballJitterIntensity only takes effect once jitter is
+    // engaged (see approachKickTest.js's usePreciseBall switch) -- override
+    // it with this form's own value so a physics snapshot with jitter off
+    // reports 0 rather than silently carrying the drawer's separate setting.
+    const physicsSnapshot = { ...physics, ballJitterIntensity: jitterEnabled ? jitterIntensity : 0 };
     setProgress({ completed: 0, total: TOTAL_RUNS });
     setStage("running");
     onRunningChange(true);
@@ -91,6 +120,7 @@ export default function ApproachKickTestFlow({ isOpen, onClose, sources, physics
       radiusM,
       ballX,
       ballY,
+      jitterEnabled,
       onProgress: (completed, total) => setProgress({ completed, total }),
     });
 
@@ -203,6 +233,54 @@ export default function ApproachKickTestFlow({ isOpen, onClose, sources, physics
                 placeholder="0"
               />
             </label>
+          </div>
+
+          <div className="akt-jitter">
+            <div className="akt-jitter-toggle-row">
+              <span className="akt-field-label">Ball jitter</span>
+              <GlassSwitch checked={jitterEnabled} onChange={setJitterEnabled} aria-label="Ball jitter" />
+            </div>
+            <p className="akt-jitter-hint">
+              Adds perceived-ball position noise and limits the robot to its real 120° field
+              of vision, the same model the run step&apos;s &quot;Limit Ball Vision&quot; control
+              switches on.
+            </p>
+
+            <AnimatePresence initial={false}>
+              {jitterEnabled ? (
+                <motion.div
+                  key="jitter-slider"
+                  className="akt-jitter-slider-wrap"
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={
+                    reduceMotion
+                      ? { duration: 0 }
+                      : { duration: JITTER_BOX_DURATION, ease: JITTER_BOX_EASE }
+                  }
+                >
+                  <label className="akt-field akt-jitter-slider">
+                    <span className="akt-field-label">
+                      {JITTER_SLIDER.label}
+                      <em>
+                        {jitterIntensity.toFixed(2)}
+                        {JITTER_SLIDER.unit}
+                      </em>
+                    </span>
+                    <input
+                      type="range"
+                      min={JITTER_SLIDER.min}
+                      max={JITTER_SLIDER.max}
+                      step={JITTER_SLIDER.step}
+                      value={jitterIntensity}
+                      onChange={(evt) => setJitterIntensity(Number(evt.target.value))}
+                    />
+                    <span className="akt-jitter-note">{JITTER_SLIDER.note}</span>
+                  </label>
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
           </div>
 
           {formError ? <Notice tone="error" title={formError} /> : null}

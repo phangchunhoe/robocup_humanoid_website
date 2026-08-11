@@ -126,7 +126,15 @@ export function runOneCase(runtime, world, maxTicks = MAX_TICKS_PER_RUN) {
  * total)` fires after every individual run; the loop yields to the browser
  * between batches so the progress bar repaints and the nav guards stay live.
  */
-export async function runApproachKickTest({ sources, physicsSnapshot, radiusM, ballX = 0, ballY = 0, onProgress }) {
+export async function runApproachKickTest({
+  sources,
+  physicsSnapshot,
+  radiusM,
+  ballX = 0,
+  ballY = 0,
+  jitterEnabled = false,
+  onProgress,
+}) {
   const built = buildProgram({
     cppText: sources.cpp,
     xmlText: sources.xml.striker,
@@ -148,12 +156,13 @@ export async function runApproachKickTest({ sources, physicsSnapshot, radiusM, b
   for (const batch of plan) {
     for (const run of batch) {
       runtime.reset("striker");
-      // Exercises the FOV/range/confidence/jitter perception model that
-      // "Ball jitter intensity"/"Field of vision radius" (physics drawer
-      // sliders, physicsSnapshot) actually govern -- SimHost defaults to
-      // ground-truth ball tracking (usePreciseBall: true), which would make
-      // those two reported physics constants no-ops for this test.
-      runtime.host.usePreciseBall = false;
+      // The realistic FOV/range/confidence/jitter perception model (120°
+      // cone, "Ball jitter intensity") is engaged only when the setup form's
+      // "Ball jitter" toggle is on -- the same usePreciseBall switch the run
+      // step's own "Limit Ball Vision" pill flips. Off (the default) leaves
+      // SimHost's ground-truth ball tracking in place, so the sweep measures
+      // pure approach/kick timing with no vision noise.
+      runtime.host.usePreciseBall = !jitterEnabled;
 
       const world = createWorld(run.initial, { ...physicsSnapshot, seed: run.seed });
       const { elapsedSec, timedOut } = runOneCase(runtime, world);

@@ -1,0 +1,100 @@
+/* A binary liquid-glass toggle — track + sliding thumb. Tokens only, see
+   CLAUDE.md. Reuses GlassButton's own droplet/turbulence material
+   (#glass-button-noise) rather than a bespoke fill — SVG filters resolve by
+   document-wide id, so this works wherever <GlassButtonFilter /> has been
+   rendered once on the page, portaled modal content included (CLAUDE.md ->
+   Components -> Glass button). */
+
+.glass-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tap-target-min);
+  min-height: var(--tap-target-min);
+  padding: var(--space-2);
+  box-sizing: border-box;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  cursor: pointer;
+}
+
+.glass-switch:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The visible pill, smaller than the button's own 44px hit area — visual
+   size and hit size are allowed to differ (CLAUDE.md -> Layout). */
+.glass-switch-track {
+  position: relative;
+  display: block;
+  width: var(--space-12);
+  height: var(--space-6);
+  padding: var(--space-1);
+  box-sizing: border-box;
+  border: 1px solid var(--border-neutral-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--glass-neutral);
+  backdrop-filter: var(--blur-hud) url("#glass-button-noise");
+  -webkit-backdrop-filter: var(--blur-hud) url("#glass-button-noise");
+  box-shadow: var(--shadow-glass-rim);
+  /* --ease-in-out, not --ease-out — a switch flips both ways with equal
+     weight (no single "entrance" direction the way a hover response has),
+     and pairing it with the thumb's own --ease-in-out below is what makes
+     the color settle and the slide read as one glide instead of two
+     differently-timed transitions layered on the same control. */
+  transition: background-color var(--duration-base) var(--ease-in-out),
+    border-color var(--duration-base) var(--ease-in-out),
+    box-shadow var(--duration-base) var(--ease-in-out);
+}
+
+.glass-switch:hover .glass-switch-track {
+  box-shadow: var(--shadow-glass-rim), var(--glow-accent);
+}
+
+/* A plain solid disc in both states — only its position and the track's own
+   color signal the value, the same way a physical switch reads. The
+   transform is the one thing GlassButton's own hover/click motion never
+   needed to cover: a real position change, not a hover nudge, so it gets
+   its own transition here rather than borrowing that component's CSS.
+   --duration-base/--ease-in-out rather than the --duration-fast/--ease-out
+   pair a transform nudge normally gets (CLAUDE.md -> Motion): this slide IS
+   the whole affordance, not an accent riding alongside a state change, so it
+   earns the slower, softer glide instead of reading as a snap. */
+.glass-switch-thumb {
+  display: block;
+  width: calc(var(--space-6) - 2 * var(--space-1));
+  height: calc(var(--space-6) - 2 * var(--space-1));
+  border-radius: 50%;
+  background: var(--color-label);
+  transform: translateX(0);
+  transition: transform var(--duration-base) var(--ease-in-out);
+}
+
+/* ---------------------------------------------------------------------- on */
+/* Same glass-chrome accent reading the app's other active/selected states
+   use (CLAUDE.md -> Components -> Segmented control): neutral glass at
+   rest, accent-tinted glass once on. */
+
+.glass-switch.is-on .glass-switch-track {
+  background: var(--glass-chrome);
+  border-color: var(--border-accent-subtle);
+  box-shadow: var(--shadow-glass-rim), var(--glow-accent);
+}
+
+.glass-switch.is-on:hover .glass-switch-track {
+  background: var(--glass-chrome-hover);
+  border-color: var(--border-accent-strong);
+}
+
+.glass-switch.is-on .glass-switch-thumb {
+  transform: translateX(calc(var(--space-12) - var(--space-6)));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-switch-track,
+  .glass-switch-thumb {
+    transition: none;
+  }
+}
