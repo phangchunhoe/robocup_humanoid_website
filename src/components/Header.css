@@ -30,12 +30,31 @@
   gap: var(--space-2);
 }
 
-.site-header-artifacts-btn.glass-btn {
-  min-height: 28px;
+/* Deliberately plain, not glass — the one control on the header that skips
+   the liquid-glass material. Icon color alone signals interactivity, the
+   same "simple" reading .home-resource-icon uses for its own hover. */
+.site-header-artifacts-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   height: 28px;
   width: 28px;
   padding: 0;
+  border: none;
   border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-secondary-label);
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.site-header-artifacts-btn:hover {
+  color: var(--color-accent);
+}
+
+.site-header-artifacts-btn:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
 
 .site-header-improve-btn {

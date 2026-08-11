@@ -23,9 +23,7 @@ export default function Home() {
       <Header />
       <div className="card-shell">
         <div className="card-shell-inner">
-          <span className="card-eyebrow">brain_tree.cpp</span>
           <h1>Home</h1>
-          <p className="home-lede">Quick links and resources live here.</p>
           <div className="home-actions">
             <GlassButton
               variant="glass"

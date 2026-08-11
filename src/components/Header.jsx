@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { PanelRight } from "lucide-react";
 import ImprovementModal from "./ImprovementModal.jsx";
-import GlassButton, { GlassButtonFilter } from "./GlassButton.jsx";
+import { GlassButtonFilter } from "./GlassButton.jsx";
 import ArtifactsDrawer, { ArtifactsDrawerFilter } from "./ArtifactsDrawer.jsx";
 import "./Header.css";
 
@@ -54,7 +54,8 @@ export default function Header() {
           >
             Areas for Improvement
           </button>
-          <GlassButton
+          <button
+            type="button"
             className="site-header-artifacts-btn"
             onClick={() => setDrawerOpen(true)}
             aria-label="View artifacts"
@@ -62,7 +63,7 @@ export default function Header() {
             aria-expanded={drawerOpen}
           >
             <PanelRight aria-hidden="true" size={14} />
-          </GlassButton>
+          </button>
         </div>
       </header>
       <ImprovementModal open={showImprovements} onClose={() => setShowImprovements(false)} />
