@@ -1,3 +1,18 @@
+/* Home is still on CardList.css's legacy shell (.card-page — shared with
+   CategoryPage, so left alone) but every element this page adds of its own
+   goes through the app's real type system instead of that shell's inherited
+   system-font stack. .home-page carries the sans face for the whole
+   subtree; the few mono spots (the eyebrow, a resource's host) opt back in
+   explicitly. Same two faces the simulator uses — Space Grotesk / JetBrains
+   Mono — there is no third font anywhere in this app. */
+.home-page {
+  font-family: var(--font-sans);
+}
+
+.home-page .card-eyebrow {
+  font-family: var(--font-mono);
+}
+
 .home-lede {
   margin: 0;
   color: var(--color-secondary-label);
@@ -43,6 +58,79 @@
   margin-top: var(--space-10);
   padding-top: var(--space-8);
   border-top: 1px solid var(--color-separator);
-  color: var(--color-tertiary-label);
+}
+
+.home-resources-heading {
+  margin: 0 0 var(--space-5);
+  font-size: var(--text-title);
+  font-weight: var(--text-title-weight);
+  letter-spacing: var(--text-title-tracking);
+  color: var(--color-label);
+}
+
+/* List-tile rows, not a card grid — one full-width row per resource, each
+   carrying title + host stacked on the left and the external-link glyph
+   trailing on the right, matching the artifacts drawer's own list-item
+   pattern rather than the old CardList grid. */
+.home-resources-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.home-resource-tile {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-control);
+  border: 1px solid var(--color-separator);
+  background: var(--color-elevated-background);
+  text-decoration: none;
+  transition: background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out);
+}
+
+.home-resource-tile:hover,
+.home-resource-tile:focus-visible {
+  background: var(--color-elevated-background-hover);
+  border-color: var(--border-accent-subtle);
+}
+
+.home-resource-tile:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.home-resource-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.home-resource-title {
+  font-size: var(--text-body);
+  font-weight: 600;
+  color: var(--color-label);
+}
+
+.home-resource-url {
+  font-family: var(--font-mono);
   font-size: var(--text-caption);
+  color: var(--color-secondary-label);
+}
+
+.home-resource-icon {
+  flex: none;
+  color: var(--color-tertiary-label);
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.home-resource-tile:hover .home-resource-icon {
+  color: var(--color-accent);
 }
