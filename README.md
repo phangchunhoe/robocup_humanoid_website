@@ -17,6 +17,7 @@ this, but for a full picture in one place:
 | File | Controls | Used by |
 |---|---|---|
 | `homeLinks.js` | "Quick Links & Resources" list on the Home page (`/#/`). Each entry is `{ href, title }`. | `src/pages/Home.jsx` |
+| `handyCommands.js` | "Handy Commands" cheat sheet on the Home page — sections of copy-pastable terminal commands (game controller, robot SSH/start scripts, Wi-Fi, whitelisting an IP). A group can also carry a `snippet` — a collapsible file excerpt showing exactly which line to change. | `src/pages/Home.jsx` |
 | `strikerStrategyItems.js` | Cards on the Striker Strategy category page. | `src/App.jsx` |
 | `freekickStrategyItems.js` | Cards on the Freekick Strategy category page. | `src/App.jsx` |
 | `goalieStrategyItems.js` | Cards on the Goalie Strategy category page. | `src/App.jsx` |

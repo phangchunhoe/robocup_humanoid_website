@@ -134,3 +134,68 @@
 .home-resource-tile:hover .home-resource-icon {
   color: var(--color-accent);
 }
+
+/* ------------------------------------------------------- handy commands */
+
+.home-commands {
+  margin-top: var(--space-10);
+  padding-top: var(--space-8);
+  border-top: 1px solid var(--color-separator);
+}
+
+.home-command-sections {
+  margin-top: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+/* One panel per section — same elevated-surface + hairline reading as any
+   other card on the token system, never a depth shadow. */
+.home-command-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  border: 1px solid var(--color-separator);
+  border-radius: var(--radius-panel);
+  background: var(--color-elevated-background);
+}
+
+.home-command-card-title {
+  margin: 0;
+  font-size: var(--text-callout);
+  font-weight: 600;
+  color: var(--color-label);
+}
+
+.home-command-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Instrument marking, not a heading — the micro step, tracked wide and set
+   uppercase, per CLAUDE.md's panel/section-label rule. Sans, not mono: a
+   group label ("On the robot") is prose about the commands, not itself a
+   technical value. */
+.home-command-group-label {
+  font-size: var(--text-micro);
+  font-weight: var(--text-micro-weight);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+  color: var(--color-tertiary-label);
+}
+
+.home-command-group-note {
+  margin: 0;
+  font-size: var(--text-caption);
+  line-height: var(--line-height-base);
+  color: var(--color-secondary-label);
+}
+
+.home-command-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

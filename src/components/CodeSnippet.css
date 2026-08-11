@@ -1,0 +1,45 @@
+.code-snippet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* File path — a technical value, so mono, matching the path input group's
+   own value styling. */
+.code-snippet-file {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-tertiary-label);
+}
+
+/* Recessed into the panel, same reading as any field surface — this is a
+   value being displayed, not raised chrome. */
+.code-snippet-body {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-field-border);
+  border-radius: var(--radius-field);
+  background: var(--color-field-background);
+  overflow-x: auto;
+}
+
+.code-snippet-body code {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  line-height: var(--line-height-base);
+}
+
+.code-snippet-line {
+  white-space: pre;
+  color: var(--color-secondary-label);
+}
+
+/* The one line the instructions are actually about. Weight and lightness
+   only — never a saturated color — so it reads as emphasis, not as
+   something clickable. */
+.code-snippet-line.is-emphasis {
+  color: var(--color-label);
+  font-weight: 600;
+}

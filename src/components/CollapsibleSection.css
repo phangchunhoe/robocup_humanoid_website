@@ -1,0 +1,54 @@
+.collapsible-section {
+  border-top: 1px solid var(--color-separator);
+  padding-top: var(--space-2);
+}
+
+.collapsible-section > summary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  /* 44px target via the row height rather than a taller visual box. */
+  min-height: var(--tap-target-min);
+  font-family: var(--font-sans);
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--color-accent);
+  cursor: pointer;
+  list-style: none;
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.collapsible-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.collapsible-section > summary:hover {
+  color: var(--color-accent-hover);
+}
+
+.collapsible-section > summary:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
+
+.collapsible-chevron {
+  width: var(--space-3);
+  height: var(--space-3);
+  flex: none;
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.collapsible-section[open] .collapsible-chevron {
+  transform: rotate(180deg);
+}
+
+.collapsible-body {
+  padding-bottom: var(--space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsible-chevron {
+    transition: none;
+  }
+}
