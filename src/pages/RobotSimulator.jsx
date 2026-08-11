@@ -804,7 +804,7 @@ export default function RobotSimulator() {
             <header className="rs-hero">
               <h1 className="rs-headline">RoboErectus Simulator</h1>
               <p className="rs-subhead">
-                Created by Chun Hoe
+                <span style={{ display: "none" }}>Created by Chun Hoe</span>
                 <InfoHint text={INTRO} label="About this simulator" />
               </p>
             </header>
