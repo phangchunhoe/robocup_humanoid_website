@@ -32,6 +32,11 @@ const artifacts = [
     title: "Robot Simulator",
     desc: "Paste brain_tree.cpp and watch it run: one robot chasing, adjusting and kicking a real ball in real time, driven by the interpreted C++ itself.",
   },
+  {
+    to: "/simulation-math",
+    title: "Simulation Math",
+    desc: "Every formula behind the robot simulator's physics engine, vision model, and curve math — with what each symbol means and a visualization you can play with.",
+  },
 ];
 
 export default function Header() {

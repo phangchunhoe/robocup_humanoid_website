@@ -123,11 +123,41 @@ function clamp(v, lo, hi) {
   return Math.min(hi, Math.max(lo, v));
 }
 
+/** Bounded-acceleration rate limit: `current` moves at most `maxDelta` toward `target`. */
 function approach(current, target, maxDelta) {
   const d = target - current;
   if (d > maxDelta) return current + maxDelta;
   if (d < -maxDelta) return current - maxDelta;
   return target;
+}
+
+/** Rescales (vx, vy) down to maxSpeed if it exceeds it, preserving direction. */
+export function capToMaxSpeed(vx, vy, maxSpeed) {
+  const speed = Math.hypot(vx, vy);
+  if (speed > maxSpeed && speed > 1e-9) {
+    const k = maxSpeed / speed;
+    return { x: vx * k, y: vy * k };
+  }
+  return { x: vx, y: vy };
+}
+
+/** Robot-frame (vx, vy, vtheta) integrated one dt into field-frame (x, y, theta). */
+export function integrateRobotPose(x, y, theta, vx, vy, vtheta, dt) {
+  const c = Math.cos(theta);
+  const s = Math.sin(theta);
+  const nx = x + (vx * c - vy * s) * dt;
+  const ny = y + (vx * s + vy * c) * dt;
+  const nt = Math.atan2(Math.sin(theta + vtheta * dt), Math.cos(theta + vtheta * dt));
+  return { x: nx, y: ny, theta: nt };
+}
+
+/** Constant-deceleration ball roll for one dt: speed drops by decel*dt, direction preserved. */
+export function applyRollingResistance(vx, vy, decel, stopSpeed, dt) {
+  const speed = Math.hypot(vx, vy);
+  if (speed <= 0) return { x: vx, y: vy };
+  const newSpeed = Math.max(0, speed - decel * dt);
+  if (newSpeed < stopSpeed) return { x: 0, y: 0 };
+  return { x: (vx / speed) * newSpeed, y: (vy / speed) * newSpeed };
 }
 
 /**
@@ -163,40 +193,23 @@ export function stepWorld(world, dt) {
   const b = world.ball;
 
   // --- Robot: rate-limit the commanded velocity, then cap the linear resultant ---
-  let cvx = world.command.vx;
-  let cvy = world.command.vy;
+  const capped = capToMaxSpeed(world.command.vx, world.command.vy, p.maxWalkSpeed);
   const cvt = world.command.vtheta;
 
-  const speed = Math.hypot(cvx, cvy);
-  if (speed > p.maxWalkSpeed && speed > 1e-9) {
-    const k = p.maxWalkSpeed / speed;
-    cvx *= k;
-    cvy *= k;
-  }
-
-  r.vx = approach(r.vx, cvx, p.maxAccel * dt);
-  r.vy = approach(r.vy, cvy, p.maxAccel * dt);
+  r.vx = approach(r.vx, capped.x, p.maxAccel * dt);
+  r.vy = approach(r.vy, capped.y, p.maxAccel * dt);
   r.vtheta = approach(r.vtheta, cvt, p.maxAngAccel * dt);
 
   // Integrate in the field frame. (vx, vy) are robot-frame, so rotate them out.
-  const c = Math.cos(r.theta);
-  const s = Math.sin(r.theta);
-  r.x += (r.vx * c - r.vy * s) * dt;
-  r.y += (r.vx * s + r.vy * c) * dt;
-  r.theta = Math.atan2(Math.sin(r.theta + r.vtheta * dt), Math.cos(r.theta + r.vtheta * dt));
+  const pose = integrateRobotPose(r.x, r.y, r.theta, r.vx, r.vy, r.vtheta, dt);
+  r.x = pose.x;
+  r.y = pose.y;
+  r.theta = pose.theta;
 
   // --- Ball: constant-deceleration roll ---
-  const bs = Math.hypot(b.vx, b.vy);
-  if (bs > 0) {
-    const newSpeed = Math.max(0, bs - p.ballDecel * dt);
-    if (newSpeed < p.ballStopSpeed) {
-      b.vx = 0;
-      b.vy = 0;
-    } else {
-      b.vx = (b.vx / bs) * newSpeed;
-      b.vy = (b.vy / bs) * newSpeed;
-    }
-  }
+  const rolled = applyRollingResistance(b.vx, b.vy, p.ballDecel, p.ballStopSpeed, dt);
+  b.vx = rolled.x;
+  b.vy = rolled.y;
   b.x += b.vx * dt;
   b.y += b.vy * dt;
 
@@ -348,4 +361,4 @@ export function ballToRobot(world) {
   return { x, y, range: Math.hypot(dx, dy), yaw: Math.atan2(y, x) };
 }
 
-export { clamp };
+export { clamp, approach };

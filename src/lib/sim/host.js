@@ -1000,4 +1000,19 @@ export class SimHost {
   }
 }
 
-export { cap, norm, toPInPI, sigmoid, format, makeTime, makeDuration, timeValue, NO_OBSTACLE_DIST };
+export {
+  cap,
+  norm,
+  toPInPI,
+  sigmoid,
+  format,
+  makeTime,
+  makeDuration,
+  timeValue,
+  NO_OBSTACLE_DIST,
+  lineLength,
+  crossProduct,
+  innerProduct,
+  pointPerpDistToLine,
+  pointMinDistToLine,
+};

@@ -1,0 +1,22 @@
+/* KaTeX ships its own stylesheet (imported in Tex.jsx) tuned for light-on-white pages;
+   this retints it to the app's token palette rather than living with KaTeX's defaults. */
+
+.tex .katex {
+  color: var(--color-label);
+  font-size: 1em;
+}
+
+.tex-display {
+  display: block;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: var(--space-1);
+}
+
+.tex-display .katex-display {
+  margin: 0;
+}
+
+.tex-inline .katex {
+  font-size: 0.95em;
+}

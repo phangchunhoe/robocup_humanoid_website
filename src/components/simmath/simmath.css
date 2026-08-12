@@ -1,0 +1,312 @@
+/* Shared styling for every Simulation Math formula visualization: the glass panel
+   frame, chart primitives, mini-diagram markers, and control rows. One sheet so the
+   ~20 individual visualizations read as one system. Imported once by
+   SimulationMath.css. */
+
+.viz-frame {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--glass-panel);
+  backdrop-filter: var(--blur-panel);
+  -webkit-backdrop-filter: var(--blur-panel);
+  border: 1px solid var(--color-separator);
+  border-radius: var(--radius-panel);
+  padding: var(--space-4);
+}
+
+@supports not (backdrop-filter: blur(1px)) {
+  .viz-frame {
+    background: var(--glass-panel-fallback);
+  }
+}
+
+.viz-frame-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+}
+
+.viz-frame-stage svg {
+  width: 100%;
+  height: auto;
+  max-width: 360px;
+}
+
+.viz-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.viz-caption {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-secondary-label);
+  line-height: var(--line-height-base);
+}
+
+.viz-caption b,
+.viz-caption strong {
+  color: var(--color-label);
+  font-weight: var(--text-caption-weight);
+}
+
+/* ---------------------------------------------------------------- controls */
+
+.sm-field-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 130px;
+  flex: 1;
+}
+
+.sm-field-row label {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--text-micro-tracking);
+  color: var(--color-secondary-label);
+}
+
+.sm-field-row label span.sm-field-value {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.sm-range {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-separator);
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.sm-range::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 2px solid var(--color-on-accent);
+  cursor: pointer;
+  transition: box-shadow var(--duration-fast) var(--ease-out);
+}
+
+.sm-range:focus-visible::-webkit-slider-thumb {
+  box-shadow: var(--glow-accent);
+}
+
+.sm-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  border: 2px solid var(--color-on-accent);
+  cursor: pointer;
+}
+
+.sm-readout {
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+  color: var(--color-label);
+  white-space: nowrap;
+}
+
+.sm-readout .k {
+  color: var(--color-tertiary-label);
+}
+
+.sm-readout .v {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+.sm-readout .v.is-off {
+  color: var(--color-secondary-label);
+  font-weight: 400;
+}
+
+/* -------------------------------------------------------------- mini-chart */
+
+.mchart {
+  width: 100%;
+  height: auto;
+  max-width: 340px;
+  overflow: visible;
+}
+
+.mchart-axis {
+  stroke: var(--color-separator);
+  stroke-width: 1;
+}
+
+.mchart-tick {
+  stroke: var(--color-separator);
+  stroke-width: 1;
+}
+
+.mchart-ticklabel {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  fill: var(--color-tertiary-label);
+}
+
+.mchart-axislabel {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  fill: var(--color-secondary-label);
+  text-transform: uppercase;
+}
+
+.mchart-curve {
+  stroke: var(--color-accent);
+  stroke-width: 2.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mchart-marker-line {
+  stroke: var(--color-tertiary-label);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.mchart-marker-dot {
+  fill: var(--color-accent);
+  stroke: var(--color-on-accent);
+  stroke-width: 1.5;
+}
+
+.mchart-markerlabel {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--color-label);
+  font-weight: 600;
+}
+
+.mchart-bar {
+  fill: var(--color-accent);
+  opacity: 0.85;
+}
+
+/* ------------------------------------------------------------- mini-field */
+/* Shared marks for the small pitch/plane diagrams: robot glyph, ball glyph,
+   contact normal, dashed guide/reference lines. Field-metre coordinates are
+   converted to SVG user units by each visualization's own local scale. */
+
+.sm-diagram {
+  width: 100%;
+  height: auto;
+  max-width: 340px;
+  overflow: visible;
+  touch-action: none;
+}
+
+.sm-guide {
+  stroke: var(--color-tertiary-label);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+  fill: none;
+}
+
+.sm-axis {
+  stroke: var(--color-separator);
+  stroke-width: 1.25;
+}
+
+.sm-vector {
+  stroke: var(--color-accent);
+  stroke-width: 2.5;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.sm-vector-secondary {
+  stroke: var(--sm-secondary);
+  stroke-width: 2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+.sm-robot {
+  fill: var(--color-label);
+}
+
+.sm-robot-heading {
+  stroke: var(--color-label);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.sm-ball {
+  fill: var(--color-accent);
+  stroke: var(--color-on-accent);
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.sm-ball-hidden {
+  fill: var(--color-field-placeholder);
+  stroke: var(--color-separator);
+  stroke-width: 1.5;
+  cursor: grab;
+}
+
+.sm-handle {
+  fill: var(--color-elevated-background);
+  stroke: var(--color-accent);
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.sm-handle:active {
+  cursor: grabbing;
+}
+
+.sm-label {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--color-secondary-label);
+}
+
+.sm-label-accent {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  fill: var(--color-accent);
+  font-weight: 600;
+}
+
+.sm-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-caption);
+}
+
+.sm-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-field-placeholder);
+}
+
+.sm-status-dot.is-success {
+  background: var(--color-success);
+}
+
+.sm-status-dot.is-error {
+  background: var(--color-error);
+}

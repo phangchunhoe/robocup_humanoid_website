@@ -83,6 +83,11 @@ export function createEngine({ onStep, onRender, onOverrun }) {
     isRunning() {
       return running;
     },
+    /** The live accumulator value, in seconds — for the Simulation Math page's own
+     *  visualization of this loop. Nothing in the real run step reads this. */
+    getAccumulator() {
+      return accumulator;
+    },
     stats() {
       return { stepCostMs, steps };
     },

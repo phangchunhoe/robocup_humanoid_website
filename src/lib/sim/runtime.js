@@ -37,6 +37,7 @@ import { Interpreter, RuntimeError } from "../cpp/interpreter.js";
 import { SimHost, STRUCT_LAYOUTS } from "./host.js";
 import { parseBehaviorXml } from "./btxml.js";
 import { parseNodeHeader } from "./nodeheader.js";
+import { sampleCubicBezier, sampleLongRangeCurve } from "./curves.js";
 
 /**
  * Which behaviour-tree node's ports a function reads through getInput().
@@ -609,33 +610,20 @@ export class SimRuntime {
       // the decay constant the code itself declared.
       const DECAY = typeof w.FAR_CURVE_DECAY_CONST === "number" ? w.FAR_CURVE_DECAY_CONST : 4.0;
       const kickDir = typeof w.kickDir === "number" ? w.kickDir : this.host.data.kickDir;
-      const ux = Math.cos(kickDir);
-      const uy = Math.sin(kickDir);
-      const vx = -Math.sin(kickDir);
-      const vy = Math.cos(kickDir);
-      const pts = [];
-      for (let s = 0; s <= 1.0001; s += 0.04) {
-        const u = w.curveU0 * (1 - s);
-        const v = w.curveV0 * Math.exp(-DECAY * s);
-        pts.push([
-          w.directTarget_f.x + u * ux + v * vx,
-          w.directTarget_f.y + u * uy + v * vy,
-        ]);
-      }
-      t.curve = pts;
+      const pts = sampleLongRangeCurve({
+        target: w.directTarget_f,
+        kickDir,
+        u0: w.curveU0,
+        v0: w.curveV0,
+        decay: DECAY,
+      });
+      t.curve = pts.map((p) => [p.x, p.y]);
       return;
     }
 
     if (w.bezierActive && w.P0 && w.P1 && w.P2 && w.P3) {
-      const pts = [];
-      for (let s = 0; s <= 1.0001; s += 0.05) {
-        const it = 1 - s;
-        pts.push([
-          it * it * it * w.P0.x + 3 * it * it * s * w.P1.x + 3 * it * s * s * w.P2.x + s * s * s * w.P3.x,
-          it * it * it * w.P0.y + 3 * it * it * s * w.P1.y + 3 * it * s * s * w.P2.y + s * s * s * w.P3.y,
-        ]);
-      }
-      t.curve = pts;
+      const pts = sampleCubicBezier(w.P0, w.P1, w.P2, w.P3);
+      t.curve = pts.map((p) => [p.x, p.y]);
     }
   }
 }

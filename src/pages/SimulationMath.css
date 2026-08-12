@@ -1,0 +1,266 @@
+@import "../components/simmath/simmath.css";
+
+/* Page-scoped custom properties — not reusable outside this page, so they live here
+   rather than in tokens.css, the same pattern RobotSimulator.css uses for --turf and
+   the decision-legend colors. A cool violet-blue for a "second data series" in a
+   diagram (e.g. a field-frame vector next to a robot-frame one) — clearly off the
+   accent's emerald hue and off the success/error hues too, so it never collides with
+   "green means interactive/kick/turf" or a status color. */
+.sim-math-page {
+  --sm-secondary: #7c8cf0;
+
+  background: var(--color-background);
+  color: var(--color-label);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+}
+
+.sim-math-page * {
+  box-sizing: border-box;
+}
+
+.sim-math-page code {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  color: var(--color-label);
+}
+
+.sm-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-8);
+  max-width: 1240px;
+  margin-inline: auto;
+  padding: var(--space-8) var(--space-6) var(--space-24);
+}
+
+/* -------------------------------------------------------------------- TOC */
+
+.sm-toc {
+  position: sticky;
+  /* Below the legacy site header's own sticky bar (Header.css: ~48px tall) plus
+     breathing room, so the two sticky elements don't visually collide. */
+  top: calc(var(--space-8) + 48px);
+  flex: 0 0 232px;
+  max-height: calc(100vh - var(--space-8) - 48px - var(--space-8));
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .sm-toc {
+    display: none;
+  }
+}
+
+.sm-toc-inner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-inline-end: var(--space-2);
+}
+
+.sm-toc-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+  color: var(--color-tertiary-label);
+}
+
+.sm-toc-list,
+.sm-toc-sublist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sm-toc-list {
+  gap: var(--space-1);
+}
+
+.sm-toc-list > li {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--color-separator);
+  padding-inline-start: var(--space-3);
+  transition: border-color var(--duration-base) var(--ease-out);
+}
+
+.sm-toc-list > li.is-active {
+  border-left-color: var(--color-accent);
+}
+
+/* Buttons, not links — see scrollToId's own comment in SimulationMath.jsx for why:
+   this app runs on HashRouter, which owns location.hash for routing, so an in-page
+   TOC can't use real "#id" anchors without the router mis-navigating. Reset every
+   default button chrome so they still read as plain text nav, not as buttons. */
+.sm-toc-list > li > button {
+  appearance: none;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+  font-size: var(--text-callout);
+  font-weight: 600;
+  color: var(--color-secondary-label);
+  padding-block: var(--space-1);
+  padding-inline: 0;
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.sm-toc-list > li.is-active > button {
+  color: var(--color-accent);
+}
+
+.sm-toc-list > li > button:hover {
+  color: var(--color-label);
+}
+
+.sm-toc-list > li > button:focus-visible,
+.sm-toc-sublist button:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.sm-toc-sublist {
+  gap: 2px;
+  padding-block-end: var(--space-2);
+}
+
+.sm-toc-sublist button {
+  appearance: none;
+  background: none;
+  border: none;
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--color-tertiary-label);
+  padding-block: 3px;
+  padding-inline: 0;
+  cursor: pointer;
+  transition: color var(--duration-base) var(--ease-out);
+}
+
+.sm-toc-sublist button:hover {
+  color: var(--color-secondary-label);
+}
+
+/* Thin, transparent-track scrollbar for the TOC's own overflow, matching the run
+   step's page-wide scrollbar restyle rather than the light-mode native default. */
+.sm-toc {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-secondary-label) 40%, transparent) transparent;
+}
+
+.sm-toc::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sm-toc::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sm-toc::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-secondary-label) 40%, transparent);
+  border-radius: var(--radius-pill);
+}
+
+.sm-toc::-webkit-scrollbar-thumb:hover {
+  background: var(--color-secondary-label);
+}
+
+/* ---------------------------------------------------------------- content */
+
+.sm-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-16);
+}
+
+.sm-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding-block-start: var(--space-4);
+  max-width: 68ch;
+}
+
+.sm-eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+  color: var(--color-tertiary-label);
+}
+
+.sm-hero h1 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-headline);
+  font-weight: var(--text-headline-weight);
+  letter-spacing: var(--text-headline-tracking);
+  color: var(--color-label);
+}
+
+.sm-dek {
+  margin: 0;
+  font-size: var(--text-body);
+  line-height: var(--line-height-base);
+  color: var(--color-secondary-label);
+}
+
+.sm-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+  /* Clears the legacy site header's own sticky bar (~48px, same estimate the TOC's
+     own `top` offset uses above) plus breathing room, so scrollToId's scrollIntoView
+     doesn't land a heading half-hidden underneath it. */
+  scroll-margin-top: calc(48px + var(--space-4));
+}
+
+.sm-section-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 68ch;
+}
+
+.sm-section-number {
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: var(--text-micro-tracking);
+  text-transform: uppercase;
+  color: var(--color-accent);
+}
+
+.sm-section-head h2 {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-title);
+  font-weight: var(--text-title-weight);
+  letter-spacing: var(--text-title-tracking);
+  color: var(--color-label);
+}
+
+.sm-section-head p {
+  margin: 0;
+  font-size: var(--text-callout);
+  line-height: var(--line-height-base);
+  color: var(--color-secondary-label);
+}
+
+.sm-section-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}

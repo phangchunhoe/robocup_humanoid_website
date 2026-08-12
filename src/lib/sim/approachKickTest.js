@@ -35,7 +35,7 @@ function toRad(deg) {
  * robot always faces the ball -- the swept parameter is position on the
  * circle, not heading.
  */
-function placementFor(angleDeg, radiusM, ballX, ballY) {
+export function placementFor(angleDeg, radiusM, ballX, ballY) {
   const rad = toRad(angleDeg);
   const rx = ballX + radiusM * Math.cos(rad);
   const ry = ballY + radiusM * Math.sin(rad);

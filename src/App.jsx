@@ -7,6 +7,7 @@ import FreekickExplorer from "./pages/FreekickExplorer.jsx";
 import TeamCommByteFormat from "./pages/TeamCommByteFormat.jsx";
 import GoalieExplorer from "./pages/GoalieExplorer.jsx";
 import RobotSimulator from "./pages/RobotSimulator.jsx";
+import SimulationMath from "./pages/SimulationMath.jsx";
 import strikerStrategyItems from "./content/strikerStrategyItems.js";
 import freekickStrategyItems from "./content/freekickStrategyItems.js";
 import goalieStrategyItems from "./content/goalieStrategyItems.js";
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/goalie-explorer" element={<GoalieExplorer />} />
         <Route path="/team-comm-byte-format" element={<TeamCommByteFormat />} />
         <Route path="/robot-simulator" element={<RobotSimulator />} />
+        <Route path="/simulation-math" element={<SimulationMath />} />
       </Routes>
     </HashRouter>
   );
