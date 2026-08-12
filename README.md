@@ -1,11 +1,33 @@
-# StrikerChase Curve Artifacts
+# RoboCup Humanoid — Strategy Docs &amp; Robot Simulator
 
-A small React (Vite) app bundling the two `StrikerChase` curve artifacts as pages:
+A React (Vite) single-page site documenting this team's RoboCup Humanoid
+League strategy code (`brain_tree.cpp`) and letting you run it live. It
+combines write-ups of the striker, goalkeeper, and set-piece logic with
+interactive explorers that recompute decisions straight from the real C++,
+a full robot simulator that interprets a pasted `brain_tree.cpp`, and a
+cheat sheet of the commands used to actually run the robot.
 
-- **Bézier Chase-Path — Anatomy & Activation** (`/#/anatomy`) — static diagram walkthrough.
-- **Long-Range Curve Preview — StrikerChase** (`/#/long-range-preview`) — interactive, draggable preview.
+Routing uses `HashRouter`, so every page below is reachable at
+`.../#<path>` (e.g. `.../#/anatomy`).
 
-Both pages are reproduced verbatim from the original artifacts (same markup, CSS, and logic), just wrapped in React components so they can be built and deployed as a normal static site.
+## Pages (`src/pages/`)
+
+| Path | Page | What it's for |
+|---|---|---|
+| `/` | `Home.jsx` | Landing page: a "Run Simulation" shortcut, the Quick Links & Resources list, and the Handy Commands cheat sheet. |
+| `/striker-strategy` | `CategoryPage.jsx` | Cards linking to the striker-related artifacts: Bézier Chase-Path Anatomy and the Long-Range Curve Preview. |
+| `/goalie-strategy` | `CategoryPage.jsx` | Card linking to the Goalkeeper Positioning Explorer. |
+| `/freekick-strategy` | `CategoryPage.jsx` | Card linking to the Set-Piece Position Explorer. |
+| `/anatomy` | `BezierAnatomy.jsx` | Static diagram walkthrough of how `StrikerChase` curves in behind the ball, when it skips the curve and drives straight instead, and what each of the four Bézier control points does. |
+| `/long-range-preview` | `LongRangePreview.jsx` | Interactive, draggable preview of the proposed exponential-decay long-range approach curve, with live gating-threshold sliders. |
+| `/freekick-explorer` | `FreekickExplorer.jsx` | Interactive field for all 5 set pieces (direct/indirect free kick, throw-in, goal kick, corner kick) — toggle attacking vs. defending and drag the ball to see the lead striker, assist striker, and goalkeeper target positions recompute live, straight from `brain_tree.cpp`. |
+| `/goalie-explorer` | `GoalieExplorer.jsx` | Interactive field — drag the ball anywhere to see the goalkeeper's retreat, chase, adjust, and kick decisions recompute live, straight from `GoalieDecide` in `brain_tree.cpp`, including the penalty-area and danger-zone thresholds. |
+| `/team-comm-byte-format` | `TeamCommByteFormat.jsx` | The fixed 16-byte UDP packet spec robots broadcast to coordinate roles, ball belief, and the goalkeeper handoff. |
+| `/robot-simulator` | `RobotSimulator.jsx` | Paste a `brain_tree.cpp`: it's parsed and interpreted so you can watch one robot chase, adjust, and kick a real ball in real time, run comparison/regression tests, and export an approach-and-kick-time PDF report. |
+
+Every page also has a global **artifacts drawer** (top-right panel icon in
+`Header.jsx`) linking directly to all of the above, and an **Areas for
+Improvement** popup summarizing known gaps.
 
 ## Content files (`src/content/`)
 
