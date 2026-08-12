@@ -56,8 +56,9 @@ the pasted `brain_tree.cpp`, which is arbitrary and only interpreted. Field
 coordinates are metres/radians, origin at the centre circle, $+x$ toward the
 opponent goal, $+y$ left, $\theta$ CCW-positive — matching the C++ exactly.
 
-Each formula below is followed by a short **Plain-English** note. The note
-explains what the formula does. It does not restate the symbols.
+Each formula below is followed by a **Variables** table and a short
+**Plain-English** note. The table defines every symbol. The note explains
+what the formula does.
 
 ### Physics engine — `physics.js`
 
@@ -72,6 +73,15 @@ t &\leftarrow \Big(t + \big(t \oplus (t \ggg 7)\big)\cdot(t \mid 61)\Big) \oplus
 \end{aligned}
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $a$ | Generator's internal 32-bit state. Seeded once per run (the "Seed" field), overwritten every call. |
+| $t$ | Scratch value used partway through mixing the state. |
+| $\oplus$ | Bitwise XOR. |
+| $\ggg$ | Unsigned right bit-shift. |
+| $\mathtt{0x6D2B79F5}$ | Fixed constant that spreads the state out. |
+| $\text{next}()$ | The returned number, scaled into the range $[0,1)$. |
+
 **Plain-English:** This scrambles a starting number into a new "random"
 number every time it's called. The same starting seed always produces the
 same sequence. That's what makes a run repeatable.
@@ -81,6 +91,11 @@ same sequence. That's what makes a run repeatable.
 $$
 z = \sqrt{-2\ln u}\,\cos(2\pi v)
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $u, v$ | Two independent random numbers between 0 and 1, both drawn from the PRNG above. |
+| $z$ | The resulting bell-curve (Gaussian) random number, centred on 0. |
 
 **Plain-English:** This turns two plain random numbers into one
 bell-curve-shaped random number. Small errors are common. Big errors are
@@ -93,6 +108,11 @@ $$
 (v_x, v_y) \leftarrow \frac{v_{\max}}{\sqrt{v_x^2+v_y^2}}\,(v_x, v_y) \quad \text{if } \sqrt{v_x^2+v_y^2} > v_{\max}
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $v_x, v_y$ | Robot's commanded forward/sideways speed, in the robot's own frame (m/s). |
+| $v_{\max}$ | Configured maximum walk speed (the `maxWalkSpeed` physics constant). |
+
 **Plain-English:** Add up the sideways and forward speed into one overall
 speed. If that's faster than the robot's top speed, shrink both parts by the
 same ratio. The direction stays the same. Only the speed comes down.
@@ -102,6 +122,13 @@ same ratio. The direction stays the same. Only the speed comes down.
 $$
 v \leftarrow \operatorname{clamp}\big(v_{\text{target}},\; v-a_{\max}\,dt,\; v+a_{\max}\,dt\big)
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $v$ | Whichever velocity component is being updated this tick ($v_x$, $v_y$, or the angular speed $\dot\theta$). |
+| $v_{\text{target}}$ | That same component's commanded value for this tick. |
+| $a_{\max}$ | Matching acceleration limit (`maxAccel` for $v_x,v_y$, `maxAngAccel` for $\dot\theta$). |
+| $dt$ | Simulation's fixed time step, $0.01\,\text{s}$. |
 
 **Plain-English:** The robot can't jump straight to a new speed. Each tick,
 its current speed can only move a small step closer to the target speed.
@@ -116,6 +143,14 @@ y &\leftarrow y + (v_x\sin\theta + v_y\cos\theta)\,dt \\
 \theta &\leftarrow \operatorname{atan2}\!\big(\sin(\theta+\dot\theta\,dt),\ \cos(\theta+\dot\theta\,dt)\big)
 \end{aligned}
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $x, y$ | Robot's position on the field (metres). |
+| $\theta$ | Robot's heading (radians, 0 = facing $+x$). |
+| $v_x, v_y$ | Robot's own (already rate-limited) forward/sideways speed. |
+| $\dot\theta$ | Robot's angular speed. |
+| $dt$ | Fixed time step. |
 
 **Plain-English:** The robot's speed is measured relative to the way it's
 facing, not relative to the field. This rotates that speed into field
@@ -133,6 +168,14 @@ v_{\text{ball}} \leftarrow
 \end{cases}
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $v_{\text{ball}}$ | Ball's velocity vector. |
+| $\lVert v_{\text{ball}}\rVert$ | Ball's speed (magnitude). |
+| $a_{\text{ball}}$ | Fixed rolling deceleration (`ballDecel`, m/s²). |
+| $v_{\text{stop}}$ | Speed below which the ball is just considered stopped (`ballStopSpeed`). |
+| $dt$ | Fixed time step. |
+
 **Plain-English:** Every tick, the ball's speed drops by a fixed amount,
 like friction from the turf. The ball keeps rolling in the same direction,
 just slower. Once it's nearly stopped, it's snapped to a full stop instead
@@ -144,6 +187,12 @@ $$
 \text{foot} = \big(x + f\cos\theta - \ell\sin\theta,\ \ y + f\sin\theta + \ell\cos\theta\big)
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $x, y, \theta$ | Robot's field position and heading. |
+| $f$ | Fixed forward offset from the robot's centre to the foot (`FOOT_FORWARD`). |
+| $\ell$ | Sideways (lateral) offset — the stance bias — whose sign flips depending on which side of the robot the ball is currently on. |
+
 **Plain-English:** This places the kicking foot a bit in front of the
 robot's centre and a bit to one side, matching where a real foot would be
 during a stride.
@@ -154,6 +203,13 @@ $$
 v_{\text{foot}} = \big(v_x\cos\theta - v_y\sin\theta - \dot\theta\,(\text{foot}_y-y),\ \ v_x\sin\theta + v_y\cos\theta + \dot\theta\,(\text{foot}_x-x)\big)
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $v_x, v_y$ | Robot's linear speed (robot frame). |
+| $\dot\theta$ | Robot's angular speed. |
+| $(\text{foot}_x,\text{foot}_y)$ | Foot's field position, from the formula above. |
+| $(x,y)$ | Robot's own centre — so $(\text{foot}_x-x,\ \text{foot}_y-y)$ is just the foot's offset from the centre. |
+
 **Plain-English:** The foot moves for two reasons: the whole robot is
 walking, and the whole robot is turning. Turning sweeps the foot sideways
 even if the body isn't moving forward. This adds both effects together.
@@ -163,6 +219,12 @@ Closing speed onto the ball along the contact normal $\hat n$:
 $$
 c = (v_{\text{foot}} - v_{\text{ball}}) \cdot \hat n
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $v_{\text{foot}}, v_{\text{ball}}$ | Foot's and ball's velocity vectors. |
+| $\hat n$ | Unit vector pointing from the foot to the ball at the moment of contact. |
+| $c$ | Resulting scalar closing speed. |
 
 **Plain-English:** This measures how fast the foot is closing the gap on
 the ball, along the direction that actually matters — straight into the
@@ -177,6 +239,19 @@ s &= c \cdot k_{\text{kick}} \cdot \big(1 + u\,j_{\text{speed}}\big), \qquad u \
 v_{\text{ball}} &= \big(s\cos\phi,\ s\sin\phi\big)
 \end{aligned}
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $\phi$ | Outgoing ball direction. |
+| $\hat n_x,\hat n_y$ | Contact normal's components. |
+| $z$ | Fresh Gaussian random draw. |
+| $\sigma_{\text{dir}}$ | Direction scatter $z$ is scaled by (`kickDirSigmaDeg`). |
+| $b_{\text{dir}}$ | Fixed systematic angle bias (`kickDirBias`), modelling a real right-foot pull. |
+| $s$ | Outgoing ball speed. |
+| $c$ | Closing speed, from the formula above. |
+| $k_{\text{kick}}$ | Kick-gain constant (`kickGain`). |
+| $u$ | Fresh uniform random draw between $-1$ and $1$. |
+| $j_{\text{speed}}$ | Speed-jitter fraction (`kickSpeedJitter`). |
 
 **Plain-English:** When the foot actually strikes the ball, the ball flies
 off roughly along the contact direction. A little random scatter and a
@@ -199,6 +274,13 @@ $$
 \text{out} \iff |x|>\tfrac{L}{2}+r_{\text{ball}} \vee |y|>\tfrac{W}{2}+r_{\text{ball}}
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $x, y$ | Ball's field position. |
+| $L, W$ | Full field length and width (14 m × 9 m). |
+| $G$ | Goal mouth width. |
+| $r_{\text{ball}}$ | Ball's radius, used to decide "out" only once the ball has fully crossed a line rather than just touched it. |
+
 **Plain-English:** Every tick, the ball's position is checked against the
 edges of the pitch and the goal mouth. Past the goal line and between the
 posts means a goal. Past any edge otherwise means the ball went out.
@@ -211,6 +293,15 @@ $$
 \begin{pmatrix}x_{\text{ball}}-x_{\text{robot}}\\y_{\text{ball}}-y_{\text{robot}}\end{pmatrix},
 \qquad \text{range}=\sqrt{x'^2+y'^2},\quad \text{yaw}=\operatorname{atan2}(y',x')
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $(x_{\text{ball}},y_{\text{ball}})$ | Ball's field position. |
+| $(x_{\text{robot}},y_{\text{robot}})$ | Robot's field position. |
+| $\theta$ | Robot's heading. |
+| $(x',y')$ | Ball's position as seen from the robot's own point of view. |
+| $\text{range}$ | Straight-line distance to the ball. |
+| $\text{yaw}$ | Ball's bearing relative to the direction the robot is facing. |
 
 **Plain-English:** This restates the ball's position from "where it is on
 the field" to "where it is relative to the robot, facing forward." It's the
@@ -225,6 +316,11 @@ $$
 \text{visible} \iff |\text{yaw}| \le 60° \ \wedge\ \text{range} \le R
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $\text{yaw}, \text{range}$ | Ball's bearing and distance in the robot's own frame, from the transform above. |
+| $R$ | Configured sight radius (`ballSightRangeM`, the "Field of vision radius" slider). |
+
 **Plain-English:** The robot can only see the ball if it's within a cone in
 front of it and not too far away. Outside that cone, or too far, the robot
 simply can't see it this tick.
@@ -234,6 +330,14 @@ simply can't see it this tick.
 $$
 k = \frac{\ln(100/C_0)}{R}, \qquad \text{confidence} = \max\!\big(C_0,\ 100\,e^{-k\cdot\text{range}}\big)
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $C_0$ | Fixed confidence floor (50%). |
+| $R$ | Sight radius. |
+| $k$ | Decay rate, solved from $C_0$ and $R$ so the curve lands exactly on the floor at the edge of vision. |
+| $\text{range}$ | Ball's current distance. |
+| $\text{confidence}$ | Resulting confidence percentage. |
 
 **Plain-English:** The closer the ball, the more confident the robot is
 that it's really seeing it. Confidence starts near 100% up close and fades
@@ -245,11 +349,24 @@ $$
 \sigma(\text{range}) = I\big(1-e^{-K\cdot\text{range}}\big)
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $I$ | Configured maximum noise level (`ballJitterIntensity`, the "Ball jitter intensity" slider, metres). |
+| $K$ | Fixed growth-rate constant. |
+| $\text{range}$ | Ball's distance. |
+| $\sigma(\text{range})$ | Resulting noise standard deviation at that distance. |
+
 **Plain-English:** Right next to the robot, the perceived ball position is
 basically exact. Farther away, position noise grows, leveling off at a
 maximum amount set by the "ball jitter intensity" slider.
 
 applied as independent Gaussian noise on each axis of the perceived ball position: $p' = p + \mathcal N(0,\sigma^2)$.
+
+| Symbol | Meaning |
+|---|---|
+| $p$ | Ball's true position on one axis (x or y, robot frame). |
+| $p'$ | Perceived (noisy) position on that axis. |
+| $\mathcal N(0,\sigma^2)$ | Gaussian random draw with mean 0 and the standard deviation computed above. |
 
 **Plain-English:** That noise amount is then used to nudge the ball's
 perceived x and y position slightly, in a random direction, so what the
@@ -265,6 +382,14 @@ $$
 \operatorname{sigmoid}(x)=\frac{1}{1+e^{s(x-\text{shift})}}
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $x, y$ (in `norm`) | The two components of a 2D vector, e.g. a distance's $\Delta x,\Delta y$. |
+| $x$ (in `cap`) | The value being clamped, between the bounds $\text{lo}$ and $\text{hi}$. |
+| $x$ (in `sigmoid`) | The input value. |
+| $\text{shift}$ | Moves the curve's midpoint left/right. |
+| $s$ | Controls how sharply the sigmoid transitions. |
+
 **Plain-English:** `norm` is just the straight-line distance formula.
 `cap` squeezes a number so it never goes below a low limit or above a high
 one. `sigmoid` is a smooth S-shaped curve, useful for a gradual on/off
@@ -276,6 +401,11 @@ $$
 \operatorname{toPInPI}(\theta) = \Big(\theta+\pi+2n\pi\Big)\bmod 2\pi\ -\ \pi, \qquad n = \left\lfloor\left|\frac{\theta}{2\pi}\right|\right\rfloor+1
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $\theta$ | Input angle, in radians, which can be any size (including many full turns). |
+| $n$ | Whole-number correction term computed from $\theta$ itself, just large enough to guarantee the modulo result comes out positive before the final $-\pi$ shift. |
+
 **Plain-English:** Angles wrap around, so 190° and -170° point the same
 way. This rewrites any angle into one consistent range, so comparing two
 angles never breaks just because one of them wrapped around.
@@ -286,6 +416,12 @@ $$
 \operatorname{cross}(a,b)=a_x b_y-a_y b_x, \qquad \operatorname{inner}(a,b)=a_xb_x+a_yb_y
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $a, b$ | Any two 2D vectors, with components $a_x,a_y$ and $b_x,b_y$. |
+| `cross` result | A single signed number (not a vector, since these are 2D). |
+| `inner` result | Also a single number. |
+
 **Plain-English:** These are two standard building blocks from vector math.
 The cross product tells you which side of a line a point is on. The inner
 (dot) product tells you how much two directions line up.
@@ -293,6 +429,13 @@ The cross product tells you which side of a line a point is on. The inner
 $$
 \operatorname{perpDist}(p,l) = \frac{\operatorname{cross}(\vec l,\ p-l_0)}{\lVert \vec l\rVert}
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $p$ | The point being measured. |
+| $l$ | The line segment, with endpoints $l_0=(x_0,y_0)$ and $l_1=(x_1,y_1)$. |
+| $\vec l$ | Direction vector of the segment, $l_1-l_0$. |
+| $\lVert\vec l\rVert$ | Length of the segment. |
 
 **Plain-English:** This measures how far a point is from an infinitely long
 line, straight across at a right angle.
@@ -306,6 +449,11 @@ $$
 \end{cases}
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $p$, $l$, $l_0$, $l_1$, $\vec l$ | Same as the `perpDist` formula above. |
+| $\lVert p-l_0\rVert$, $\lVert p-l_1\rVert$ | Plain straight-line distances from $p$ to each endpoint. |
+
 **Plain-English:** A real line segment has two ends, not an infinite line.
 This checks whether the closest point is off one end, off the other end, or
 between them, and measures the distance accordingly.
@@ -316,6 +464,12 @@ $$
 \theta_{L,R} = \operatorname{atan2}\!\big(y_{L,R}-y_{\text{ball}},\ x_{\text{post}}-x_{\text{ball}}\big), \qquad
 \operatorname{calcKickDir} = \operatorname{toPInPI}\!\left(\frac{\theta_L+\theta_R}{2}\right)
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $\theta_L, \theta_R$ | Bearing angles from the ball to the left and right goalposts. |
+| $(x_{\text{post}}, y_{L,R})$ | Each post's field position (same $x$, opposite $y$). |
+| $(x_{\text{ball}},y_{\text{ball}})$ | Ball's position. |
 
 **Plain-English:** This finds the compass direction from the ball to each
 goalpost. The default kick direction just points straight between them, at
@@ -339,6 +493,15 @@ $$
 
 all three components finally clamped to their configured limits.
 
+| Symbol | Meaning |
+|---|---|
+| $(t_x,t_y)$ | Target point being walked to. |
+| $(x,y,\theta)$ | Robot's current pose. |
+| $\text{range}$ | Straight-line distance to the target. |
+| $\theta_{\text{err}}$ | Heading error between where the robot is facing and where the target actually is. |
+| $v_{x,\max}$ | Long-range forward-speed cap (the `vxLimit` argument). |
+| $v_x,v_y,\dot\theta$ | Resulting velocity command sent to the robot. |
+
 **Plain-English:** This is the controller that walks the robot to a target
 point. Far away, it turns to face the target first, then walks straight at
 a steady capped speed. Close up, it walks directly at the target, moving
@@ -353,6 +516,13 @@ $$
 B(s) = (1-s)^3P_0 + 3(1-s)^2sP_1 + 3(1-s)s^2P_2 + s^3P_3, \qquad s\in[0,1]
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $P_0, P_3$ | Curve's start and end points, read from the interpreted C++'s own locals. |
+| $P_1, P_2$ | The two "handle" points that pull the curve's shape, also read from the interpreted C++. |
+| $s$ | Sweep parameter, stepped from 0 to 1 to trace the curve. |
+| $B(s)$ | Resulting point on the curve at that step. |
+
 **Plain-English:** A cubic Bézier curve is a smooth curve drawn between a
 start point and an end point, pulled and shaped by two extra "handle"
 points in between. Sliding $s$ from 0 to 1 traces the curve from start to
@@ -365,6 +535,17 @@ u(s) = u_0(1-s), \qquad v(s) = v_0\,e^{-D\cdot s}, \qquad P(s) = \text{target} +
 $$
 
 where $D$ is the decay constant read directly from the pasted code (default $4.0$).
+
+| Symbol | Meaning |
+|---|---|
+| $\kappa$ | Kick direction angle. |
+| $\hat u$ | Unit vector pointing along the kick direction. |
+| $\hat v$ | Unit vector perpendicular to it. |
+| $u_0, v_0$ | Curve's starting along-track and cross-track offsets (read from the interpreted C++). |
+| $s$ | Sweep parameter from 0 to 1. |
+| $D$ | Decay constant controlling how fast the sideways offset shrinks. |
+| $\text{target}$ | Fixed aim point the curve approaches. |
+| $P(s)$ | Resulting field-coordinate point at step $s$. |
 
 **Plain-English:** This draws the wide sweeping curve the robot takes on a
 long approach. Along the direction toward the target, it closes the gap
@@ -383,6 +564,13 @@ $$
 
 so a run at 144 Hz and a run at 60 Hz produce identical trajectories.
 
+| Symbol | Meaning |
+|---|---|
+| $\text{accum}$ | Leftover-time bucket. |
+| $\Delta t_{\text{frame}}$ | How much real wall-clock time passed since the last animation frame. |
+| $\text{speed}$ | Playback-speed multiplier ($0.5\times$/$1\times$/$2\times$). |
+| $dt$ | Fixed physics step, $0.01\,\text{s}$. |
+
 **Plain-English:** Screens don't all refresh at the same rate, but the
 physics needs steady, equal-sized time steps to behave consistently. This
 banks up real elapsed time in a bucket and spends it in fixed-size chunks,
@@ -398,6 +586,14 @@ $$
 \theta = \operatorname{atan2}(y_{\text{ball}}-r_y,\ x_{\text{ball}}-r_x)
 $$
 
+| Symbol | Meaning |
+|---|---|
+| $(x_{\text{ball}},y_{\text{ball}})$ | Fixed ball position for the test. |
+| $\rho$ | Sweep radius (the test's "Distance" setting). |
+| $\alpha$ | Swept angle, stepped in $10°$ increments all the way around. |
+| $(r_x,r_y)$ | Resulting robot start position. |
+| $\theta$ | Robot's starting heading, pointed back at the ball. |
+
 **Plain-English:** This scatters test starting points evenly around a
 circle centred on the ball, at a fixed distance. Every angle of approach
 gets its own test, and the robot always starts out facing the ball.
@@ -408,6 +604,15 @@ $$
 t_{\text{elapsed}} = (\text{tick}_{\text{kick}}-\text{tick}_{\text{start}})\cdot dt, \qquad
 \bar t_\alpha = \frac{1}{n}\sum_{i=1}^n t_i
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $\text{tick}_{\text{start}}$ | Tick number of the first "chase" or "adjust" decision. |
+| $\text{tick}_{\text{kick}}$ | Tick number of the first "kick" or "cross" decision after it. |
+| $dt$ | Fixed physics step. |
+| $n$ | Number of completed repeats at a given angle $\alpha$ (out of 3). |
+| $t_i$ | Each repeat's own elapsed time. |
+| $\bar t_\alpha$ | Their average. |
 
 **Plain-English:** The stopwatch starts once the robot begins approaching
 the ball and stops once it starts kicking. That's converted from tick count
@@ -421,6 +626,13 @@ Affine transform, 60 px/m, with the y-axis flipped since SVG grows downward whil
 $$
 \text{toSvg}(x,y) = \big((x+7.5)\cdot 60,\ \ (5-y)\cdot 60\big)
 $$
+
+| Symbol | Meaning |
+|---|---|
+| $x, y$ | A position in field metres (origin at the centre circle). |
+| $7.5, 5$ | Half the visible view width/height in metres, re-centring the origin to the top-left of the SVG canvas. |
+| $60$ | Pixels-per-metre scale. |
+| Output pair | The matching SVG pixel coordinate. |
 
 **Plain-English:** This just converts real-world metres into on-screen
 pixels, at 60 pixels per metre. The vertical axis is flipped because
