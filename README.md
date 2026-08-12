@@ -24,6 +24,7 @@ Routing uses `HashRouter`, so every page below is reachable at
 | `/goalie-explorer` | `GoalieExplorer.jsx` | Interactive field — drag the ball anywhere to see the goalkeeper's retreat, chase, adjust, and kick decisions recompute live, straight from `GoalieDecide` in `brain_tree.cpp`, including the penalty-area and danger-zone thresholds. |
 | `/team-comm-byte-format` | `TeamCommByteFormat.jsx` | The fixed 16-byte UDP packet spec robots broadcast to coordinate roles, ball belief, and the goalkeeper handoff. |
 | `/robot-simulator` | `RobotSimulator.jsx` | Paste a `brain_tree.cpp`: it's parsed and interpreted so you can watch one robot chase, adjust, and kick a real ball in real time, run comparison/regression tests, and export an approach-and-kick-time PDF report. |
+| `/simulation-math` | `SimulationMath.jsx` | Every formula behind the robot simulator's physics engine, vision model, curve math, and test harness, with a sticky table of contents, a variable-meaning table per formula, and an interactive or animated visualization for each — see [Simulation math](#simulation-math-srclibsim) below, which this page renders. |
 
 Every page also has a global **artifacts drawer** (top-right panel icon in
 `Header.jsx`) linking directly to all of the above, and an **Areas for
@@ -48,6 +49,7 @@ this, but for a full picture in one place:
 | `testDefinitions.js` | Card list in the Testing tab. | `src/pages/RobotSimulator.jsx`, `src/components/TestCard.jsx` |
 | `physicsSliders.js` | Label/range/unit metadata for the run step's physics-drawer sliders, shared with the Approach & Kick Time PDF report so both read one source of truth. | `src/pages/RobotSimulator.jsx`, `src/components/ApproachKickTestFlow.jsx`, `src/components/CompareResultsFlow.jsx`, `src/lib/pdf/approachKickReport.js` |
 | `simulatorPasteGuide.js` | Simulator editor step's per-tab paste instructions, placeholders, intro copy, and expected file paths. | `src/pages/RobotSimulator.jsx` |
+| `simulationMathToc.js` | Table-of-contents structure (section/formula ids and labels) for the Simulation Math page's sticky sidebar nav. Section component `FormulaBlock` ids must match these ids or the nav and scroll-spy silently stop matching up. | `src/pages/SimulationMath.jsx` |
 
 ## Simulation math (`src/lib/sim/`)
 
@@ -59,6 +61,14 @@ opponent goal, $+y$ left, $\theta$ CCW-positive — matching the C++ exactly.
 Each formula below is followed by a **Variables** table and a short
 **Plain-English** note. The table defines every symbol. The note explains
 what the formula does.
+
+This same content also has a live, in-app counterpart: **`/simulation-math`**
+(`src/pages/SimulationMath.jsx`) renders every formula below as its own
+`FormulaBlock` — equation, variable table, point-form explanation, and an
+interactive or animated visualization built from this repo's own math
+(dragging a point calls the real `curves.js`/`physics.js`/`host.js`
+functions, not a re-derived copy). See that page's own components under
+`src/components/simmath/` for the visualization source.
 
 ### Physics engine — `physics.js`
 
@@ -508,9 +518,9 @@ a steady capped speed. Close up, it walks directly at the target, moving
 faster when farther away and automatically slowing down as it arrives —
 that's what "speed equals distance" gives you for free.
 
-### Telemetry curve reconstruction — `runtime.js`
+### Telemetry curve reconstruction — `runtime.js` and `curves.js`
 
-**Cubic Bézier** (standard Bernstein-basis evaluation), resampled at the same control points $P_0..P_3$ the interpreted C++ computed, so the drawn path matches exactly what the pasted code would do:
+**Cubic Bézier** (standard Bernstein-basis evaluation), resampled at the same control points $P_0..P_3$ the interpreted C++ computed, so the drawn path matches exactly what the pasted code would do. The evaluation itself is `curves.js`'s `cubicBezierPoint`/`sampleCubicBezier` — one shared definition `runtime.js`'s live telemetry and the `/simulation-math` page's draggable demo both call, rather than two copies that could drift apart:
 
 $$
 B(s) = (1-s)^3P_0 + 3(1-s)^2sP_1 + 3(1-s)s^2P_2 + s^3P_3, \qquad s\in[0,1]
