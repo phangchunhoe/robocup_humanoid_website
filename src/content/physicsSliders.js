@@ -3,7 +3,7 @@
 // so both read the same source of truth instead of carrying two copies that
 // can drift apart.
 const SLIDERS = [
-  { key: "ballJitterIntensity", label: "Ball jitter intensity", min: 0, max: 0.5, step: 0.02, unit: "m",
+  { key: "ballJitterIntensity", label: "Ball jitter intensity", min: 0, max: 0.8, step: 0.02, unit: "m",
     note: "perceived-ball noise σ at long range; decays exponentially near the ball" },
   { key: "ballSightRangeM", label: "Field of vision radius", min: 2, max: 15, step: 0.5, unit: "m",
     note: "120° cone; ball perception range cutoff" },

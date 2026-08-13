@@ -70,7 +70,7 @@ export const DEFAULT_PHYSICS = {
   // Perception. Sigma (metres) of the perceived-ball position noise at long range —
   // see perception.js's computeBallPerception, which ramps this from 0 near the robot
   // up to ~this value by ballSightRangeM. Drawer slider: "Ball jitter intensity".
-  ballJitterIntensity: 0.15,
+  ballJitterIntensity: 0.25,
   // Radius (metres) of the robot's ball-sight cone — perception.js's computeBallPerception
   // reads this every tick (falling back to its own BALL_SIGHT_RANGE_M default if a world
   // carries no physics), and renderer.js's FOV-cone debug overlay draws to the same value,

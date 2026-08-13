@@ -28,7 +28,7 @@ function samplesAt(range, intensity, seed) {
 
 export default function JitterGrowthViz() {
   const [range, setRange] = useState(6);
-  const [intensity, setIntensity] = useState(0.15);
+  const [intensity, setIntensity] = useState(0.25);
   const [seed, setSeed] = useState(1);
 
   const samples = useMemo(() => samplesAt(range, intensity, seed), [range, intensity, seed]);
@@ -48,7 +48,7 @@ export default function JitterGrowthViz() {
             <label htmlFor="jg-intensity">
               Intensity I <span className="sm-field-value">{intensity.toFixed(2)} m</span>
             </label>
-            <input id="jg-intensity" className="sm-range" type="range" min={0} max={0.3} step={0.01} value={intensity} onChange={(e) => setIntensity(Number(e.target.value))} />
+            <input id="jg-intensity" className="sm-range" type="range" min={0} max={0.5} step={0.01} value={intensity} onChange={(e) => setIntensity(Number(e.target.value))} />
           </div>
           <GlassButton variant="glass" onClick={() => setSeed((s) => s + 1)}>
             Redraw samples
