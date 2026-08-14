@@ -125,16 +125,17 @@ const handyCommands = [
         note: "Run this on the repository folder path",
         commands: [
           { command: "git add ." },
-          { command: "git commit -m '<commit message'" },
+          { command: "git commit -m '<commit message>'" },
         ]
       },
       {
-        label: "See Existing Branches",
+        label: "2. See Existing Branches",
         commands: [
           { command: "git branch "},
         ],
-
-        label: "Merge branch together",
+      },
+      {
+        label: "3. Merge branch together",
         commands: [
           { command: "git merge <branch name> "},
         ]
