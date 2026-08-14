@@ -69,7 +69,7 @@ const handyCommands = [
     ],
   },
   {
-    title: "Point the Robot at the Game Controller",
+    title: "Connecting the Robot to the Game Controller",
     groups: [
       {
         label: "1. Find the game controller's IP",
@@ -117,6 +117,30 @@ const handyCommands = [
       },
     ],
   },
+  {
+    title: "Merging Branches",
+    groups: [
+      {
+        label: "1. Adding and Commiting Messages",
+        note: "Run this on the repository folder path",
+        commands: [
+          { command: "git add ." },
+          { command: "git commit -m '<commit message'" },
+        ]
+      },
+      {
+        label: "See Existing Branches",
+        commands: [
+          { command: "git branch "},
+        ],
+
+        label: "Merge branch together",
+        commands: [
+          { command: "git merge <branch name> "},
+        ]
+      }
+    ]
+  }
 ];
 
 export default handyCommands;

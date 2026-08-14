@@ -6,17 +6,17 @@
 
 const areasForImprovement = [
   {
-    section: "Striker Strategy",
+    section: "First Priority",
     items: [
       "NIL",
     ],
   },
   {
-    section: "Goalie Strategy",
+    section: "Second Priority",
     items: ["NIL"],
   },
   {
-    section: "Freekick Strategy",
+    section: "Third Priority",
     items: [
       "Increase speed where it takes the goalkick",
       "Increase the speed where it takes the corner kick"
