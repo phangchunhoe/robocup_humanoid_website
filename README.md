@@ -10,6 +10,52 @@ cheat sheet of the commands used to actually run the robot.
 Routing uses `HashRouter`, so every page below is reachable at
 `.../#<path>` (e.g. `.../#/anatomy`).
 
+## Tech stack
+
+- **React 18 + Vite 5** for the single-page app.
+- **React Router v6** with `HashRouter`, which keeps GitHub Pages routing simple.
+- **Plain CSS** colocated by page/component, with shared design tokens in
+  `src/styles/tokens.css`.
+- **Framer Motion** for magnetic liquid-glass controls, spring clicks, drawers,
+  and simulator motion.
+- **Lucide React** for interface icons.
+- **KaTeX** for formula rendering in Simulation Math.
+- **jsPDF** for the approach-and-kick PDF report.
+- **Self-hosted fonts** from `@fontsource`: Space Grotesk for UI/prose and
+  JetBrains Mono for technical values.
+- **gh-pages / GitHub Actions** for deployment.
+
+There is no UI framework, Tailwind, Sass, CSS-in-JS layer, or TypeScript setup in
+this project.
+
+## Design system
+
+The current target visual language is a dark technical HUD with a liquid-glass
+theme. The best reference implementations are the Robot Simulator,
+Simulation Math, `GlassButton`, `GlassSlider`, `GlassModal`, `ArtifactsDrawer`,
+`SegmentedControl`, `RoleToggle`, and `SelectableCard`.
+
+Design rules for future edits:
+
+- Use `src/styles/tokens.css` for shared color, type, spacing, radius, shadow,
+  blur, and motion values.
+- Use **Space Grotesk** for normal language: headings, prose, nav, buttons,
+  labels, cards, tabs, and controls.
+- Use **JetBrains Mono** only for technical values: commands, paths, byte
+  values, logs, coordinates, counters, formula symbols, and live HUD readouts.
+- Keep the palette centered on charcoal surfaces, warm off-white text, muted
+  secondary text, and one emerald interactive accent.
+- Prefer liquid-glass chrome for controls, modals, drawers, and HUD surfaces
+  floating over the simulator, field diagrams, math visualizations, or dense
+  technical panels.
+- Use ordinary elevated panels for static content and repeated cards; avoid
+  nested glass filters.
+- Keep interactive targets at least 44px, use hairline borders instead of heavy
+  shadows, and avoid decorative gradients or extra accent colors.
+
+See `CLAUDE.md` for the full editing and design brief, including migration notes
+for older pages that still use legacy CSS.
+
 ## Pages (`src/pages/`)
 
 | Path | Page | What it's for |
